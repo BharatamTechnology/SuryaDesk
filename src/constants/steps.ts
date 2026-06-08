@@ -1,0 +1,20 @@
+export const STEPS = [
+  { id: 'A', title: 'Pre-Sales' },
+  { id: 'B', title: 'Site Survey' },
+  { id: 'C', title: 'Sales & Status' },
+  { id: 'D', title: 'Project Details' },
+  { id: 14, title: 'New Connection' },
+  { id: 1, title: 'Doc Correction' },
+  { id: 2, title: 'Load Extension' },
+  { id: 3, title: 'Online Registration' },
+  { id: 4, title: 'Loan Processing' },
+  { id: 5, title: 'Meter Dispatch' },
+  { id: 6, title: 'DISCOM (Pre-Install)' },
+  { id: 7, title: 'SITE INCHARGE' },
+  { id: 8, title: 'STORE INCHARGE' },
+  { id: 9, title: 'SITE TEAM' },
+  { id: 10, title: 'OFFICE EXEC (Post-Install)' },
+  { id: 11, title: 'DISCOM (Post-Install)' },
+  { id: 12, title: 'LOAN OFFICER (Post-Install)' },
+  { id: 13, title: 'SUBSIDY SECTION' }
+];

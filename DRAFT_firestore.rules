@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Auth helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'hemant.tyagi@bharatamtechnology.com'
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Lead Validation
+    function isValidLead(data) {
+      return data.keys().hasAll(['customerName', 'mobileNumber', 'status'])
+        && data.customerName is string && data.customerName.size() > 0 && data.customerName.size() <= 200
+        && data.mobileNumber is string && data.mobileNumber.size() > 0 && data.mobileNumber.size() <= 20
+        && data.status in ['New', 'Under Discussion', 'Negotiation', 'Won', 'Lost', 'Converted'];
+    }
+
+    match /leads/{leadId} {
+      allow read: if isSignedIn();
+      
+      allow create: if isSignedIn() 
+        && isValidLead(request.resource.data)
+        && request.resource.data.createdBy == request.auth.uid;
+
+      allow update: if isSignedIn() 
+        && isValidLead(request.resource.data)
+        && (
+          isAdmin() || 
+          resource.data.createdBy == request.auth.uid ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'siteVisitDate', 'visitedBy', 'roofType', 'shadowIssue', 
+            'locationType', 'phase', 'finalKw', 'connectionType', 'dcrType', 
+            'stdPackage', 'rateDeviationNotes', 'deviationDetails', 'deviationCost', 
+            'rateAfterDeviation', 'folderId', 'folderLink', 'assignedSales', 
+            'nextFollowUpDate', 'salesRemark', 'originalRate', 'discount', 
+            'finalRate', 'loadExtensionRequired', 'loadExtensionKw', 'propertyDocs', 
+            'loanRequired', 'loanAmount', 'marginAmount', 'projectType', 'advanceAmount', 
+            'urtNo', 'projectDate', 'projectRemark', 'projectAssignee', 
+            'paymentConfirmation', 'installationAssignee', 'updatedAt'
+          ])
+        );
+
+      allow delete: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,193 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(email) {
+      return request.auth.token.email.lower() == email.lower();
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email.lower() == 'hemant.tyagi@bharatamtechnology.com' ||
+        request.auth.token.email.lower() == 'hemanttyagi225@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) && 
+         get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'Admin')
+      );
+    }
+
+    function isExecutive() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) && 
+        get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'Executive'
+      );
+    }
+
+    function isPaymentProcessor() {
+      let email = request.auth.token.email.lower();
+      let hasUserDoc = exists(/databases/$(database)/documents/users/$(email));
+      let userName = hasUserDoc ? get(/databases/$(database)/documents/users/$(email)).data.get('name', '').lower() : '';
+      
+      return isAdmin() || 
+        (email == 'sitvik24@gmail.com' || userName.indexOf('sitvik') >= 0 || userName.indexOf('satvik') >= 0) ||
+        (email == 'anmolrathi20@gmail.com' || userName == 'anmol rathi') ||
+        (email == 'testuser@example.com' || email == 'hemanttyagi225@gmail.com' || userName == 'test user');
+    }
+
+    function isPaymentAssignee(existingPayment) {
+      let email = request.auth.token.email.lower();
+      let assignee = existingPayment.get('confirmationAssignee', '');
+      let hasUserDoc = exists(/databases/$(database)/documents/users/$(email));
+      let userName = hasUserDoc ? get(/databases/$(database)/documents/users/$(email)).data.get('name', '') : '';
+      
+      return (assignee != '') && (
+        (userName.lower() == assignee.lower()) ||
+        (assignee.lower() == 'admin' && (email == 'hemant.tyagi@bharatamtechnology.com' || email == 'hemanttyagi225@gmail.com')) ||
+        ((assignee.lower() == 'sitvik' || assignee.lower() == 'sitvik (admin)' || assignee.lower() == 'satvik') && email == 'sitvik24@gmail.com') ||
+        (assignee.lower() == 'anmol rathi' && email == 'anmolrathi20@gmail.com') ||
+        (assignee.lower() == 'test user' && (email == 'testuser@example.com' || email == 'hemant.tyagi@bharatamtechnology.com' || email == 'hemanttyagi225@gmail.com'))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['name', 'role', 'email'])
+        && data.name is string && data.name.size() <= 200
+        && data.role in ['Admin', 'Executive']
+        && data.email is string && data.email.size() <= 200
+        && (!data.keys().hasAny(['category']) || data.category in ['Sales Partner', 'Sales Person', 'None']);
+    }
+
+    match /users/{email} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    function isValidLead(data) {
+      return data.get('customerName', '') is string;
+    }
+
+    function isLeadMember(data) {
+      let email = request.auth.token.email.lower();
+      let members = data.get('members', []);
+      return (email in members)
+        || (data.get('createdBy', '').lower() == email)
+        || (data.get('assignedPreSales', '').lower() == email)
+        || (data.get('assignedTo', '').lower() == email)
+        || (data.get('assignedToEmail', '').lower() == email)
+        || (data.get('visitedByEmail', '').lower() == email)
+        || (data.get('assignedSalesEmail', '').lower() == email)
+        || (data.get('projectAssigneeEmail', '').lower() == email)
+        || (data.get('accAssigneeEmail', '').lower() == email)
+        || (data.get('execution_assignedToEmail', '').lower() == email)
+        || (data.get('s4_loanAssignedToEmail', '').lower() == email)
+        || (data.get('s5_storeDispatchAssignedToEmail', '').lower() == email)
+        || (data.get('s5_discomPreAssignedToEmail', '').lower() == email)
+        || (data.get('s6_inchargeAssignedToEmail', '').lower() == email)
+        || (data.get('s5_storeInchargeAssignedToEmail', '').lower() == email)
+        || (data.get('s7_assignedToEmail', '').lower() == email)
+        || (data.get('s8_assignedToEmail', '').lower() == email)
+        || (data.get('s9_assignedToEmail', '').lower() == email)
+        || (data.get('s10_assignedToEmail', '').lower() == email)
+        || (data.get('s11_assignedToEmail', '').lower() == email)
+        || (data.get('s_docCorr_assignedToEmail', '').lower() == email)
+        || (data.get('s_loadExt_assignedToEmail', '').lower() == email)
+        || (data.get('s6_assignedToEmail', '').lower() == email)
+        || (data.get('projectInchargeEmail', '').lower() == email);
+    }
+
+    match /leads/{leadId} {
+      allow read: if isSignedIn() && (
+        isAdmin() || 
+        isLeadMember(resource.data)
+      );
+      
+      allow create: if isSignedIn() 
+        && isValidLead(request.resource.data)
+        && (request.resource.data.get('createdBy', '').lower() == request.auth.token.email.lower());
+ 
+      allow update: if isSignedIn() 
+        && isValidLead(request.resource.data)
+        && (
+          isAdmin() || isLeadMember(resource.data) || isPaymentProcessor()
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    match /counters/{counterId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn(); // In a production app, this should be more restricted
+    }
+
+    function isValidServiceRequest(data) {
+      return data.get('mobileNumber', '') is string && data.get('mobileNumber', '').size() >= 10
+        && data.get('customerName', '') is string && data.get('customerName', '').size() > 0
+        && data.get('issue', '') is string && data.get('issue', '').size() > 0
+        && data.get('status', 'Open') in ['Open', 'Under Process', 'Resolved', 'Not Resolved', 'Closed'];
+    }
+
+    match /serviceRequests/{requestId} {
+      allow read: if isSignedIn() && (
+        isAdmin() || 
+        resource.data.get('assignedToEmail', '').lower() == request.auth.token.email.lower() ||
+        resource.data.get('createdBy', '').lower() == request.auth.token.email.lower()
+      );
+      allow create: if isSignedIn() && isValidServiceRequest(request.resource.data);
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        resource.data.get('assignedToEmail', '').lower() == request.auth.token.email.lower() ||
+        resource.data.get('createdBy', '').lower() == request.auth.token.email.lower()
+      );
+      allow delete: if isAdmin();
+    }
+
+    function isValidCommissionRecord(data) {
+      return data.category in ['Sales Partner', 'Sales Person']
+        && data.name is string && data.name.size() > 0
+        && data.name.size() <= 200
+        && data.soldAt is number
+        && data.commissionAmount is number
+        && data.companyShare is number
+        && data.date is timestamp
+        && (!data.keys().hasAny(['mrp']) || data.mrp is number)
+        && (!data.keys().hasAny(['kw']) || (data.kw is string && data.kw.size() <= 50))
+        && (!data.keys().hasAny(['remark']) || (data.remark is string && data.remark.size() <= 1000));
+    }
+
+    match /commissionRecords/{recordId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidCommissionRecord(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        isPaymentAssignee(resource.data) ||
+        (resource.data.status == 'Pending' && resource.data.get('recordedBy', '').lower() == request.auth.token.email.lower()) ||
+        (exists(/databases/$(database)/documents/leads/$(resource.data.leadId)) && 
+         get(/databases/$(database)/documents/leads/$(resource.data.leadId)).data.get('accAssigneeEmail', '').lower() == request.auth.token.email.lower())
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /settings/{document} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+  }
+}
