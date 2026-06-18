@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { leadService } from "../services/leadService";
+import { formatCreatorName } from "../utils/creatorUtils";
 import { userService } from "../services/userService";
-import { Lead, AppUser, Tab } from "../types";
+import { Lead, AppUser, Tab, ServiceRequest } from "../types";
+import { serviceRequestService } from "../services/serviceRequestService";
 import { format, subDays, subWeeks, subMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter } from "date-fns";
 import { 
   CheckCircle2, 
@@ -25,7 +27,8 @@ import {
   Briefcase,
   Users,
   CheckSquare,
-  Layers3
+  Layers3,
+  Download
 } from "lucide-react";
 import { User } from "firebase/auth";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
@@ -68,6 +71,7 @@ interface MappedTask {
 export default function MISReport({ user, role, onSelectLead }: MISReportProps) {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [employees, setEmployees] = useState<AppUser[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Tab switcher State (Executive MIS Summary vs Leaderboard & Productivity)
@@ -87,9 +91,10 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
   const [detailsModal, setDetailsModal] = useState<{
     isOpen: boolean;
     title: string;
-    type: 'leads' | 'tasks';
+    type: 'leads' | 'tasks' | 'services';
     leadsList?: Lead[];
     tasksList?: MappedTask[];
+    servicesList?: ServiceRequest[];
     metricKey?: string;
   }>({
     isOpen: false,
@@ -97,6 +102,7 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
     type: "leads",
     leadsList: [],
     tasksList: [],
+    servicesList: [],
     metricKey: ""
   });
   
@@ -149,9 +155,20 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
       setLoading(false);
     });
 
+    const normalizedEmail = (user?.email || "").toLowerCase().trim();
+    const isAdminUser = role === "Admin" || normalizedEmail === "hemant.tyagi@bharatamtechnology.com";
+    const unsubServices = serviceRequestService.subscribeToRequests(
+      user?.email || "",
+      isAdminUser,
+      (data) => {
+        setServiceRequests(data);
+      }
+    );
+
     return () => {
       unsubLeads();
       unsubUsers();
+      unsubServices();
     };
   }, [user, role]);
 
@@ -385,9 +402,11 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
           const dueTime = dueDateObj.getTime();
           status = compTime <= dueTime ? 'ontime' : 'delayed_done';
         } else {
-          const nowTime = new Date().getTime();
-          const dueTime = dueDateObj.getTime();
-          status = nowTime <= dueTime ? 'pending_ontrack' : 'pending_overdue';
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const dueDay = new Date(dueDateObj.getTime());
+          dueDay.setHours(0, 0, 0, 0);
+          status = today.getTime() <= dueDay.getTime() ? 'pending_ontrack' : 'pending_overdue';
         }
 
         tasks.push({
@@ -708,10 +727,68 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
   const executiveTasksPending = useMemo(() => {
     return allMappedTasks.filter(t => 
       !t.isSubmitted && 
+      t.status !== 'pending_overdue' &&
       getInPeriod(t.assignedDate, executivePeriod) && 
       (effectiveExecEmail === 'all' || isUserEmailMatch(t.assigneeEmail, effectiveExecEmail))
     );
   }, [allMappedTasks, executivePeriod, effectiveExecEmail, execFromDate, execToDate]);
+
+  const executiveTasksOverdue = useMemo(() => {
+    return allMappedTasks.filter(t => 
+      !t.isSubmitted && 
+      t.status === 'pending_overdue' &&
+      getInPeriod(t.assignedDate, executivePeriod) && 
+      (effectiveExecEmail === 'all' || isUserEmailMatch(t.assigneeEmail, effectiveExecEmail))
+    );
+  }, [allMappedTasks, executivePeriod, effectiveExecEmail, execFromDate, execToDate]);
+
+  // Service Request metrics
+  const serviceRequestsFiltered = useMemo(() => {
+    return serviceRequests.filter(r => {
+      // Check period
+      const inPeriod = getInPeriod(r.createdAt, executivePeriod);
+      // Check employee assignment filter
+      const userMatch = effectiveExecEmail === 'all' || isUserEmailMatch(r.assignedToEmail || '', effectiveExecEmail);
+      return inPeriod && userMatch;
+    });
+  }, [serviceRequests, executivePeriod, effectiveExecEmail, execFromDate, execToDate]);
+
+  const serviceRequestsAssigned = useMemo(() => {
+    return serviceRequestsFiltered;
+  }, [serviceRequestsFiltered]);
+
+  const serviceRequestsCompleted = useMemo(() => {
+    return serviceRequestsFiltered.filter(r => r.status === 'Resolved' || r.status === 'Closed');
+  }, [serviceRequestsFiltered]);
+
+  const serviceRequestsPending = useMemo(() => {
+    return serviceRequestsFiltered.filter(r => {
+      const isCompleted = r.status === 'Resolved' || r.status === 'Closed';
+      if (isCompleted) return false;
+      
+      // Overdue check: is NOT completed, and is less than 3 days old
+      if (!r.createdAt) return true;
+      const createdDate = parseToDate(r.createdAt);
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      const isOverdue = createdDate.getTime() < threeDaysAgo.getTime();
+      return !isOverdue;
+    });
+  }, [serviceRequestsFiltered]);
+
+  const serviceRequestsOverdue = useMemo(() => {
+    return serviceRequestsFiltered.filter(r => {
+      const isCompleted = r.status === 'Resolved' || r.status === 'Closed';
+      if (isCompleted) return false;
+      
+      // Overdue check: is NOT completed, and is older than or equal to 3 days
+      if (!r.createdAt) return false;
+      const createdDate = parseToDate(r.createdAt);
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      return createdDate.getTime() < threeDaysAgo.getTime();
+    });
+  }, [serviceRequestsFiltered]);
 
   // Drill-down Detail Modal click helpers
   const openLeadsDetails = (title: string, list: Lead[], metricKey?: string) => {
@@ -722,6 +799,7 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
       type: 'leads',
       leadsList: list,
       tasksList: [],
+      servicesList: [],
       metricKey: metricKey || ''
     });
   };
@@ -733,7 +811,20 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
       title,
       type: 'tasks',
       leadsList: [],
-      tasksList: list
+      tasksList: list,
+      servicesList: []
+    });
+  };
+
+  const openServicesDetails = (title: string, list: ServiceRequest[]) => {
+    setModalSearch("");
+    setDetailsModal({
+      isOpen: true,
+      title,
+      type: 'services',
+      leadsList: [],
+      tasksList: [],
+      servicesList: list
     });
   };
 
@@ -761,6 +852,19 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
       (t.status || "").toLowerCase().includes(q)
     );
   }, [detailsModal.tasksList, modalSearch]);
+
+  const filteredModalServices = useMemo(() => {
+    const list = detailsModal.servicesList || [];
+    if (!modalSearch.trim()) return list;
+    const q = modalSearch.toLowerCase().trim();
+    return list.filter(r => 
+      (r.customerName || "").toLowerCase().includes(q) ||
+      (r.issue || "").toLowerCase().includes(q) ||
+      (r.issueType || "").toLowerCase().includes(q) ||
+      (r.assignedTo || "").toLowerCase().includes(q) ||
+      (r.status || "").toLowerCase().includes(q)
+    );
+  }, [detailsModal.servicesList, modalSearch]);
 
   if (loading) {
     return (
@@ -817,21 +921,56 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
                 <p className="text-xs text-slate-500">Select reporting period matrix. Click any card index below to trigger detail drill-down.</p>
               </div>
               
-              {/* Sliding segment for reporting timeline */}
-              <div className="flex bg-slate-100 p-1 rounded-xl w-full md:w-auto max-w-sm shrink-0">
-                {(['daily', 'weekly', 'monthly', 'custom'] as const).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setExecutivePeriod(p)}
-                    className={`flex-1 text-center py-2 px-4 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
-                      executivePeriod === p 
-                        ? "bg-white text-slate-900 shadow-sm font-extrabold" 
-                        : "text-slate-500 hover:text-slate-800"
-                    }`}
-                  >
-                    {p === 'daily' ? 'Daily' : p === 'weekly' ? 'Weekly' : p === 'monthly' ? 'Monthly' : 'Custom'}
-                  </button>
-                ))}
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                <button
+                  onClick={() => {
+                    try {
+                      if (!leads.length) return;
+                      const headers = ['Ref', 'Prospect Name', 'Email', 'Mobile', 'City', 'Status', 'Creator', 'Created At'];
+                      const rows = leads.map(l => [
+                        l.id,
+                        `"${l.customerName || ''}"`,
+                        l.customerEmail || '',
+                        l.mobileNumber || '',
+                        `"${l.city || ''}"`,
+                        l.status || '',
+                        `"${l.createdBy || ''}"`,
+                        l.createdAt || ''
+                      ]);
+                      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join("\n");
+                      const encodedUri = encodeURI(csvContent);
+                      const link = document.createElement("a");
+                      link.setAttribute("href", encodedUri);
+                      link.setAttribute("download", `MIS_Leads_Dump_${new Date().getTime()}.csv`);
+                      document.body.appendChild(link);
+                      link.click();
+                      link.remove();
+                    } catch (err) {
+                      console.error("Export failed", err);
+                    }
+                  }}
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold border border-slate-200 hover:bg-slate-200 transition-all shrink-0"
+                  title="Download CSV"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">Export</span>
+                </button>
+                {/* Sliding segment for reporting timeline */}
+                <div className="flex bg-slate-100 p-1 rounded-xl w-full md:w-auto max-w-sm shrink-0">
+                  {(['daily', 'weekly', 'monthly', 'custom'] as const).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setExecutivePeriod(p)}
+                      className={`flex-1 text-center py-2 px-4 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+                        executivePeriod === p 
+                          ? "bg-white text-slate-900 shadow-sm font-extrabold" 
+                          : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      {p === 'daily' ? 'Daily' : p === 'weekly' ? 'Weekly' : p === 'monthly' ? 'Monthly' : 'Custom'}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -1017,7 +1156,7 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
               <span className="text-xs font-black uppercase text-slate-400 tracking-widest">Section II — Execution Deliverables</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
               {/* Assigned Tasks */}
               <motion.div
@@ -1031,7 +1170,7 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
                   <h2 className="text-4xl font-extrabold text-slate-800 leading-none group-hover:text-indigo-600 transition-colors">{executiveTasksAssigned.length}</h2>
                   <p className="text-xs font-medium text-slate-500">Operation processes initiated in period</p>
                 </div>
-                <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
                   <Users className="w-6 h-6" />
                 </div>
               </motion.div>
@@ -1048,7 +1187,7 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
                   <h2 className="text-4xl font-extrabold text-emerald-600 leading-none">{executiveTasksCompleted.length}</h2>
                   <p className="text-xs font-medium text-slate-500">Milestone steps submitted and cleared</p>
                 </div>
-                <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
               </motion.div>
@@ -1065,8 +1204,104 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
                   <h2 className="text-4xl font-extrabold text-amber-600 leading-none">{executiveTasksPending.length}</h2>
                   <p className="text-xs font-medium text-slate-500">Active tasks requiring execution in system</p>
                 </div>
-                <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
                   <Clock className="w-6 h-6" />
+                </div>
+              </motion.div>
+              
+              {/* Overdue Tasks */}
+              <motion.div
+                whileHover={{ y: -3 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => openTasksDetails(`${activePeriodLabel} • Overdue Tasks`, executiveTasksOverdue)}
+                className="bg-white hover:bg-rose-50/20 border border-slate-200/80 hover:border-rose-300 rounded-3xl p-6 shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center justify-between group"
+              >
+                <div className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-400 group-hover:text-rose-600 transition-colors">Overdue Tasks</span>
+                  <h2 className="text-4xl font-extrabold text-rose-600 leading-none">{executiveTasksOverdue.length}</h2>
+                  <p className="text-xs font-medium text-slate-500">Active tasks exceeding deadline</p>
+                </div>
+                <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+              </motion.div>
+
+            </div>
+          </div>
+
+          {/* SECTION C: SERVICE TASK METRICS */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 border-l-4 border-indigo-600 pl-3">
+              <span className="text-xs font-black uppercase text-slate-400 tracking-widest">Section III — Service Tasks Performance Index</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
+              {/* Assigned Service Tasks */}
+              <motion.div
+                whileHover={{ y: -3 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => openServicesDetails(`${activePeriodLabel} • Total Assigned Service Requests`, serviceRequestsAssigned)}
+                className="bg-white hover:bg-slate-50 border border-slate-200/80 hover:border-slate-300 rounded-3xl p-6 shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center justify-between group"
+              >
+                <div className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-400 group-hover:text-indigo-600 transition-colors">Assigned Services</span>
+                  <h2 className="text-4xl font-extrabold text-slate-800 leading-none group-hover:text-indigo-600 transition-colors">{serviceRequestsAssigned.length}</h2>
+                  <p className="text-xs font-medium text-slate-500">Service tickets received in period</p>
+                </div>
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <Users className="w-6 h-6" />
+                </div>
+              </motion.div>
+
+              {/* Completed Service Tasks */}
+              <motion.div
+                whileHover={{ y: -3 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => openServicesDetails(`${activePeriodLabel} • Resolved/Closed Service Requests`, serviceRequestsCompleted)}
+                className="bg-white hover:bg-emerald-50/20 border border-slate-200/80 hover:border-emerald-300 rounded-3xl p-6 shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center justify-between group"
+              >
+                <div className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-400 group-hover:text-emerald-600 transition-colors">Completed Services</span>
+                  <h2 className="text-4xl font-extrabold text-emerald-600 leading-none">{serviceRequestsCompleted.length}</h2>
+                  <p className="text-xs font-medium text-slate-500">Service tickets resolved or closed</p>
+                </div>
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+              </motion.div>
+
+              {/* Pending Service Tasks */}
+              <motion.div
+                whileHover={{ y: -3 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => openServicesDetails(`${activePeriodLabel} • Pending Service Requests`, serviceRequestsPending)}
+                className="bg-white hover:bg-amber-50/20 border border-slate-200/80 hover:border-amber-300 rounded-3xl p-6 shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center justify-between group"
+              >
+                <div className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-400 group-hover:text-amber-600 transition-colors">Pending Services</span>
+                  <h2 className="text-4xl font-extrabold text-amber-600 leading-none">{serviceRequestsPending.length}</h2>
+                  <p className="text-xs font-medium text-slate-500">Service tickets active and on-track</p>
+                </div>
+                <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                  <Clock className="w-6 h-6" />
+                </div>
+              </motion.div>
+              
+              {/* Overdue Service Tasks */}
+              <motion.div
+                whileHover={{ y: -3 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => openServicesDetails(`${activePeriodLabel} • Overdue Service Requests`, serviceRequestsOverdue)}
+                className="bg-white hover:bg-rose-50/20 border border-slate-200/80 hover:border-rose-300 rounded-3xl p-6 shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center justify-between group"
+              >
+                <div className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-400 group-hover:text-rose-600 transition-colors">Overdue Services</span>
+                  <h2 className="text-4xl font-extrabold text-rose-600 leading-none">{serviceRequestsOverdue.length}</h2>
+                  <p className="text-xs font-medium text-slate-500">Active tickets exceeding 3-day SLA</p>
+                </div>
+                <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-6 h-6" />
                 </div>
               </motion.div>
 
@@ -1560,7 +1795,7 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
                                           <div className="w-5 h-5 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
                                             <UserIcon className="w-3 h-3" />
                                           </div>
-                                          <span>{lead.createdByName || lead.createdBy || 'System / Auto'}</span>
+                                          <span>{formatCreatorName(lead.createdByName, lead.createdBy)}</span>
                                         </div>
                                         {lead.createdBy && lead.createdBy !== lead.createdByName && (
                                           <div className="text-[10px] text-slate-400 font-bold pl-6.5">
@@ -1625,7 +1860,7 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
                       </div>
                     </div>
                   )
-                ) : (
+                ) : detailsModal.type === 'tasks' ? (
                   /* Tasks list inside modal */
                   filteredModalTasks.length === 0 ? (
                     <div className="py-20 text-center space-y-2 bg-white rounded-2xl border border-slate-200/80">
@@ -1694,6 +1929,104 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
                                       <div className="text-[10px] text-slate-500 mt-0.5 font-medium flex items-center gap-1">
                                         <span className="text-slate-400 font-bold">Due:</span> {format(task.dueDate, "MMM d, yyyy")}
                                       </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-5 py-4 text-right">
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                                      isDone 
+                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                                        : isOverdue 
+                                          ? "bg-rose-50 text-rose-700 border-rose-200 animate-pulse" 
+                                          : "bg-amber-50 text-amber-700 border-amber-200"
+                                    }`}>
+                                      <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                                        isDone 
+                                          ? "bg-emerald-500" 
+                                          : isOverdue 
+                                            ? "bg-rose-500" 
+                                            : "bg-amber-500"
+                                      }`} />
+                                      {isDone ? "Completed" : isOverdue ? "Overdue" : "Pending"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  /* Services list inside modal */
+                  filteredModalServices.length === 0 ? (
+                    <div className="py-20 text-center space-y-2 bg-white rounded-2xl border border-slate-200/80">
+                      <Clock className="w-8 h-8 text-slate-300 mx-auto animate-pulse" />
+                      <p className="text-sm font-bold text-slate-700">No matching service requests</p>
+                      <p className="text-xs text-slate-400">Search value does not match any rows in active period.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden border border-slate-200/80 rounded-2xl shadow-sm bg-white">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs whitespace-nowrap">
+                          <thead className="bg-[#0f172a] text-slate-100 font-bold uppercase tracking-wider text-[11px] sticky top-0 z-10 border-b border-slate-300">
+                            <tr>
+                              <th className="px-5 py-4 font-extrabold">Service ID & Date</th>
+                              <th className="px-5 py-4 font-extrabold">Customer Name & Mobile</th>
+                              <th className="px-5 py-4 font-extrabold">Issue Details</th>
+                              <th className="px-5 py-4 font-extrabold">Technician Assignee</th>
+                              <th className="px-5 py-4 font-extrabold text-right">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 bg-white">
+                            {filteredModalServices.map((req) => {
+                              const dateStr = req.createdAt ? format(parseToDate(req.createdAt), "MMM d, yyyy") : "N/A";
+                              const isDone = req.status === 'Resolved' || req.status === 'Closed';
+                              const isOverdue = !isDone && (() => {
+                                if (!req.createdAt) return false;
+                                const createdDate = parseToDate(req.createdAt);
+                                const threeDaysAgo = new Date();
+                                threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+                                return createdDate.getTime() < threeDaysAgo.getTime();
+                              })();
+                              return (
+                                <tr
+                                  key={req.id}
+                                  className="hover:bg-slate-50 last:border-0 transition-colors group"
+                                >
+                                  <td className="px-5 py-4">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                        <Briefcase className="w-3.5 h-3.5" />
+                                      </div>
+                                      <div>
+                                        <div className="font-bold text-slate-900">{(req.id || "").slice(0, 8).toUpperCase()}</div>
+                                        <div className="text-[10px] text-slate-500 mt-0.5 font-medium flex items-center gap-1">
+                                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                          {dateStr}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-5 py-4">
+                                    <div>
+                                      <div className="font-bold text-slate-800">{req.customerName || "-"}</div>
+                                      <div className="text-[10px] text-slate-500 mt-0.5 font-semibold text-slate-400">{req.mobileNumber || "-"}</div>
+                                    </div>
+                                  </td>
+                                  <td className="px-5 py-4">
+                                    <div>
+                                      <div className="font-bold text-slate-800 truncate max-w-xs">{req.issue || "-"}</div>
+                                      <div className="text-[10px] text-slate-500 mt-0.5 font-semibold text-slate-400">{req.issueType || "-"}</div>
+                                    </div>
+                                  </td>
+                                  <td className="px-5 py-4">
+                                    <div>
+                                      <div className="font-bold text-slate-800 flex items-center gap-1">
+                                        <UserIcon className="w-3.5 h-3.5 text-slate-400" />
+                                        {req.assignedTo || "Unassigned"}
+                                      </div>
+                                      <div className="text-[10px] text-slate-500 mt-0.5 font-medium">{req.assignedToEmail || "-"}</div>
                                     </div>
                                   </td>
                                   <td className="px-5 py-4 text-right">

@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { leadService } from "../services/leadService";
+import { formatCreatorName } from "../utils/creatorUtils";
 import { userService } from "../services/userService";
 import { X, Save, AlertCircle, UserCheck } from "lucide-react";
 import { AppUser } from "../types";
@@ -70,21 +71,7 @@ export default function LeadForm({ user, onCancel, onSuccess }: LeadFormProps) {
         isBasicSubmitted: true,
         isPreSalesSubmitted: false,
         preSalesStatus: 'Pending',
-        createdByName: user?.displayName || (() => {
-          if (!user?.email) return 'System';
-          const found = users.find(u => u.email.toLowerCase().trim() === user.email!.toLowerCase().trim());
-          if (found && found.name) return found.name;
-          const emailLower = user.email.toLowerCase().trim();
-          if (emailLower === 'hemanttyagi225@gmail.com' || emailLower === 'hemant.tyagi@bharatamtechnology.com') return 'Hemant Tyagi';
-          const prefix = user.email.split('@')[0];
-          return prefix
-            .replace(/[._-]/g, ' ')
-            .replace(/([a-z])([0-9])/g, '$1 $2')
-            .split(' ')
-            .filter(Boolean)
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ') || 'System';
-        })(),
+        createdByName: formatCreatorName(user?.displayName, user?.email),
         stepAssignmentDates: {
           'pre_sales': now,
           'basic': now

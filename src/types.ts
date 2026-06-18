@@ -4,7 +4,8 @@ export interface AppUser {
   name: string;
   role: 'Admin' | 'Executive';
   email: string;
-  category?: 'Sales Partner' | 'Sales Person' | 'Field Supervisor' | 'Accountant' | 'Store Incharge' | 'Technician' | 'Bank executive' | 'Project Coordinator' | 'None';
+  category?: 'Sales Partner' | 'Sales Person' | 'Field Supervisor' | 'Accountant' | 'Store Incharge' | 'Technician' | 'Bank executive' | 'Project Coordinator' | 'Site Incharge/Supervisor' | 'None';
+  fcmToken?: string;
 }
 
 export type LeadStatus = 'New' | 'Under Discussion' | 'Negotiation' | 'Won' | 'Lost' | 'Converted' | 'Completed';
@@ -60,6 +61,7 @@ export interface Lead {
   drawingUrl?: string;
   gpsUrl?: string;
   meterUrl?: string;
+  smartMeterInstalled?: 'Yes' | 'No';
 
   // Section C
   assignedSales?: string;
@@ -95,6 +97,7 @@ export interface Lead {
   ssoIdAndPassword?: string;
   newConnectionRequired?: 'Yes' | 'No';
   newConnectionPhotosUrl?: string;
+  executionNewConnectionPhotosUrl?: string;
   newConnectionDetails?: string;
   advanceReceived?: 'Yes' | 'No';
   advanceAmount?: number;
@@ -158,6 +161,8 @@ export interface Lead {
   s5_readyToDispatchDate?: string;
   s5_dispatched?: 'Yes' | 'No';
   s5_dispatchDate?: string;
+  s5_meterDetails?: string;
+  s5_meterDispatchRemark?: string;
   s5_meterDispatchDate?: string;
   s5_fileMeterToDiscomDate?: string;
   s5_meterTestedReceived?: 'Yes' | 'No';
@@ -215,6 +220,8 @@ export interface Lead {
   s8_discomInspectionDate?: string;
   s8_meterInstalledDate?: string;
   s8_trainingCertUrl?: string;
+  s8_smartMeterConverted?: string;
+  s8_convertedPhotoUrl?: string;
   s8_siteOnDate?: string;
   s8_discomStatus?: 'On Time' | 'Delay';
   s8_discomRemark?: string;
@@ -269,6 +276,8 @@ export interface Lead {
   s10_assignedToEmail?: string;
   s_newConn_assignedTo?: string;
   s_newConn_assignedToEmail?: string;
+  s_newConn_appliedDate?: string;
+  s_newConn_uploadPhotosUrl?: string;
   projectAssigneeEmail?: string;
   accAssigneeEmail?: string;
   assignedTo?: string;
@@ -402,4 +411,17 @@ export interface CommissionRecord {
   remark: string;
   date: any;
   createdBy: string;
+}
+
+export interface AppNotification {
+  id?: string;
+  userId: string;
+  message: string;
+  taskId: string;
+  moduleType: string;
+  projectId?: string;
+  projectName?: string;
+  assignedBy: string;
+  timestamp: any;
+  isRead: boolean;
 }

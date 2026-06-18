@@ -62,12 +62,12 @@ export const CommissionManagement: React.FC<CommissionManagementProps> = ({ user
     };
   }, [isAdmin, userEmail]);
 
-  // Find leads that are converted (Won or Financially Submitted) and don't yet have a commission record
+  // Find leads that are marked as Completed and don't yet have a commission record
   // Also filter by the currently selected category
   const pendingLeads = useMemo(() => {
     return leads.filter(lead => {
-      const isConverted = lead.status === 'Won' || lead.isFinancialsSubmitted === true;
-      if (!isConverted) return false;
+      const isCompleted = lead.status === 'Completed';
+      if (!isCompleted) return false;
       
       // Check if there is already a commission record for this lead
       const hasRecord = commissions.some(c => c.leadId === lead.id);
@@ -88,6 +88,10 @@ export const CommissionManagement: React.FC<CommissionManagementProps> = ({ user
   }, [leads, commissions, users, category]);
 
   const handleLoadLead = (lead: Lead) => {
+    if (lead.status !== 'Completed') {
+      alert(`Commission calculation/entry is only allowed after the lead is marked as 'Completed'. (Current status: ${lead.status || 'N/A'})`);
+      return;
+    }
     setSelectedLeadId(lead.id);
     setName(lead.customerName);
     setKw(lead.finalKw || lead.requiredKw || 'N/A');
@@ -168,6 +172,17 @@ export const CommissionManagement: React.FC<CommissionManagementProps> = ({ user
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      if (selectedLeadId) {
+        const targetLead = leads.find(l => l.id === selectedLeadId);
+        if (!targetLead) {
+          alert("The associated lead could not be found.");
+          return;
+        }
+        if (targetLead.status !== 'Completed') {
+          alert(`Commission entry or calculation is not allowed. The associated lead is not marked as 'Completed' (current status: ${targetLead.status}).`);
+          return;
+        }
+      }
       if (editingId) {
         await commissionService.updateCommissionRecord(editingId, {
           category,
@@ -204,6 +219,13 @@ export const CommissionManagement: React.FC<CommissionManagementProps> = ({ user
   };
 
   const handleEdit = (rec: CommissionRecord) => {
+    if (rec.leadId) {
+      const targetLead = leads.find(l => l.id === rec.leadId);
+      if (targetLead && targetLead.status !== 'Completed') {
+        alert(`Calculations or editing is restricted because the linked lead is not marked as 'Completed' (current status: ${targetLead.status}).`);
+        return;
+      }
+    }
     setEditingId(rec.id);
     setName(rec.name);
     setKw(rec.kw);
@@ -233,12 +255,12 @@ export const CommissionManagement: React.FC<CommissionManagementProps> = ({ user
 
   return (
     <div className="space-y-8">
-      {/* Pending Conversions Area */}
+      {/* Pending Completed Payouts Area */}
       {pendingLeads.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Pending Conversions ({pendingLeads.length})</h3>
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Completed Leads Awaiting Payout ({pendingLeads.length})</h3>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
             {pendingLeads.map(lead => (
@@ -621,7 +643,7 @@ export const CommissionManagement: React.FC<CommissionManagementProps> = ({ user
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl"
+              className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col"
             >
               <div className="p-8 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -641,7 +663,7 @@ export const CommissionManagement: React.FC<CommissionManagementProps> = ({ user
                 </button>
               </div>
 
-              <div className="p-8 space-y-8">
+              <div className="p-8 space-y-8 overflow-y-auto flex-1 text-slate-800">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Recipient</p>

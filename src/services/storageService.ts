@@ -3,6 +3,11 @@ import { storage, auth } from "../lib/firebase";
 
 export const storageService = {
   async uploadLeadDocument(leadId: string, file: File, docType: string, onProgress?: (progress: number) => void): Promise<string> {
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    const isImage = file.type.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|svg)$/i.test(file.name);
+    if (!isPdf && !isImage) {
+      throw new Error("Only PDF documents and image files are allowed.");
+    }
     const startTime = Date.now();
     console.log(`[Storage] [${startTime}] Initiating atomic upload for ${docType} (${file.size} bytes)`);
     
@@ -67,6 +72,11 @@ export const storageService = {
   },
 
   async uploadServiceRequestPhoto(requestId: string, file: File, onProgress?: (progress: number) => void): Promise<string> {
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    const isImage = file.type.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|tiff?|heic|svg)$/i.test(file.name);
+    if (!isPdf && !isImage) {
+      throw new Error("Only PDF documents and image files are allowed.");
+    }
     const startTime = Date.now();
     console.log(`[Storage] [${startTime}] Initiating service request photo upload for ${requestId} (${file.size} bytes)`);
     

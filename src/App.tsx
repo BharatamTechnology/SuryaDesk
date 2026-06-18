@@ -38,21 +38,25 @@ import {
   ClipboardList,
   BarChart3,
   Maximize,
-  Minimize
+  Minimize,
+  Download
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import Dashboard from "./components/Dashboard";
 import LeadForm from "./components/LeadForm";
 import LeadDetail from "./components/LeadDetail";
-import UserManagement from "./components/UserManagement";
-import StepDeadlineManager from "./components/StepDeadlineManager";
+import AdminSection from "./components/AdminSection";
 import { ServiceManagement } from "./components/ServiceManagement";
 import { CommissionManagement } from "./components/CommissionManagement";
 import { PaymentManagement } from "./components/PaymentManagement";
 import TaskSheet from "./components/TaskSheet";
 import MISReport from "./components/MISReport";
+import { NotificationBell } from "./components/NotificationBell";
 import { userService } from "./services/userService";
 import { leadService } from "./services/leadService";
+import { notificationService } from "./services/notificationService";
+import { settingsService } from "./services/settingsService";
+import { RATE_TABLE } from "./constants/rates";
 import { AppUser, Lead, Tab } from "./types";
 
 export default function App() {
@@ -68,6 +72,26 @@ export default function App() {
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
+    }
+  };
 
   useEffect(() => {
     async function checkPendingTasks() {
@@ -103,6 +127,15 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u && u.email) {
+        // Request notification permission and activate token registration on app launch
+        try {
+          if (typeof window !== "undefined" && "Notification" in window) {
+            notificationService.requestAndSaveToken(u.email);
+          }
+        } catch (err) {
+          console.error("Error setting up push registration on app launch:", err);
+        }
+
         // Special case for lead admin
         if (u.email === 'hemant.tyagi@bharatamtechnology.com') {
           setRole('Admin');
@@ -166,6 +199,18 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const unsubRates = settingsService.subscribeToRates((customTable) => {
+      if (customTable && Object.keys(customTable).length > 0) {
+        for (const k in RATE_TABLE) {
+          delete RATE_TABLE[k];
+        }
+        Object.assign(RATE_TABLE, customTable);
+      }
+    });
+    return () => unsubRates();
+  }, []);
+
+  useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
@@ -187,9 +232,94 @@ export default function App() {
     }
   };
 
+  const mapModuleToTabAndStep = (moduleType: string, taskId: string): { tab: Tab | null, step: number | null } => {
+    let tab: Tab | null = null;
+    let step: number | null = null;
+
+    if (moduleType === 'lead_management') {
+      if (taskId === 'assignedPreSales') {
+        tab = 'pre_sales';
+      } else {
+        tab = 'basic';
+      }
+    } else if (moduleType === 'site_survey') {
+      tab = 'survey';
+    } else if (moduleType === 'project_control') {
+      if (taskId === 'projectAssigneeEmail') {
+        tab = 'financials';
+      } else if (taskId === 'accAssigneeEmail') {
+        tab = 'accounts';
+      } else if (taskId === 'projectInchargeEmail') {
+        tab = 'project_incharge';
+      } else {
+        tab = 'project_incharge';
+      }
+    } else if (moduleType === 'task_sheet' || taskId.startsWith('step') || taskId.startsWith('s')) {
+      tab = 'timeline';
+      if (taskId && typeof taskId === 'string') {
+        const match = taskId.match(/s(?:tep)?(\d+)/i);
+        if (match && match[1]) {
+          step = parseInt(match[1], 10);
+        }
+      }
+    } else if (moduleType === 'service_request') {
+      tab = 'timeline';
+    }
+
+    return { tab, step };
+  };
+
+  useEffect(() => {
+    // 1. Listen to background notifications clicked when app is already open
+    const handleSWMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'NOTIFICATION_CLICK') {
+        const { projectId, moduleType, taskId } = event.data;
+        if (projectId) {
+          const { tab, step } = mapModuleToTabAndStep(moduleType || "", taskId || "");
+          if (tab) setInitialTab(tab);
+          if (step) setInitialStepId(step);
+          setSelectedLeadId(projectId);
+          setActiveTab('detail');
+        }
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSWMessage);
+    }
+
+    // 2. Parse URL parameters on initial launch or route transition
+    const parseUrlParams = () => {
+      const params = new URLSearchParams(window.location.search);
+      const openLeadId = params.get('openLeadId');
+      const moduleType = params.get('module');
+      const taskId = params.get('task');
+
+      if (openLeadId) {
+        const { tab, step } = mapModuleToTabAndStep(moduleType || "", taskId || "");
+        if (tab) setInitialTab(tab);
+        if (step) setInitialStepId(step);
+        setSelectedLeadId(openLeadId);
+        setActiveTab('detail');
+
+        // Clear search parameters safely from browser URL bar without reload
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+      }
+    };
+
+    parseUrlParams();
+
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSWMessage);
+      }
+    };
+  }, []);
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+      <div className="flex items-center justify-center min-h-screen bg-white">
         <motion.div 
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
@@ -202,14 +332,14 @@ export default function App() {
 
   if (!user || (!isAuthorized && user.email !== 'hemant.tyagi@bharatamtechnology.com')) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-4">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white p-4">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center"
         >
-          <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 overflow-hidden bg-slate-50 border border-slate-100 p-1 shadow-sm">
-            <img src="/icon-192.png" alt="Sitvik Solar Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 overflow-hidden bg-black border border-black p-1 shadow-sm">
+            <img src="/icon-192.png?v=1.0.3" alt="Sitvik Solar Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
           </div>
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Sitvik Solar</h1>
           <p className="text-slate-500 mb-8">Manage your solar installation pipeline from survey to project completion.</p>
@@ -248,7 +378,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-[#F8FAFC] overflow-hidden selection:bg-blue-100 selection:text-blue-900">
+    <div className="flex h-screen bg-white overflow-hidden selection:bg-blue-100 selection:text-blue-900">
       {/* Background Pattern */}
       <div className="fixed inset-0 pointer-events-none opacity-[0.03] z-0">
         <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
@@ -265,8 +395,8 @@ export default function App() {
       <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-950 text-white transition-transform duration-500 ease-in-out ${isDesktopSidebarOpen ? 'lg:translate-x-0' : 'lg:-translate-x-full'} ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} border-right border-white/5`}>
         <div className="flex items-center justify-between p-8 mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-white/5 overflow-hidden p-0.5">
-              <img src="/icon-192.png" alt="Sitvik Solar Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+            <div className="w-10 h-10 bg-black rounded-2xl flex items-center justify-center shadow-lg shadow-white/5 overflow-hidden p-0.5">
+              <img src="/icon-192.png?v=1.0.3" alt="Sitvik Solar Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
             </div>
             <span className="text-xl font-display font-bold tracking-tight text-white">Sitvik Solar</span>
           </div>
@@ -407,6 +537,15 @@ export default function App() {
             <button className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg md:hidden">
               <Search className="w-5 h-5" />
             </button>
+            {deferredPrompt && (
+              <button
+                onClick={handleInstallClick}
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold tracking-wider hover:bg-blue-700 transition-all shadow-md shrink-0"
+              >
+                <Download className="w-3.5 h-3.5" /> Download App
+              </button>
+            )}
+            <NotificationBell userEmail={user.email!} onNavigateToProject={(id) => navigateToDetail(id)} />
             <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden border-2 border-white shadow-sm shrink-0">
                {user.photoURL && <img src={user.photoURL} alt="User" referrerPolicy="no-referrer" />}
             </div>
@@ -470,14 +609,9 @@ export default function App() {
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 10 }}
-                  className="flex flex-col gap-6"
+                  className="h-full"
                 >
-                  <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
-                    <UserManagement />
-                  </div>
-                  <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
-                    <StepDeadlineManager />
-                  </div>
+                  <AdminSection />
                 </motion.div>
               )}
               {activeTab === "services" && (

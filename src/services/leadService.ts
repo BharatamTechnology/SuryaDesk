@@ -14,12 +14,57 @@ import {
   onSnapshot,
   type DocumentData
 } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
+import { db, auth, storage } from '../lib/firebase';
+import { ref, listAll, deleteObject } from 'firebase/storage';
 import { OperationType, handleFirestoreError } from '../lib/firestoreUtils';
+import { notificationService } from './notificationService';
+import { formatCreatorName } from '../utils/creatorUtils';
 
 const COLLECTION_NAME = 'leads';
 
 const normalizeEmail = (email: string | null | undefined) => email?.toLowerCase().trim();
+
+const getFieldLabel = (field: string) => {
+  switch (field) {
+    case 'assignedPreSales': return 'Pre-Sales';
+    case 'assignedTo':
+    case 'assignedToEmail': return 'Lead Executive';
+    case 'visitedByEmail': return 'Technical Survey';
+    case 'assignedSalesEmail': return 'Sales Team';
+    case 'projectAssigneeEmail': return 'Project Manager';
+    case 'accAssigneeEmail': return 'Accountant';
+    case 'projectInchargeEmail': return 'Project Coordinator';
+    case 's_newConn_assignedToEmail': return 'New Connection Step';
+    case 's_docCorr_assignedToEmail': return 'Doc Correction Step';
+    case 's_loadExt_assignedToEmail': return 'Load Extension Step';
+    case 'execution_assignedToEmail': return 'Online Registration Step';
+    case 's4_loanAssignedToEmail': return 'Loan Processing Step';
+    case 's5_storeDispatchAssignedToEmail': return 'Meter Dispatch Step';
+    case 's5_discomPreAssignedToEmail': return 'DISCOM Pre-survey Step';
+    case 's6_inchargeAssignedToEmail': return 'Site Incharge Step';
+    case 's5_storeInchargeAssignedToEmail': return 'Store Incharge Step';
+    case 's6_assignedToEmail': return 'Site Team Step';
+    case 's7_assignedToEmail': return 'Office Exec Step';
+    case 's8_assignedToEmail': return 'DISCOM Post-Install Step';
+    case 's9_assignedToEmail': return 'Loan Officer Step';
+    case 's10_assignedToEmail': return 'Step 10 (Post-Install Phase)';
+    case 's11_assignedToEmail': return 'Subsidy Section Step';
+    default: return 'Task';
+  }
+};
+
+const getModuleType = (field: string) => {
+  if (['assignedPreSales', 'assignedTo', 'assignedToEmail', 'assignedSalesEmail'].includes(field)) {
+    return 'lead_management';
+  }
+  if (field === 'visitedByEmail') {
+    return 'site_survey';
+  }
+  if (['projectAssigneeEmail', 'accAssigneeEmail', 'projectInchargeEmail'].includes(field)) {
+    return 'project_control';
+  }
+  return 'task_sheet'; // any step
+};
 
 export const leadService = {
   async getAllLeads(role?: string | null, email?: string | null) {
@@ -214,7 +259,7 @@ export const leadService = {
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
           createdBy: creatorEmail,
-          createdByName: auth.currentUser?.displayName || creatorEmail,
+          createdByName: formatCreatorName(auth.currentUser?.displayName || undefined, creatorEmail),
           members: members,
           status: data.status || 'New',
           isSubmitted: data.isSubmitted || false
@@ -248,6 +293,7 @@ export const leadService = {
         'projectAssigneeEmail',
         'accAssigneeEmail',
         'projectInchargeEmail',
+        's_newConn_assignedToEmail',
         's_docCorr_assignedToEmail',
         's_loadExt_assignedToEmail',
         'execution_assignedToEmail',
@@ -285,6 +331,24 @@ export const leadService = {
               members.push(newEmail);
               membersChanged = true;
             }
+
+            // Create notification document
+            const customerName = currentData.customerName || "Solar Installation";
+            const label = getFieldLabel(field);
+            const moduleType = getModuleType(field);
+            const currentUserEmail = auth.currentUser?.email || "Admin";
+
+            if (newEmail !== normalizeEmail(currentUserEmail)) {
+              notificationService.createNotification({
+                userId: newEmail,
+                message: `You have been assigned to ${label} task for customer - ${customerName}`,
+                taskId: field,
+                moduleType,
+                projectId: id,
+                projectName: customerName,
+                assignedBy: currentUserEmail
+              }).catch(err => console.error("Could not write assignment notification:", err));
+            }
           }
         }
 
@@ -293,6 +357,23 @@ export const leadService = {
           if (!members.includes(updates.assignedTo)) {
             members.push(updates.assignedTo);
             membersChanged = true;
+          }
+
+          const currentAssignedTo = normalizeEmail(currentData.assignedTo);
+          if (updates.assignedTo && updates.assignedTo !== currentAssignedTo) {
+            const customerName = currentData.customerName || "Solar Installation";
+            const currentUserEmail = auth.currentUser?.email || "Admin";
+            if (updates.assignedTo !== normalizeEmail(currentUserEmail)) {
+              notificationService.createNotification({
+                userId: updates.assignedTo,
+                message: `You have been assigned to Lead Executive task for customer - ${customerName}`,
+                taskId: 'assignedTo',
+                moduleType: 'lead_management',
+                projectId: id,
+                projectName: customerName,
+                assignedBy: currentUserEmail
+              }).catch(err => console.error("Could not write assignment notification:", err));
+            }
           }
         }
 
@@ -309,6 +390,24 @@ export const leadService = {
 
   async deleteLead(id: string) {
     try {
+      // 1. Before deleting Firestore document, list all files in Storage folder: leads/{leadId}/
+      const folderRef = ref(storage, `leads/${id}`);
+      
+      try {
+        const fileList = await listAll(folderRef);
+        // 2. Delete all files from that folder using listAll() and deleteObject()
+        const deletePromises = fileList.items.map((fileRef) => deleteObject(fileRef));
+        await Promise.all(deletePromises);
+        console.log(`Successfully deleted all associated files in storage folder leads/${id}`);
+      } catch (storageError) {
+        // 4. Handle errors — if storage delete fails, still delete Firestore doc but show warning
+        console.warn("Associated Firebase Storage files deletion failed or folder was empty:", storageError);
+        if (typeof window !== "undefined") {
+          alert("Warning: Some associated files in Firebase Storage could not be deleted, but the lead document will still be deleted.");
+        }
+      }
+
+      // 3. Then delete the Firestore document
       const docRef = doc(db, COLLECTION_NAME, id);
       await deleteDoc(docRef);
     } catch (error) {

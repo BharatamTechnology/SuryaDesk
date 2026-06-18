@@ -4,6 +4,7 @@ import { userService } from "../services/userService";
 import { settingsService } from "../services/settingsService";
 import { Lead, AppUser, Tab, StepDeadlineConfig } from "../types";
 import { countWorkingDays } from "../utils/dateUtils";
+import { formatCreatorName } from "../utils/creatorUtils";
 import { format } from "date-fns";
 import { 
   Users, 
@@ -11,11 +12,18 @@ import {
   CheckCircle2, 
   XCircle, 
   Trash2,
+  Loader2,
   ChevronRight,
   Plus,
   AlertCircle,
   TrendingUp,
-  ClipboardList
+  ClipboardList,
+  Sparkles,
+  Zap,
+  Calendar,
+  ArrowRight,
+  Bell,
+  Download
 } from "lucide-react";
 import { motion } from "motion/react";
 import { User } from "firebase/auth";
@@ -457,39 +465,82 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead }: Dashb
 
   return (
     <div className="space-y-8">
-      {/* Actionable Tasks Summary Banner */}
+      {/* Sleek Animated Lightweight Pill Button with Rose/Red Alert Theme */}
       {sortedPendingTasks.length > 0 && viewMode !== 'created' && (
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-indigo-600 border border-indigo-700 rounded-[2.5rem] p-8 md:p-12 shadow-2xl shadow-indigo-200 text-white relative overflow-hidden group"
-        >
-          {/* Decorative background Elements */}
-          <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl pointer-events-none group-hover:scale-110 transition-transform duration-1000" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-400/20 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl pointer-events-none" />
-          
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-8 relative z-10">
-            <div className="flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
-              <div className="w-20 h-20 bg-white/20 backdrop-blur-xl rounded-[2rem] flex items-center justify-center shrink-0 border border-white/30 shadow-inner">
-                <ClipboardList className="w-10 h-10 text-white" />
-              </div>
-              <div>
-                <h3 className="text-3xl md:text-4xl font-black tracking-tighter mb-2 uppercase italic">Operational Pipeline</h3>
-                <p className="text-indigo-100 text-sm md:text-lg font-medium tracking-tight opacity-90 max-w-xl">
-                  You have <span className="font-black text-white px-2 py-0.5 bg-indigo-500 rounded-lg shadow-sm">{sortedPendingTasks.length} pending items</span> in your operational queue that require immediate attention.
-                </p>
-              </div>
-            </div>
-            
-            <button 
+        <div className="flex justify-start">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative"
+          >
+            {/* Pulsing ambient outer glow aura */}
+            <div className="absolute -inset-0.5 rounded-full bg-rose-500/20 blur-sm opacity-75 group-hover:opacity-100 animate-pulse pointer-events-none" />
+
+            <motion.button
+              animate={{ 
+                y: [0, -4, 0],
+              }}
+              whileHover={{ 
+                scale: 1.03,
+                boxShadow: "0 10px 20px -6px rgba(225, 29, 72, 0.3)"
+              }}
+              whileTap={{ scale: 0.98 }}
+              transition={{
+                y: {
+                  repeat: Infinity,
+                  duration: 2.5,
+                  ease: "easeInOut"
+                }
+              }}
               onClick={() => (window as any).setActiveTab?.('tasks')}
-              className="w-full lg:w-auto px-10 py-5 bg-white text-indigo-600 rounded-[1.5rem] font-black text-sm uppercase tracking-widest hover:bg-zinc-900 hover:text-white transition-all active:scale-95 shadow-xl shadow-indigo-950/20 flex items-center justify-center gap-3"
+              className="group relative inline-flex items-center gap-3 pl-3.5 pr-4.5 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 text-white border border-rose-500 rounded-full text-xs font-black uppercase tracking-wider transition-all cursor-pointer overflow-hidden shadow-md select-none"
             >
-              Execute Tasks
-              <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
-            </button>
-          </div>
-        </motion.div>
+              {/* Sliding shine reflection sweep */}
+              <motion.div 
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 pointer-events-none"
+                animate={{
+                  x: ["-150%", "300%"]
+                }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 2.8,
+                  ease: "easeInOut",
+                  repeatDelay: 1.5
+                }}
+              />
+
+              {/* Ringing Alarm Bell Icon */}
+              <motion.div
+                animate={{ 
+                  rotate: [0, -12, 12, -10, 8, -4, 0]
+                }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 2,
+                  repeatDelay: 3,
+                  ease: "easeInOut"
+                }}
+                className="relative flex items-center justify-center shrink-0"
+              >
+                <Bell className="w-4 h-4 fill-white/10" />
+                <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                </span>
+              </motion.div>
+
+              {/* Dynamic Notification Message */}
+              <span className="font-extrabold tracking-widest text-white flex items-center gap-1.5 leading-none">
+                {sortedPendingTasks.length} Pending Task{sortedPendingTasks.length > 1 ? 's' : ''}
+              </span>
+
+              {/* Arrow right indicator with hover shifting */}
+              <div className="w-5 h-5 rounded-full bg-white/15 border border-white/10 flex items-center justify-center text-white transition-all duration-300 shrink-0">
+                <ArrowRight className="w-3 h-3 transform transition-transform group-hover:translate-x-0.5" />
+              </div>
+            </motion.button>
+          </motion.div>
+        </div>
       )}
 
       {/* Stats Grid */}
@@ -560,12 +611,46 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead }: Dashb
                 </button>
               </div>
               
+              <button
+                onClick={() => {
+                  try {
+                    if (!filteredLeads.length) return;
+                    const headers = ['Ref', 'Prospect Name', 'Email', 'Mobile', 'City', 'Status', 'Creator', 'Created At'];
+                    const rows = filteredLeads.map(l => [
+                      l.id,
+                      `"${l.customerName || ''}"`,
+                      l.customerEmail || '',
+                      l.mobileNumber || '',
+                      `"${l.city || ''}"`,
+                      l.status || '',
+                      `"${l.createdBy || ''}"`,
+                      l.createdAt || ''
+                    ]);
+                    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join("\n");
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", `Leads_Export_${new Date().getTime()}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                  } catch (err) {
+                    console.error("Export failed", err);
+                  }
+                }}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2.5 bg-slate-100 text-slate-700 rounded-xl text-xs sm:text-sm font-bold border border-slate-200 hover:bg-slate-200 transition-all"
+                title="Download CSV"
+              >
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Export</span>
+              </button>
+
               <button 
                 onClick={onNewLead}
                 className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2 sm:py-2.5 bg-zinc-900 text-white rounded-xl text-xs sm:text-sm font-bold hover:bg-zinc-800 transition-all shadow-md"
               >
                 <Plus className="w-4 h-4" />
-                New Lead
+                New Pipeline Lead
               </button>
             </div>
           </div>
@@ -594,11 +679,12 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead }: Dashb
             <thead className="bg-slate-50/50 text-slate-400 text-[9px] font-black uppercase tracking-widest">
               <tr>
                 <th className="px-4 md:px-8 py-4">Prospect</th>
+                <th className="px-4 md:px-8 py-4">Creator</th>
                 <th className="px-4 md:px-8 py-4">Status</th>
-                <th className="px-4 md:px-8 py-4">SLA Status</th>
-                <th className="hidden lg:table-cell px-8 py-4">Tech Specs</th>
-                <th className="hidden md:table-cell px-8 py-4">Current Step & Owner</th>
-                <th className="hidden sm:table-cell px-8 py-4">Timeline</th>
+                <th className="px-8 py-4">Tech Specs</th>
+                <th className="px-8 py-4">Current Step & Owner</th>
+                <th className="px-8 py-4">Timeline</th>
+                <th className="px-4 md:px-8 py-4">Reference</th>
                 <th className="px-4 md:px-8 py-4 text-center">Action</th>
               </tr>
             </thead>
@@ -658,6 +744,14 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead }: Dashb
                       </div>
                     </td>
                     <td className="px-4 md:px-8 py-4">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-slate-700 truncate max-w-[120px] md:max-w-none">
+                          {formatCreatorName(lead.createdByName, lead.createdBy)}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">Creator</span>
+                      </div>
+                    </td>
+                    <td className="px-4 md:px-8 py-4">
                       <div className="block">
                         <span className={`inline-flex items-center px-2 py-1 rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest border ${
                           lead.status === 'Completed' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
@@ -677,66 +771,13 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead }: Dashb
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 md:px-8 py-4">
-                      <div className="flex flex-col gap-1.5 max-w-[120px]">
-                        {/* Row 1: Status Badge */}
-                        {timingStatus ? (
-                          <div className="block">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border ${
-                              timingStatus === 'On Time' 
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                                : 'bg-rose-50 text-rose-700 border-rose-100'
-                            }`}>
-                              <Clock className={`w-2.5 h-2.5 mr-1 ${timingStatus === 'On Time' ? 'text-emerald-500' : 'text-rose-500'}`} />
-                              {timingStatus}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="block">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-slate-50 text-slate-500 border border-slate-150">
-                              No SLA
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Row 2: Age/Going info */}
-                        <div className="flex flex-col gap-1 w-full">
-                          <div className="flex items-baseline justify-between text-[10px] text-slate-500 font-bold leading-none">
-                            <span>
-                              {goingDays === 0 ? (
-                                <span className="text-blue-600 font-extrabold uppercase tracking-wide text-[9px]">Created Today</span>
-                              ) : (
-                                <span>Age: <strong className="text-slate-800 font-extrabold">{goingDays}d</strong></span>
-                              )}
-                            </span>
-                            {totalAllowedDays > 0 && (
-                              <span className="text-[9px] text-slate-400 font-semibold">
-                                Max {totalAllowedDays}d
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Micro Progress Bar if SLA exists */}
-                          {totalAllowedDays > 0 && (
-                            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-0.5 border border-slate-200/50">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-300 ${
-                                  timingStatus === 'On Time' ? 'bg-emerald-500' : 'bg-rose-500'
-                                }`}
-                                style={{ width: `${Math.min(100, (goingDays / totalAllowedDays) * 100)}%` }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="hidden lg:table-cell px-8 py-4">
+                    <td className="px-8 py-4">
                       <div className="flex flex-col">
                         <span className="text-xs font-bold text-slate-700">{lead.requiredKw || '--'} KW</span>
                         <span className="text-[10px] text-slate-400 font-medium">Solar Plant</span>
                       </div>
                     </td>
-                    <td className="hidden md:table-cell px-8 py-4">
+                    <td className="px-8 py-4">
                       {generalActiveStep ? (
                         <div className="flex flex-col gap-1 max-w-[180px]">
                           <span className="text-xs font-semibold text-slate-700 leading-none truncate" title={generalActiveStep.label}>
@@ -755,10 +796,18 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead }: Dashb
                         <span className="text-xs text-slate-400">—</span>
                       )}
                     </td>
-                    <td className="hidden sm:table-cell px-8 py-4">
+                    <td className="px-8 py-4">
                       <div className="flex flex-col">
                         <span className="text-xs font-medium text-slate-600">{lead.updatedAt?.seconds ? format(new Date(lead.updatedAt.seconds * 1000), 'MMM d') : 'N/A'}</span>
                         <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Updated</span>
+                      </div>
+                    </td>
+                    <td className="px-4 md:px-8 py-4">
+                      <div className="flex flex-col">
+                        <span className={`text-xs font-bold truncate max-w-[120px] md:max-w-none ${lead.reference ? 'text-slate-700' : 'text-slate-400/80'}`}>
+                          {lead.reference || 'NA'}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">Reference</span>
                       </div>
                     </td>
                     <td className="px-4 md:px-8 py-4 text-center">
@@ -767,9 +816,13 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead }: Dashb
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDeleteLead(e, lead.id, lead.customerName); }}
                             disabled={isDeleting === lead.id}
-                            className="p-1.5 text-rose-300 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-all"
+                            className="p-1.5 text-rose-300 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-all flex items-center justify-center"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            {isDeleting === lead.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
                           </button>
                         )}
                         <span className="p-1.5 text-slate-300 group-hover:text-slate-900 group-hover:bg-slate-100 rounded-md transition-all">
@@ -782,7 +835,7 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead }: Dashb
               })}
               {paginatedLeads.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-8 py-32 text-center">
+                  <td colSpan={9} className="px-8 py-32 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
                         <Users className="w-10 h-10 text-slate-200" />

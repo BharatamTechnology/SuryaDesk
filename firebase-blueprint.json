@@ -67,6 +67,7 @@
         "drawingUrl": { "type": "string" },
         "gpsUrl": { "type": "string" },
         "meterUrl": { "type": "string" },
+        "smartMeterInstalled": { "type": "string", "enum": ["Yes", "No"] },
         "assignedSales": { "type": "string" },
         "nextFollowUpDate": { "type": "string", "format": "date" },
         "status": { "type": "string", "enum": ["Under Discussion", "Won", "Lost"] },
@@ -299,6 +300,17 @@
         "createdBy": { "type": "string" }
       },
       "required": ["mobileNumber", "customerName", "issue", "status"]
+    },
+    "RatesConfig": {
+      "title": "Rates Configuration",
+      "description": "Dynamic lookup table mapping package model names to kW rating rates",
+      "type": "object",
+      "properties": {
+        "table": {
+          "type": "object",
+          "description": "Nested dictionary structure containing kW tier lookup tags and numeric price rates"
+        }
+      }
     }
   },
   "firestore": {
@@ -317,6 +329,10 @@
     "/commissionRecords/{id}": {
       "schema": "CommissionRecord",
       "description": "Collection of calculated commission and sales incentives."
+    },
+    "/settings/{document}": {
+      "schema": "RatesConfig",
+      "description": "Collection of global setup and solar rating sheet definitions."
     }
   }
 }

@@ -9,24 +9,38 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isDeveloper() {
+      return isSignedIn() && 
+        request.auth.token != null && 
+        request.auth.token.email != null && (
+          request.auth.token.email.lower() == 'hemant.tyagi@bharatamtechnology.com' ||
+          request.auth.token.email.lower() == 'hemanttyagi225@gmail.com'
+        );
+    }
+
     function isUser(email) {
-      return request.auth.token.email.lower() == email.lower();
+      return isSignedIn() &&
+        request.auth.token != null &&
+        request.auth.token.email != null &&
+        request.auth.token.email.lower() == email.lower();
     }
 
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email.lower() == 'hemant.tyagi@bharatamtechnology.com' ||
-        request.auth.token.email.lower() == 'hemanttyagi225@gmail.com' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) && 
-         get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'Admin')
+      return isDeveloper() || (
+        isSignedIn() && 
+        request.auth.token != null && 
+        request.auth.token.email != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) && 
+        get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'Admin'
       );
     }
 
     function isExecutive() {
-      return isSignedIn() && (
+      return isSignedIn() && 
+        request.auth.token != null && 
+        request.auth.token.email != null && 
         exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) && 
-        get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'Executive'
-      );
+        get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'Executive';
     }
 
     function isPaymentProcessor() {
@@ -69,7 +83,54 @@ service cloud.firestore {
 
     match /users/{email} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow create: if isAdmin() || isDeveloper() || (
+        isSignedIn() && 
+        isUser(email) && 
+        request.resource.data.keys().hasOnly(['fcmToken'])
+      );
+      allow update: if isAdmin() || isDeveloper() || (
+        isSignedIn() && 
+        isUser(email) && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken'])
+      );
+      allow delete: if isAdmin() || isDeveloper();
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['userId', 'message', 'taskId', 'moduleType', 'assignedBy', 'isRead', 'timestamp'])
+        && data.userId is string && data.userId.size() <= 200
+        && data.message is string && data.message.size() <= 1000
+        && data.taskId is string && data.taskId.size() <= 128
+        && data.moduleType is string && data.moduleType.size() <= 100
+        && data.assignedBy is string && data.assignedBy.size() <= 200
+        && data.isRead is bool
+        && (!data.keys().hasAny(['projectId']) || (data.projectId is string && data.projectId.size() <= 128))
+        && (!data.keys().hasAny(['projectName']) || (data.projectName is string && data.projectName.size() <= 200));
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isSignedIn() && (
+        isAdmin() || 
+        resource.data.userId == request.auth.token.email.lower() ||
+        resource.data.userId == request.auth.token.email ||
+        resource.data.userId.lower() == request.auth.token.email.lower()
+      );
+      allow list: if isSignedIn() && (
+        isAdmin() || 
+        resource.data.userId == request.auth.token.email.lower() ||
+        resource.data.userId == request.auth.token.email
+      );
+      allow create: if isSignedIn() 
+        && isValidNotification(request.resource.data)
+        && request.resource.data.timestamp == request.time;
+      allow update: if isSignedIn() && (
+        isAdmin() || (
+          (resource.data.userId == request.auth.token.email.lower() || resource.data.userId == request.auth.token.email || resource.data.userId.lower() == request.auth.token.email.lower()) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']) &&
+          request.resource.data.isRead == true
+        )
+      );
+      allow delete: if isAdmin();
     }
 
     function isValidLead(data) {

@@ -60,9 +60,9 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({ user }) =>
     if (isAdminUser) return true;
     if (!p.confirmationAssignee) return false;
     
-    const userEmailClean = user.email.toLowerCase().trim();
-    const assigneeClean = p.confirmationAssignee.toLowerCase().trim();
-    const userNameClean = user.name.toLowerCase().trim();
+    const userEmailClean = (user.email || "").toLowerCase().trim();
+    const assigneeClean = (p.confirmationAssignee || "").toLowerCase().trim();
+    const userNameClean = (user.name || "").toLowerCase().trim();
     
     if (userNameClean === assigneeClean) return true;
     
@@ -118,7 +118,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({ user }) =>
       setLoading(false);
     });
     return () => unsub();
-  }, [user]);
+  }, [user.role, user.email]);
 
   useEffect(() => {
     if (selectedLead) {
@@ -147,15 +147,19 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({ user }) =>
 
   const filteredLeads = useMemo(() => {
     return leads.filter(l => 
-      l.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      l.leadId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      l.customerEmail.toLowerCase().includes(searchQuery.toLowerCase())
+      (l.customerName || "").toLowerCase().includes((searchQuery || "").toLowerCase()) ||
+      (l.leadId || "").toLowerCase().includes((searchQuery || "").toLowerCase()) ||
+      (l.customerEmail || "").toLowerCase().includes((searchQuery || "").toLowerCase())
     );
   }, [leads, searchQuery]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead || !formData.amount || !formData.utrNo) return;
+    if (!formData.confirmationAssignee) {
+      setError("Please select a verification assignee. All payments require confirmation/verification.");
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -169,7 +173,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({ user }) =>
         paymentType: formData.paymentType,
         method: formData.method,
         remarks: formData.remarks,
-        status: formData.confirmationAssignee ? 'Pending' : 'Confirmed',
+        status: 'Pending',
         confirmationAssignee: formData.confirmationAssignee
       });
 
@@ -503,7 +507,7 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({ user }) =>
                                      <span className="text-[9px] text-slate-400 uppercase tracking-wider block">Logged By</span>
                                      <span className="text-slate-800 font-extrabold truncate max-w-[110px] block">{(() => {
                                          if (!p.recordedBy) return 'System';
-                                         const found = users.find(u => u.email.toLowerCase().trim() === p.recordedBy!.toLowerCase().trim());
+                                         const found = users.find(u => u.email && u.email.toLowerCase().trim() === p.recordedBy!.toLowerCase().trim());
                                          if (found && found.name) return found.name;
                                          const emailLower = p.recordedBy.toLowerCase().trim();
                                          if (emailLower === 'hemanttyagi225@gmail.com' || emailLower === 'hemant.tyagi@bharatamtechnology.com') return 'Hemant Tyagi';
@@ -615,19 +619,20 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({ user }) =>
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">Verification Assignee</label>
                           <select 
+                            required
                             value={formData.confirmationAssignee}
                             onChange={(e) => setFormData({...formData, confirmationAssignee: e.target.value as any})}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-base md:text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all cursor-pointer h-12 md:h-11 shadow-sm appearance-none"
                             style={{ backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>")`, strokeWidth: 2, backgroundPosition: 'right 16px center', backgroundSize: '16px', backgroundRepeat: 'no-repeat' }}
                           >
-                            <option value="">Direct Posting (No confirmation needed)</option>
-                            {selectedLead?.accAssignee && (
+                            <option value="" disabled>Select for verification / confirmation *</option>
+                            {selectedLead?.accAssignee && users.some(u => u.name === selectedLead.accAssignee && (u.role === 'Admin' || u.category === 'Accountant')) && (
                               <option value={selectedLead.accAssignee}>Assigned Accountant: {selectedLead.accAssignee}</option>
                             )}
                             {users
-                              .filter(u => u.name && u.name !== selectedLead?.accAssignee)
+                              .filter(u => u.name && u.email && u.name !== selectedLead?.accAssignee && (u.role === 'Admin' || u.category === 'Accountant'))
                               .map(u => (
-                                <option key={u.email} value={u.name}>{u.name} ({u.role})</option>
+                                <option key={u.email} value={u.name}>{u.name} ({u.category === 'Accountant' ? 'Accountant' : 'Admin'})</option>
                               ))
                             }
                           </select>

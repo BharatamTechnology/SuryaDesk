@@ -94,7 +94,8 @@ export const userService = {
       const userRef = doc(db, COLLECTION_NAME, email);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
-        return (userSnap.data() as AppUser).role;
+        const role = (userSnap.data() as AppUser).role;
+        return email.toLowerCase() === "sitvik24@gmail.com" ? "Executive" : role;
       }
       return null;
     } catch (error) {
@@ -106,7 +107,17 @@ export const userService = {
   async getAllUsers(): Promise<AppUser[]> {
     try {
       const snapshot = await getDocs(collection(db, COLLECTION_NAME));
-      return snapshot.docs.map(doc => doc.data() as AppUser);
+      return snapshot.docs.map(doc => {
+        const data = doc.data() || {};
+        const email = doc.id;
+        return {
+          ...data,
+          email: email,
+          name: data.name || email.split("@")[0] || "Blank Record",
+          role: email.toLowerCase() === "sitvik24@gmail.com" ? "Executive" : (data.role || "Executive"),
+          category: data.category || "None"
+        } as AppUser;
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
       return [];
@@ -116,7 +127,17 @@ export const userService = {
   subscribeToUsers(callback: (users: AppUser[]) => void) {
     const q = query(collection(db, COLLECTION_NAME));
     return onSnapshot(q, (snapshot: any) => {
-      const data = snapshot.docs.map((doc: any) => doc.data() as AppUser);
+      const data = snapshot.docs.map((doc: any) => {
+        const d = doc.data() || {};
+        const email = doc.id;
+        return {
+          ...d,
+          email: email,
+          name: d.name || email.split("@")[0] || "Blank Record",
+          role: email.toLowerCase() === "sitvik24@gmail.com" ? "Executive" : (d.role || "Executive"),
+          category: d.category || "None"
+        } as AppUser;
+      });
       callback(data);
     }, (error: any) => {
       handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
@@ -125,7 +146,7 @@ export const userService = {
 
   async seedUsers() {
     const users: AppUser[] = [
-      { name: "Laxmi Narayan Meena", role: "Admin", email: "sitvik24@gmail.com" },
+      { name: "Laxmi Narayan Meena", role: "Executive", email: "sitvik24@gmail.com" },
       { name: "Kishan Lal Meena", role: "Admin", email: "kishanlalmeena.admin@gmail.com" }, 
       { name: "Pawan Kumar", role: "Executive", email: "pawanchaudharyaaaa051@gmail.com" },
       { name: "Rahul Nagarwal", role: "Executive", email: "rahulnagarwal366@gmail.com" },

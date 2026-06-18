@@ -9,12 +9,14 @@ import {
   orderBy, 
   serverTimestamp,
   getDocs,
+  getDoc,
   where,
   or
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import { ServiceRequest, Lead } from '../types';
 import { OperationType, handleFirestoreError } from '../lib/firestoreUtils';
+import { notificationService } from './notificationService';
 
 const COLLECTION_NAME = 'serviceRequests';
 
@@ -27,6 +29,20 @@ export const serviceRequestService = {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+
+      const assignedEmail = request.assignedToEmail;
+      if (assignedEmail) {
+        notificationService.createNotification({
+          userId: assignedEmail.toLowerCase().trim(),
+          message: `You have been assigned to service request for customer - ${request.customerName || "a customer"}`,
+          taskId: docRef.id,
+          moduleType: 'service_request',
+          projectId: docRef.id,
+          projectName: request.customerName || "Service Request",
+          assignedBy: auth.currentUser?.email || 'Admin'
+        }).catch(err => console.error(err));
+      }
+
       return docRef.id;
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, COLLECTION_NAME);
@@ -36,10 +52,39 @@ export const serviceRequestService = {
   async updateRequest(id: string, updates: Partial<ServiceRequest>) {
     try {
       const docRef = doc(db, COLLECTION_NAME, id);
+      
+      let currentEmail = '';
+      let customerName = 'Service Request';
+      try {
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          currentEmail = snap.data().assignedToEmail || '';
+          customerName = snap.data().customerName || 'Service Request';
+        }
+      } catch (e) {
+        console.error(e);
+      }
+
       await updateDoc(docRef, {
         ...updates,
         updatedAt: serverTimestamp(),
       });
+
+      const newEmail = updates.assignedToEmail;
+      if (newEmail && newEmail.toLowerCase().trim() !== currentEmail.toLowerCase().trim()) {
+        const currentUserEmail = auth.currentUser?.email || "Admin";
+        if (newEmail.toLowerCase().trim() !== currentUserEmail.toLowerCase().trim()) {
+          notificationService.createNotification({
+            userId: newEmail.toLowerCase().trim(),
+            message: `You have been assigned to service request for customer - ${customerName}`,
+            taskId: id,
+            moduleType: 'service_request',
+            projectId: id,
+            projectName: customerName,
+            assignedBy: currentUserEmail
+          }).catch(err => console.error(err));
+        }
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `${COLLECTION_NAME}/${id}`);
     }

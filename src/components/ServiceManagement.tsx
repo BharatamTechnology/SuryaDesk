@@ -164,6 +164,11 @@ export const ServiceManagement: React.FC<ServiceManagementProps> = ({ user }) =>
       return;
     }
 
+    if (!formData.issuePhotoUrl) {
+      setSubmitError("Please upload an issue photo / document.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await serviceRequestService.createRequest({
@@ -217,6 +222,11 @@ export const ServiceManagement: React.FC<ServiceManagementProps> = ({ user }) =>
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File size exceeds 5MB limit. Please upload a smaller file.");
+      return;
+    }
+
     setUploadingPhoto(true);
     setUploadProgress(10);
     try {
@@ -238,6 +248,11 @@ export const ServiceManagement: React.FC<ServiceManagementProps> = ({ user }) =>
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File size exceeds 5MB limit. Please upload a smaller file.");
+      return;
+    }
+
     setUploadingPhoto(true);
     setUploadProgress(10);
     try {
@@ -254,6 +269,11 @@ export const ServiceManagement: React.FC<ServiceManagementProps> = ({ user }) =>
   const handleCertificateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File size exceeds 5MB limit. Please upload a smaller file.");
+      return;
+    }
 
     setUploadingPhoto(true);
     setUploadProgress(10);
@@ -272,6 +292,18 @@ export const ServiceManagement: React.FC<ServiceManagementProps> = ({ user }) =>
     e.preventDefault();
     if (!selectedRequest) return;
     setUpdateError(null);
+
+    if (updateFormData.status === 'Resolved') {
+      if (!updateFormData.resolutionRemark?.trim()) {
+        setUpdateError("Resolution remark is required when marking as Resolved.");
+        return;
+      }
+      if (!updateFormData.resolvedPhotoUrl || !updateFormData.completionCertificateUrl) {
+        setUpdateError("Please upload both Resolved Photo and Completion Certificate when resolving ticket.");
+        return;
+      }
+    }
+
     setIsUpdating(true);
 
     try {
@@ -771,19 +803,25 @@ export const ServiceManagement: React.FC<ServiceManagementProps> = ({ user }) =>
                 </div>
 
                 <div className="space-y-2 col-span-full">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Upload Issue Photo (Optional)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Upload Issue Document (PDF Only, Optional)</label>
                   <div className={`mt-1 border-2 border-dashed rounded-2xl p-6 transition-all flex flex-col items-center justify-center gap-3 ${formData.issuePhotoUrl ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
                     {formData.issuePhotoUrl ? (
                       <>
-                        <div className="w-16 h-16 rounded-xl overflow-hidden shadow-md border-2 border-white">
-                          <img src={formData.issuePhotoUrl} alt="Issue Preview" className="w-full h-full object-cover" />
+                        <div className="w-16 h-16 rounded-xl overflow-hidden shadow-md border-2 border-white bg-blue-50 flex items-center justify-center text-blue-500">
+                          <span className="text-xs font-bold font-mono">PDF</span>
                         </div>
                         <div className="flex flex-col items-center">
-                          <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Photo Attached</span>
-                          <label className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer mt-1">
-                            Replace Photo
-                            <input type="file" className="hidden" accept="image/*" onChange={(e) => handlePhotoUpload(e, false)} />
-                          </label>
+                          <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Document Attached</span>
+                          <div className="flex gap-2">
+                            <a href={formData.issuePhotoUrl} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 font-bold hover:underline mt-1">
+                              View File
+                            </a>
+                            <span className="text-slate-300 mt-1">|</span>
+                            <label className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer mt-1">
+                              Replace File
+                              <input type="file" className="hidden" accept="*/*" onChange={(e) => handlePhotoUpload(e, false)} />
+                            </label>
+                          </div>
                         </div>
                       </>
                     ) : uploadingPhoto ? (
@@ -794,13 +832,13 @@ export const ServiceManagement: React.FC<ServiceManagementProps> = ({ user }) =>
                     ) : (
                       <>
                         <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400">
-                          <Camera className="w-6 h-6" />
+                          <Upload className="w-6 h-6" />
                         </div>
                         <div className="flex flex-col items-center">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Click or Upload Issue Image</span>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Click or Upload Issue File</span>
                           <label className="mt-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all cursor-pointer shadow-sm active:scale-95">
                             Select File
-                            <input type="file" className="hidden" accept="image/*" onChange={(e) => handlePhotoUpload(e, false)} />
+                            <input type="file" className="hidden" accept="*/*" onChange={(e) => handlePhotoUpload(e, false)} />
                           </label>
                         </div>
                       </>
@@ -908,103 +946,23 @@ export const ServiceManagement: React.FC<ServiceManagementProps> = ({ user }) =>
                 </div>
 
                  <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">before issue resolve Photo</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Before Issue Document (PDF)</label>
                   <div className={`mt-1 border-2 border-dashed rounded-2xl p-6 transition-all flex flex-col items-center justify-center gap-3 ${updateFormData.issuePhotoUrl ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
                     {updateFormData.issuePhotoUrl ? (
                       <>
-                        <div className="w-16 h-16 rounded-xl overflow-hidden shadow-md border-2 border-white">
-                          <img src={updateFormData.issuePhotoUrl} alt="Before Preview" className="w-full h-full object-cover" />
+                        <div className="w-16 h-16 rounded-xl overflow-hidden shadow-md border-2 border-white bg-blue-50 flex items-center justify-center text-blue-500">
+                          <span className="text-xs font-bold font-mono">PDF</span>
                         </div>
                         <div className="flex flex-col items-center">
-                          <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Photo Attached</span>
-                          <label className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer mt-1">
-                            Replace Photo
-                            <input type="file" className="hidden" accept="image/*" onChange={handleBeforePhotoUpload} />
-                          </label>
-                        </div>
-                      </>
-                    ) : uploadingPhoto ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="w-8 h-8 rounded-full border-2 border-blue-100 border-t-blue-600 animate-spin" />
-                        <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Uploading {uploadProgress}%</span>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400">
-                          <Camera className="w-6 h-6" />
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Click or Upload Before Image</span>
-                          <label className="mt-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all cursor-pointer shadow-sm active:scale-95">
-                            Select File
-                            <input type="file" className="hidden" accept="image/*" onChange={handleBeforePhotoUpload} />
-                          </label>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">After issue resolve Photo</label>
-                  <div className={`mt-1 border-2 border-dashed rounded-2xl p-6 transition-all flex flex-col items-center justify-center gap-3 ${updateFormData.resolvedPhotoUrl ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
-                    {updateFormData.resolvedPhotoUrl ? (
-                      <>
-                        <div className="w-16 h-16 rounded-xl overflow-hidden shadow-md border-2 border-white">
-                          <img src={updateFormData.resolvedPhotoUrl} alt="Preview" className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Photo Attached</span>
-                          <label className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer mt-1">
-                            Replace Photo
-                            <input type="file" className="hidden" accept="image/*" onChange={(e) => handlePhotoUpload(e, true)} />
-                          </label>
-                        </div>
-                      </>
-                    ) : uploadingPhoto ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="w-8 h-8 rounded-full border-2 border-blue-100 border-t-blue-600 animate-spin" />
-                        <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Uploading {uploadProgress}%</span>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400">
-                          <Camera className="w-6 h-6" />
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Click or Upload Resolution Image</span>
-                          <label className="mt-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all cursor-pointer shadow-sm active:scale-95">
-                            Select File
-                            <input type="file" className="hidden" accept="image/*" onChange={(e) => handlePhotoUpload(e, true)} />
-                          </label>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Services completion certificate from client</label>
-                  <div className={`mt-1 border-2 border-dashed rounded-2xl p-6 transition-all flex flex-col items-center justify-center gap-3 ${updateFormData.completionCertificateUrl ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
-                    {updateFormData.completionCertificateUrl ? (
-                      <>
-                        <div className="w-16 h-16 rounded-xl overflow-hidden shadow-md border-2 border-white bg-white flex items-center justify-center text-emerald-500">
-                          {updateFormData.completionCertificateUrl.match(/\.(jpeg|jpg|gif|png)$/i) || !updateFormData.completionCertificateUrl.includes('.') ? (
-                            <img src={updateFormData.completionCertificateUrl} alt="Certificate Preview" className="w-full h-full object-cover" />
-                          ) : (
-                            <Upload className="w-8 h-8 font-black" />
-                          )}
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Certificate Attached</span>
+                          <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Document Attached</span>
                           <div className="flex gap-2">
-                            <a href={updateFormData.completionCertificateUrl} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 font-bold hover:underline mt-1">
-                              View Certificate
+                            <a href={updateFormData.issuePhotoUrl} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 font-bold hover:underline mt-1">
+                              View File
                             </a>
                             <span className="text-slate-300 mt-1">|</span>
                             <label className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer mt-1">
                               Replace File
-                              <input type="file" className="hidden" onChange={handleCertificateUpload} />
+                              <input type="file" className="hidden" accept="*/*" onChange={handleBeforePhotoUpload} />
                             </label>
                           </div>
                         </div>
@@ -1020,10 +978,98 @@ export const ServiceManagement: React.FC<ServiceManagementProps> = ({ user }) =>
                           <Upload className="w-6 h-6" />
                         </div>
                         <div className="flex flex-col items-center">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Click or Upload Certificate / Document</span>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Click or Upload Before File</span>
                           <label className="mt-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all cursor-pointer shadow-sm active:scale-95">
                             Select File
-                            <input type="file" className="hidden" onChange={handleCertificateUpload} />
+                            <input type="file" className="hidden" accept="*/*" onChange={handleBeforePhotoUpload} />
+                          </label>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">After Issue Document (PDF)</label>
+                  <div className={`mt-1 border-2 border-dashed rounded-2xl p-6 transition-all flex flex-col items-center justify-center gap-3 ${updateFormData.resolvedPhotoUrl ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+                    {updateFormData.resolvedPhotoUrl ? (
+                      <>
+                        <div className="w-16 h-16 rounded-xl overflow-hidden shadow-md border-2 border-white bg-blue-50 flex items-center justify-center text-blue-500">
+                          <span className="text-xs font-bold font-mono">PDF</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Document Attached</span>
+                          <div className="flex gap-2">
+                            <a href={updateFormData.resolvedPhotoUrl} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 font-bold hover:underline mt-1">
+                              View File
+                            </a>
+                            <span className="text-slate-300 mt-1">|</span>
+                            <label className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer mt-1">
+                              Replace File
+                              <input type="file" className="hidden" accept="*/*" onChange={(e) => handlePhotoUpload(e, true)} />
+                            </label>
+                          </div>
+                        </div>
+                      </>
+                    ) : uploadingPhoto ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-8 h-8 rounded-full border-2 border-blue-100 border-t-blue-600 animate-spin" />
+                        <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Uploading {uploadProgress}%</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400">
+                          <Upload className="w-6 h-6" />
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Click or Upload Resolution File</span>
+                          <label className="mt-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all cursor-pointer shadow-sm active:scale-95">
+                            Select File
+                            <input type="file" className="hidden" accept="*/*" onChange={(e) => handlePhotoUpload(e, true)} />
+                          </label>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Services completion certificate</label>
+                  <div className={`mt-1 border-2 border-dashed rounded-2xl p-6 transition-all flex flex-col items-center justify-center gap-3 ${updateFormData.completionCertificateUrl ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+                    {updateFormData.completionCertificateUrl ? (
+                      <>
+                        <div className="w-16 h-16 rounded-xl overflow-hidden shadow-md border-2 border-white bg-blue-50 flex items-center justify-center text-blue-500">
+                          <span className="text-xs font-bold font-mono">PDF</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Certificate Attached</span>
+                          <div className="flex gap-2">
+                            <a href={updateFormData.completionCertificateUrl} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 font-bold hover:underline mt-1">
+                              View File
+                            </a>
+                            <span className="text-slate-300 mt-1">|</span>
+                            <label className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer mt-1">
+                              Replace File
+                              <input type="file" className="hidden" accept="*/*" onChange={handleCertificateUpload} />
+                            </label>
+                          </div>
+                        </div>
+                      </>
+                    ) : uploadingPhoto ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-8 h-8 rounded-full border-2 border-blue-100 border-t-blue-600 animate-spin" />
+                        <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Uploading {uploadProgress}%</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400">
+                          <Upload className="w-6 h-6" />
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Click or Upload Certificate</span>
+                          <label className="mt-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all cursor-pointer shadow-sm active:scale-95">
+                            Select File
+                            <input type="file" className="hidden" accept="*/*" onChange={handleCertificateUpload} />
                           </label>
                         </div>
                       </>
