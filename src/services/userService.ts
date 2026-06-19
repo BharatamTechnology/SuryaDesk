@@ -146,7 +146,7 @@ export const userService = {
 
   async seedUsers() {
     const users: AppUser[] = [
-      { name: "Laxmi Narayan Meena", role: "Executive", email: "sitvik24@gmail.com" },
+      { name: "Sitvik", role: "Executive", email: "sitvik24@gmail.com" },
       { name: "Kishan Lal Meena", role: "Admin", email: "kishanlalmeena.admin@gmail.com" }, 
       { name: "Pawan Kumar", role: "Executive", email: "pawanchaudharyaaaa051@gmail.com" },
       { name: "Rahul Nagarwal", role: "Executive", email: "rahulnagarwal366@gmail.com" },

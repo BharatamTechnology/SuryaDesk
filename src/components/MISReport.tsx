@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { User } from "firebase/auth";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import CapacityMIS from "./CapacityMIS";
 import { AnimatePresence, motion } from "motion/react";
 
 interface MISReportProps {
@@ -68,6 +69,38 @@ interface MappedTask {
   status: 'ontime' | 'delayed_done' | 'pending_ontrack' | 'pending_overdue';
 }
 
+const MetricCard = ({ title, count, subtitle, icon: Icon, onClick, color = "indigo" }: { title: string; count: number; subtitle: string; icon: any; onClick: () => void; color?: string }) => {
+    const colorClasses: Record<string, { bg: string, text: string, hoverBorder: string }> = {
+        indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', hoverBorder: 'hover:border-indigo-300' },
+        blue: { bg: 'bg-blue-50', text: 'text-blue-600', hoverBorder: 'hover:border-blue-300' },
+        amber: { bg: 'bg-amber-50', text: 'text-amber-600', hoverBorder: 'hover:border-amber-300' },
+        emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', hoverBorder: 'hover:border-emerald-300' },
+        rose: { bg: 'bg-rose-50', text: 'text-rose-600', hoverBorder: 'hover:border-rose-300' },
+        teal: { bg: 'bg-teal-50', text: 'text-teal-600', hoverBorder: 'hover:border-teal-300' },
+    };
+    const c = colorClasses[color] || colorClasses.indigo;
+    
+    return (
+        <motion.div
+            whileHover={{ y: -3 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onClick}
+            className={`bg-white hover:bg-slate-50 border border-slate-200/80 ${c.hoverBorder} rounded-3xl p-5 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col justify-between group`}
+        >
+            <div className="flex items-center justify-between mb-4">
+                <span className={`text-[10px] font-black uppercase tracking-wider text-slate-400 group-hover:${c.text} transition-colors`}>{title}</span>
+                <div className={`w-8 h-8 rounded-xl ${c.bg} ${c.text} flex items-center justify-center font-bold`}>
+                    <Icon className="w-4 h-4" />
+                </div>
+            </div>
+            <div>
+                <h2 className="text-3xl font-extrabold text-slate-800 leading-none mb-1 group-hover:text-slate-900 transition-colors">{count}</h2>
+                <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-tight">{subtitle}</p>
+            </div>
+        </motion.div>
+    );
+};
+
 export default function MISReport({ user, role, onSelectLead }: MISReportProps) {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [employees, setEmployees] = useState<AppUser[]>([]);
@@ -75,7 +108,7 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
   const [loading, setLoading] = useState(true);
   
   // Tab switcher State (Executive MIS Summary vs Leaderboard & Productivity)
-  const [activeTab, setActiveTab] = useState<'executive' | 'operations'>('executive');
+  const [activeTab, setActiveTab] = useState<'executive' | 'operations' | 'capacity'>('executive');
   
   // Executive MIS Range Selector (Daily, Weekly, Monthly, Custom)
   const [executivePeriod, setExecutivePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('monthly');
@@ -137,7 +170,7 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
     { emailField: 's6_assignedToEmail', nameField: 's6_assignedTo', submitField: 'isStep9Submitted', label: 'Step 10: Site Team', tab: 'execution', stepId: 9, key: '9' },
     { emailField: 's7_assignedToEmail', nameField: 's7_assignedTo', submitField: 'isStep10Submitted', label: 'Step 11: Office Exec', tab: 'execution', stepId: 10, key: '10' },
     { emailField: 's8_assignedToEmail', nameField: 's8_assignedTo', submitField: 'isStep11Submitted', label: 'Step 12: Discom Post-Install', tab: 'execution', stepId: 11, key: '11' },
-    { emailField: 's9_assignedToEmail', nameField: 's9_assignedTo', submitField: 'isStep12Submitted', label: 'Step 13: Loan Final', tab: 'execution', stepId: 12, key: '12' },
+    { emailField: 's9_assignedToEmail', nameField: 's9_assignedTo', submitField: 'isStep12Submitted', condition: (l: any) => l.loanRequired === 'Yes', label: 'Step 13: Loan Final', tab: 'execution', stepId: 12, key: '12' },
     { emailField: 's11_assignedToEmail', nameField: 's11_assignedTo', submitField: 'isStep13Submitted', label: 'Step 14: Subsidy', tab: 'execution', stepId: 13, key: '13' },
     { emailField: 'projectInchargeEmail', nameField: 'projectInchargeName', submitField: 'isExecutionSubmitted', label: 'Final Execution Review', tab: 'project_incharge', key: 'execution_start' }
   ];
@@ -906,6 +939,16 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
           >
             Operational Ledger
           </button>
+          <button
+            onClick={() => setActiveTab('capacity')}
+            className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+              activeTab === 'capacity'
+                ? "bg-white text-indigo-700 shadow-sm"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            Capacity MIS
+          </button>
         </div>
       </div>
 
@@ -1034,118 +1077,59 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-5">
               
               {/* Leads Created */}
-              <motion.div
-                whileHover={{ y: -3 }}
-                whileTap={{ scale: 0.98 }}
+              <MetricCard 
+                title="Leads Created"
+                count={executiveLeadsCreated.length}
+                subtitle="Punched in period"
+                icon={Layers3}
                 onClick={() => openLeadsDetails(`${activePeriodLabel} • Leads Created`, executiveLeadsCreated, "created")}
-                className="bg-white hover:bg-slate-50 border border-slate-200/80 hover:border-slate-300 rounded-3xl p-5 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col justify-between group"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 group-hover:text-indigo-600 transition-colors">Leads Created</span>
-                  <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-                    <Layers3 className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <h2 className="text-3xl font-extrabold text-slate-800 leading-none mb-1 group-hover:text-indigo-600 transition-colors">{executiveLeadsCreated.length}</h2>
-                  <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-tight">Punched in period</p>
-                </div>
-              </motion.div>
+              />
 
               {/* New Leads */}
-              <motion.div
-                whileHover={{ y: -3 }}
-                whileTap={{ scale: 0.98 }}
+              <MetricCard 
+                title="New"
+                count={executiveLeadsNew.length}
+                subtitle="Awaiting action"
+                icon={Sparkles}
+                color="blue"
                 onClick={() => openLeadsDetails(`${activePeriodLabel} • New Leads`, executiveLeadsNew, "new")}
-                className="bg-white hover:bg-slate-50 border border-slate-200/80 hover:border-slate-300 rounded-3xl p-5 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col justify-between group"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 group-hover:text-blue-600 transition-colors">New</span>
-                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <h2 className="text-3xl font-extrabold text-slate-800 leading-none mb-1 group-hover:text-blue-600 transition-colors">{executiveLeadsNew.length}</h2>
-                  <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-tight">Awaiting action</p>
-                </div>
-              </motion.div>
+              />
 
-              {/* Under Discussion */}
-              <motion.div
-                whileHover={{ y: -3 }}
-                whileTap={{ scale: 0.98 }}
+              <MetricCard 
+                title="Under Discussion"
+                count={executiveLeadsDiscussion.length}
+                subtitle="Active negotiations"
+                icon={Briefcase}
+                color="amber"
                 onClick={() => openLeadsDetails(`${activePeriodLabel} • Under Discussion`, executiveLeadsDiscussion, "discussion")}
-                className="bg-white hover:bg-slate-50 border border-slate-200/80 hover:border-slate-300 rounded-3xl p-5 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col justify-between group"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 group-hover:text-amber-600 transition-colors">Under Discussion</span>
-                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
-                    <Briefcase className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <h2 className="text-3xl font-extrabold text-slate-800 leading-none mb-1 group-hover:text-amber-600 transition-colors">{executiveLeadsDiscussion.length}</h2>
-                  <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-tight">Active negotiations</p>
-                </div>
-              </motion.div>
+              />
 
-              {/* Won Leads */}
-              <motion.div
-                whileHover={{ y: -3 }}
-                whileTap={{ scale: 0.98 }}
+              <MetricCard 
+                title="Won"
+                count={executiveLeadsWon.length}
+                subtitle="Converted successfully"
+                icon={TrendingUp}
+                color="emerald"
                 onClick={() => openLeadsDetails(`${activePeriodLabel} • Won Leads`, executiveLeadsWon, "won")}
-                className="bg-white hover:bg-emerald-50/20 border border-slate-200/80 hover:border-emerald-300 rounded-3xl p-5 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col justify-between group"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 group-hover:text-emerald-600 transition-colors">Won</span>
-                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <h2 className="text-3xl font-extrabold text-emerald-600 leading-none mb-1">{executiveLeadsWon.length}</h2>
-                  <p className="text-[10px] text-emerald-700 font-semibold uppercase tracking-tight">Converted successfully</p>
-                </div>
-              </motion.div>
+              />
 
-              {/* Lost Leads */}
-              <motion.div
-                whileHover={{ y: -3 }}
-                whileTap={{ scale: 0.98 }}
+              <MetricCard 
+                title="Lost"
+                count={executiveLeadsLost.length}
+                subtitle="Dropped / Cold"
+                icon={TrendingDown}
+                color="rose"
                 onClick={() => openLeadsDetails(`${activePeriodLabel} • Lost Leads`, executiveLeadsLost, "lost")}
-                className="bg-white hover:bg-rose-50/20 border border-slate-200/80 hover:border-rose-300 rounded-3xl p-5 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col justify-between group"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 group-hover:text-rose-600 transition-colors">Lost</span>
-                  <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
-                    <TrendingDown className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <h2 className="text-3xl font-extrabold text-rose-600 leading-none mb-1">{executiveLeadsLost.length}</h2>
-                  <p className="text-[10px] text-rose-700 font-semibold uppercase tracking-tight">Dropped / Cold</p>
-                </div>
-              </motion.div>
+              />
 
-              {/* Closed Leads */}
-              <motion.div
-                whileHover={{ y: -3 }}
-                whileTap={{ scale: 0.98 }}
+              <MetricCard 
+                title="Completed"
+                count={executiveLeadsClosed.length}
+                subtitle="Completed installations"
+                icon={CheckSquare}
+                color="teal"
                 onClick={() => openLeadsDetails(`${activePeriodLabel} • Closed Leads`, executiveLeadsClosed, "closed")}
-                className="bg-white hover:bg-teal-50/20 border border-slate-200/80 hover:border-teal-300 rounded-3xl p-5 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col justify-between group"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 group-hover:text-teal-600 transition-colors">Completed</span>
-                  <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center font-bold">
-                    <CheckSquare className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <h2 className="text-3xl font-extrabold text-teal-600 leading-none mb-1">{executiveLeadsClosed.length}</h2>
-                  <p className="text-[10px] text-teal-700 font-semibold uppercase tracking-tight">Completed installations</p>
-                </div>
-              </motion.div>
+              />
 
             </div>
           </div>
@@ -1158,73 +1142,40 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
-              {/* Assigned Tasks */}
-              <motion.div
-                whileHover={{ y: -3 }}
-                whileTap={{ scale: 0.98 }}
+              <MetricCard 
+                title="Assigned Tasks"
+                count={executiveTasksAssigned.length}
+                subtitle="Processes initiated"
+                icon={Users}
                 onClick={() => openTasksDetails(`${activePeriodLabel} • Total Assigned Tasks`, executiveTasksAssigned)}
-                className="bg-white hover:bg-slate-50 border border-slate-200/80 hover:border-slate-300 rounded-3xl p-6 shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center justify-between group"
-              >
-                <div className="space-y-2">
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-400 group-hover:text-indigo-600 transition-colors">Assigned Tasks</span>
-                  <h2 className="text-4xl font-extrabold text-slate-800 leading-none group-hover:text-indigo-600 transition-colors">{executiveTasksAssigned.length}</h2>
-                  <p className="text-xs font-medium text-slate-500">Operation processes initiated in period</p>
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                  <Users className="w-6 h-6" />
-                </div>
-              </motion.div>
+              />
 
-              {/* Completed Tasks */}
-              <motion.div
-                whileHover={{ y: -3 }}
-                whileTap={{ scale: 0.98 }}
+              <MetricCard 
+                title="Completed Tasks"
+                count={executiveTasksCompleted.length}
+                subtitle="Milestone steps cleared"
+                icon={CheckCircle2}
+                color="emerald"
                 onClick={() => openTasksDetails(`${activePeriodLabel} • Completed Tasks`, executiveTasksCompleted)}
-                className="bg-white hover:bg-emerald-50/20 border border-slate-200/80 hover:border-emerald-300 rounded-3xl p-6 shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center justify-between group"
-              >
-                <div className="space-y-2">
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-400 group-hover:text-emerald-600 transition-colors">Completed Tasks</span>
-                  <h2 className="text-4xl font-extrabold text-emerald-600 leading-none">{executiveTasksCompleted.length}</h2>
-                  <p className="text-xs font-medium text-slate-500">Milestone steps submitted and cleared</p>
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="w-6 h-6" />
-                </div>
-              </motion.div>
+              />
 
-              {/* Pending Tasks */}
-              <motion.div
-                whileHover={{ y: -3 }}
-                whileTap={{ scale: 0.98 }}
+              <MetricCard 
+                title="Pending Tasks"
+                count={executiveTasksPending.length}
+                subtitle="Active execution"
+                icon={Clock}
+                color="amber"
                 onClick={() => openTasksDetails(`${activePeriodLabel} • Pending Tasks`, executiveTasksPending)}
-                className="bg-white hover:bg-amber-50/20 border border-slate-200/80 hover:border-amber-300 rounded-3xl p-6 shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center justify-between group"
-              >
-                <div className="space-y-2">
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-400 group-hover:text-amber-600 transition-colors">Pending Tasks</span>
-                  <h2 className="text-4xl font-extrabold text-amber-600 leading-none">{executiveTasksPending.length}</h2>
-                  <p className="text-xs font-medium text-slate-500">Active tasks requiring execution in system</p>
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                  <Clock className="w-6 h-6" />
-                </div>
-              </motion.div>
-              
-              {/* Overdue Tasks */}
-              <motion.div
-                whileHover={{ y: -3 }}
-                whileTap={{ scale: 0.98 }}
+              />
+
+              <MetricCard 
+                title="Overdue Tasks"
+                count={executiveTasksOverdue.length}
+                subtitle="Exceeding deadline"
+                icon={AlertCircle}
+                color="rose"
                 onClick={() => openTasksDetails(`${activePeriodLabel} • Overdue Tasks`, executiveTasksOverdue)}
-                className="bg-white hover:bg-rose-50/20 border border-slate-200/80 hover:border-rose-300 rounded-3xl p-6 shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center justify-between group"
-              >
-                <div className="space-y-2">
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-400 group-hover:text-rose-600 transition-colors">Overdue Tasks</span>
-                  <h2 className="text-4xl font-extrabold text-rose-600 leading-none">{executiveTasksOverdue.length}</h2>
-                  <p className="text-xs font-medium text-slate-500">Active tasks exceeding deadline</p>
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-6 h-6" />
-                </div>
-              </motion.div>
+              />
 
             </div>
           </div>
@@ -1319,6 +1270,8 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
           </div>
 
         </div>
+      ) : activeTab === 'capacity' ? (
+        <CapacityMIS leads={leads} />
       ) : (
         /* ================= PRE-EXISTING OPERATIONAL LEDGER ================= */
         <div className="space-y-6 animate-in fade-in duration-300">

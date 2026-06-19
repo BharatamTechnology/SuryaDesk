@@ -302,6 +302,8 @@ export default function LeadDetail({
     message: string;
   } | null>(null);
 
+  const confirmationUsers = users.filter((u) => u.role === "Admin" || u.category === "Accountant");
+
   const isAdminUser = useMemo(() => {
     const userEmail = user?.email?.toLowerCase()?.trim();
     return (
@@ -475,6 +477,7 @@ export default function LeadDetail({
         emailField: "s9_assignedToEmail",
         nameField: "s9_assignedTo",
         submitField: "isStep12Submitted",
+        condition: (l: any) => l.loanRequired === "Yes",
         label: "Step 12: Loan Final",
         tab: "execution",
         stepId: 12,
@@ -641,7 +644,7 @@ export default function LeadDetail({
 
     return (
       userEmail === "hemant.tyagi@bharatamtechnology.com" ||
-      (lead.projectInchargeEmail || "").toLowerCase().trim() === userEmail ||
+      (lead.projectInchargeEmail || lead.projectAssigneeEmail || "").toLowerCase().trim() === userEmail ||
       isProjectCoordinator
     );
   }, [lead, user, users]);
@@ -666,10 +669,10 @@ export default function LeadDetail({
 
     // Now for Project Coordinator:
     // If a project has not yet been assigned to a Project Coordinator, then even the Project Coordinator should not be able to assign tasks from Project Control for that project.
-    const assignedInchargeEmail = (lead.projectInchargeEmail || "")
+    const assignedInchargeEmail = (lead.projectInchargeEmail || lead.projectAssigneeEmail || "")
       .toLowerCase()
       .trim();
-    const assignedInchargeName = (lead.projectInchargeName || "")
+    const assignedInchargeName = (lead.projectInchargeName || lead.projectAssignee || "")
       .toLowerCase()
       .trim();
     const currentUserName = (currentUserObj?.name || "").toLowerCase().trim();
@@ -716,7 +719,7 @@ export default function LeadDetail({
       { id: 9 },
       { id: 10 },
       { id: 11 },
-      { id: 12 },
+      { id: 12, condition: typeof lead !== "undefined" && lead?.loanRequired === "Yes" },
       { id: 13 },
     ].filter((step) => step.condition !== false);
 
@@ -762,7 +765,7 @@ export default function LeadDetail({
       { id: 9 },
       { id: 10 },
       { id: 11 },
-      { id: 12 },
+      { id: 12, condition: typeof lead !== "undefined" && lead?.loanRequired === "Yes", requiredField: "loanRequired" },
       { id: 13 },
     ].filter((step) => step.condition !== false);
 
@@ -1202,7 +1205,7 @@ export default function LeadDetail({
         { id: 9, condition: true },
         { id: 10, condition: true },
         { id: 11, condition: true },
-        { id: 12, condition: true },
+        { id: 12, condition: lead.loanRequired === "Yes" },
         { id: 13, condition: true },
       ];
 
@@ -1443,22 +1446,21 @@ export default function LeadDetail({
           );
           const snap = await getDocs(qStr);
           if (snap.empty) {
-            await addDoc(collection(db, "payments"), {
+            await paymentService.addPayment({
               leadId: lead.id,
               leadName: lead.customerName || "Unknown",
               amount: Number(lead.s4_firstInstallmentAmount || 0),
               utrNo: lead.s4_firstInstallmentUtr || "",
               date: lead.s4_firstInstallmentDate || "",
               paymentType: "Installment 1",
-              status: "Confirmed",
+              status: "Pending",
               method: "Online",
-              remarks: "Auto-logged via Step 4 (Installment 1) validation",
-              recordedBy: auth.currentUser?.email || "System",
-              recordedAt: new Date(),
+              remarks: "Auto-logged via Step 4 (Installment 1) validation - Pending Approval",
+              confirmationAssignee: lead.accAssignee || ""
             });
           }
         } else if (
-          stepId === 9 &&
+          (stepId === 9 || stepId === 12) &&
           lead.s9_secondInstallmentReceived === "Yes" &&
           lead.s9_secondInstallmentAmount
         ) {
@@ -1469,18 +1471,17 @@ export default function LeadDetail({
           );
           const snap = await getDocs(qStr);
           if (snap.empty) {
-            await addDoc(collection(db, "payments"), {
+            await paymentService.addPayment({
               leadId: lead.id,
               leadName: lead.customerName || "Unknown",
               amount: Number(lead.s9_secondInstallmentAmount || 0),
               utrNo: lead.s9_secondInstallmentUtr || "",
               date: lead.s9_secondInstallmentDate || "",
               paymentType: "Installment 2",
-              status: "Confirmed",
+              status: "Pending",
               method: "Online",
-              remarks: "Auto-logged via Step 9 (Installment 2) validation",
-              recordedBy: auth.currentUser?.email || "System",
-              recordedAt: new Date(),
+              remarks: `Auto-logged via Step ${stepId} (${stepId === 9 ? "Installment 2 Validation" : "LOAN OFFICER Post-Install"}) - Pending Approval`,
+              confirmationAssignee: lead.accAssignee || ""
             });
           }
         } else if (
@@ -2516,8 +2517,10 @@ export default function LeadDetail({
         missing.push("Smart Meter Converted to Net Meter");
       if (lead.s8_smartMeterConverted === "Yes" && !lead.s8_convertedPhotoUrl)
         missing.push("Converted Photo");
-      if (!lead.s9_assignedTo)
-        missing.push("Assign for Step 13: Loan Finalization");
+      if (lead.loanRequired === "Yes" && !lead.s9_assignedTo)
+        missing.push("Assign for Step 12: Loan Final");
+      if (lead.loanRequired !== "Yes" && !lead.s11_assignedTo)
+        missing.push("Assign for Step 13: Subsidy Claim");
 
       if (missing.length > 0) {
         showNotification(
@@ -3281,6 +3284,7 @@ export default function LeadDetail({
               value={lead.siteVisitDate}
               name="siteVisitDate"
               type="date"
+              max={format(new Date(), "yyyy-MM-dd")}
               onUpdate={handleUpdate}
               disabled={!canEditTab("survey")}
             />
@@ -3666,7 +3670,7 @@ export default function LeadDetail({
                   label="Lost Reason"
                   value={lead.lostReason}
                   name="lostReason"
-                  placeholder="Enter reason why lead was lost"
+                  options={['Price is too high', 'Quality is not as required', 'Material not available', 'All decide later', 'Finalised other', 'Other']}
                   onUpdate={handleUpdate}
                   disabled={!canEditTab("sales")}
                 />
@@ -4954,43 +4958,42 @@ export default function LeadDetail({
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-1000">
             {/* Real-time Dashboard Header */}
             <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl md:rounded-[3rem] blur opacity-15 group-hover:opacity-25 transition duration-1000"></div>
-              <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6 md:gap-8 bg-slate-950 rounded-2xl md:rounded-[2.5rem] p-6 md:p-14 text-white shadow-2xl overflow-hidden border border-white/5">
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-500/10 rounded-full -mr-64 -mt-64 blur-[120px] animate-pulse" />
-                <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/5 rounded-full -ml-48 -mb-48 blur-[100px]" />
+              <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl md:rounded-3xl blur opacity-10 group-hover:opacity-20 transition duration-1000"></div>
+              <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-slate-950 rounded-2xl md:rounded-3xl p-6 md:p-8 text-white shadow-2xl overflow-hidden border border-white/5">
+                <div className="absolute top-0 right-0 w-72 h-72 bg-blue-500/10 rounded-full -mr-32 -mt-32 blur-[80px] animate-pulse" />
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 rounded-full -ml-24 -mb-24 blur-[60px]" />
 
                 <div className="relative z-10 flex-1">
-                  <div className="flex items-center gap-3 mb-4 md:mb-6">
+                  <div className="flex items-center gap-3 mb-3 md:mb-4">
                     <div className="h-px w-6 md:w-8 bg-blue-500" />
-                    <span className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.3em] md:tracking-[0.4em] text-blue-400">
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-blue-400">
                       System Protocol Alpha
                     </span>
                   </div>
-                  <h3 className="text-2xl md:text-5xl font-display font-bold mb-3 md:mb-4 tracking-tight md:tracking-tighter leading-tight bg-gradient-to-br from-white via-white to-slate-400 bg-clip-text text-transparent">
-                    Project Management <br className="hidden md:block" /> System
-                    (PMS)
+                  <h3 className="text-2xl md:text-3xl font-display font-bold mb-2 md:mb-3 tracking-tight md:tracking-tighter leading-tight bg-gradient-to-br from-white via-white to-slate-400 bg-clip-text text-transparent">
+                    Project Management System (PMS)
                   </h3>
-                  <p className="text-slate-400 text-sm md:text-lg font-medium max-w-xl leading-relaxed">
+                  <p className="text-slate-400 text-sm md:text-base font-medium max-w-xl leading-relaxed">
                     Centrally managing the installation lifecycle, resource
                     allocation, and real-time execution protocols across all
                     active operational phases.
                   </p>
                 </div>
 
-                <div className="relative z-10 flex flex-col md:flex-row xl:flex-col gap-4 md:gap-6 w-full lg:w-auto min-w-0 md:min-w-[320px]">
+                <div className="relative z-10 flex flex-col md:flex-row xl:flex-col gap-4 md:gap-6 w-full lg:w-auto min-w-0 md:min-w-[280px]">
                   {/* Project Incharge Profile Card */}
-                  <div className="flex items-center gap-4 md:gap-5 bg-white/5 backdrop-blur-3xl p-4 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-white/10 shadow-2xl shadow-black/40 ring-1 ring-white/10 group/profile">
+                  <div className="flex items-center gap-3 md:gap-4 bg-white/5 backdrop-blur-3xl p-4 md:p-5 rounded-2xl border border-white/10 shadow-2xl shadow-black/40 ring-1 ring-white/10 group/profile">
                     <div className="relative">
-                      <div className="absolute -inset-2 bg-blue-500 rounded-2xl blur opacity-0 group-hover/profile:opacity-20 transition duration-500"></div>
-                      <div className="relative w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-500/30">
-                        <Shield className="w-8 h-8 text-white" />
+                      <div className="absolute -inset-2 bg-blue-500 rounded-xl blur opacity-0 group-hover/profile:opacity-20 transition duration-500"></div>
+                      <div className="relative w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center shadow-xl shadow-blue-500/30">
+                        <Shield className="w-6 h-6 text-white" />
                       </div>
                     </div>
                     <div>
-                      <label className="text-[10px] font-black text-blue-400 uppercase tracking-[0.25em] mb-1.5 block opacity-80">
+                      <label className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em] mb-1 block opacity-80">
                         Project In-Charge
                       </label>
-                      <p className="text-xl font-display font-bold text-white leading-tight mb-1">
+                      <p className="text-lg font-display font-bold text-white leading-tight mb-1">
                         {lead.projectInchargeName || "Authorization Required"}
                       </p>
                       <div className="flex items-center gap-2">
@@ -5016,7 +5019,7 @@ export default function LeadDetail({
                       { id: 9, active: true },
                       { id: 10, active: true },
                       { id: 11, active: true },
-                      { id: 12, active: true },
+                      { id: 12, active: lead.loanRequired === "Yes" },
                       { id: 13, active: true },
                     ].filter((s) => s.active);
                     const totalActive = activeSteps.length;
@@ -5351,7 +5354,9 @@ export default function LeadDetail({
                       emailField: "s9_assignedToEmail",
                       nameField: "s9_assignedTo",
                       icon: CreditCard,
+                      condition: lead.loanRequired === "Yes",
                       desc: "Final Audit",
+                      requiredField: "loanRequired",
                     },
                     {
                       id: 13,
@@ -5791,7 +5796,9 @@ export default function LeadDetail({
                   emailField: "s9_assignedToEmail",
                   nameField: "s9_assignedTo",
                   icon: CreditCard,
+                  condition: lead.loanRequired === "Yes",
                   desc: "Final Audit",
+                  requiredField: "loanRequired",
                 },
                 {
                   id: 13,
@@ -6227,7 +6234,7 @@ export default function LeadDetail({
                   { id: 9, label: "SITE TEAM" },
                   { id: 10, label: "OFFICE EXEC (Post-Install)" },
                   { id: 11, label: "DISCOM (Post-Install)" },
-                  { id: 12, label: "LOAN OFFICER (Post-Install)" },
+                  { id: 12, label: "LOAN OFFICER (Post-Install)", condition: lead.loanRequired === "Yes" },
                   { id: 13, label: "SUBSIDY SECTION" },
                 ]
                   .filter((step) => step.condition !== false)
@@ -6832,6 +6839,15 @@ export default function LeadDetail({
                       name="s4_loanRemark"
                       multiline
                       rows={1}
+                      onUpdate={handleUpdate}
+                      disabled={!canEditStep(4)}
+                    />
+
+                    <InputField
+                      label="Confirmation Assignee"
+                      value={lead.accAssignee}
+                      name="accAssignee"
+                      options={confirmationUsers.map((u) => u.name)}
                       onUpdate={handleUpdate}
                       disabled={!canEditStep(4)}
                     />
@@ -8324,6 +8340,15 @@ export default function LeadDetail({
                       name="s9_loanRemark"
                       multiline
                       rows={1}
+                      onUpdate={handleUpdate}
+                      disabled={!canEditStep(12)}
+                    />
+
+                    <InputField
+                      label="Confirmation Assignee"
+                      value={lead.accAssignee}
+                      name="accAssignee"
+                      options={confirmationUsers.map((u) => u.name)}
                       onUpdate={handleUpdate}
                       disabled={!canEditStep(12)}
                     />

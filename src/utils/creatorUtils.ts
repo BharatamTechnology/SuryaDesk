@@ -35,7 +35,7 @@ export function formatCreatorName(name: string | undefined, email: string | unde
         matchedName.toUpperCase().includes("SITVIK RENEW") ||
         matchedName.toUpperCase().includes("SITVIK")
       ) {
-        return "Laxmi Narayan Meena";
+        return "Sitvik";
       }
       return matchedName;
     }
@@ -48,7 +48,7 @@ export function formatCreatorName(name: string | undefined, email: string | unde
     normalizedName.includes("SITVIK RENEW") ||
     normalizedName.includes("SITVIK")
   ) {
-    return "Laxmi Narayan Meena";
+    return "Sitvik";
   }
 
   // 3. Predefined email mapping fallback for precise employee names

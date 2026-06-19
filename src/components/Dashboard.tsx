@@ -51,9 +51,10 @@ interface DashboardProps {
   role: AppUser['role'] | null;
   onSelectLead: (id: string, stepId?: number, tab?: Tab) => void;
   onNewLead: () => void;
+  searchQuery?: string;
 }
 
-export default function Dashboard({ user, role, onSelectLead, onNewLead }: DashboardProps) {
+export default function Dashboard({ user, role, onSelectLead, onNewLead, searchQuery = "" }: DashboardProps) {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [deadlines, setDeadlines] = useState<StepDeadlineConfig>({});
@@ -121,7 +122,7 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead }: Dashb
     { emailField: 's6_assignedToEmail', nameField: 's6_assignedTo', submitField: 'isStep9Submitted', label: 'Step 10: Site Team', tab: 'execution', stepId: 9 },
     { emailField: 's7_assignedToEmail', nameField: 's7_assignedTo', submitField: 'isStep10Submitted', label: 'Step 11: Office Exec', tab: 'execution', stepId: 10 },
     { emailField: 's8_assignedToEmail', nameField: 's8_assignedTo', submitField: 'isStep11Submitted', label: 'Step 12: Discom Post-Install', tab: 'execution', stepId: 11 },
-    { emailField: 's9_assignedToEmail', nameField: 's9_assignedTo', submitField: 'isStep12Submitted', label: 'Step 13: Loan Final', tab: 'execution', stepId: 12 },
+    { emailField: 's9_assignedToEmail', nameField: 's9_assignedTo', submitField: 'isStep12Submitted', condition: (l: any) => l.loanRequired === 'Yes', label: 'Step 13: Loan Final', tab: 'execution', stepId: 12 },
     { emailField: 's11_assignedToEmail', nameField: 's11_assignedTo', submitField: 'isStep13Submitted', label: 'Step 14: Subsidy', tab: 'execution', stepId: 13 },
     { emailField: 'projectInchargeEmail', nameField: 'projectInchargeName', submitField: 'isExecutionSubmitted', label: 'Final Execution Review', tab: 'project_incharge' }
   ];
@@ -151,8 +152,8 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead }: Dashb
       let displayTab = (currentStep as any).tab;
       let displayStepId = (currentStep as any).stepId;
 
-      if (l.isAccountsSubmitted && currentStep.tab === 'execution' && !assignedEmail && l.projectInchargeEmail) {
-        assignedEmail = l.projectInchargeEmail;
+      if (l.isAccountsSubmitted && currentStep.tab === 'execution' && !assignedEmail && (l.projectInchargeEmail || l.projectAssigneeEmail)) {
+        assignedEmail = l.projectInchargeEmail || l.projectAssigneeEmail;
         displayLabel = 'Project Control';
         displayTab = 'project_incharge';
         displayStepId = undefined;
@@ -247,7 +248,7 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead }: Dashb
       return 'Hemant Tyagi';
     }
     if (prefixLower === 'sitvik24') {
-      return 'Laxmi Narayan Meena';
+      return 'Sitvik';
     }
     if (prefixLower === 'kishanlalmeena.admin' || prefixLower === 'kishanlalmeena') {
       return 'Kishan Lal Meena';
@@ -342,12 +343,14 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead }: Dashb
       const email = (l as any)[currentStep.emailField] || '';
       let name = (l as any)[currentStep.nameField] || '';
 
-      if (l.isAccountsSubmitted && currentStep.tab === 'execution' && !email && l.projectInchargeEmail) {
+      if (l.isAccountsSubmitted && currentStep.tab === 'execution' && !email && (l.projectInchargeEmail || l.projectAssigneeEmail)) {
+        const inchargeEmail = l.projectInchargeEmail || l.projectAssigneeEmail || "";
+        const inchargeName = l.projectInchargeName || l.projectAssignee || "";
         return {
           label: 'Project Control',
-          name: getUserDisplayName(l.projectInchargeEmail, l.projectInchargeName),
-          email: l.projectInchargeEmail,
-          isMine: typeof l.projectInchargeEmail === 'string' && l.projectInchargeEmail.toLowerCase().trim() === normalizedUserEmail,
+          name: getUserDisplayName(inchargeEmail, inchargeName),
+          email: inchargeEmail,
+          isMine: typeof inchargeEmail === 'string' && inchargeEmail.toLowerCase().trim() === normalizedUserEmail,
         };
       }
 
@@ -387,7 +390,7 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead }: Dashb
   const pendingActionLeads = sortedPendingTasks.map(t => t.lead);
 
   const assignedLeads = leads.filter(l => 
-    [...SEQUENCE.map(s => s.emailField), 'visitedByEmail', 'projectInchargeEmail'].some(field => {
+    [...SEQUENCE.map(s => s.emailField), 'visitedByEmail', 'projectInchargeEmail', 'projectAssigneeEmail'].some(field => {
       const val = (l as any)[field];
       return typeof val === 'string' && val.toLowerCase().trim() === normalizedUserEmail;
     })
@@ -399,14 +402,31 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead }: Dashb
     : (viewMode === 'created' ? createdLeads : assignedLeads);
 
   const filteredLeads = leadsToFilter.filter(l => {
-    if (statusFilter === 'All') return true;
-    if (statusFilter === 'Under Discussion') {
-      return l.status === 'Under Discussion' || l.status === 'Negotiation';
+    let matchesStatus = true;
+    if (statusFilter !== 'All') {
+      if (statusFilter === 'Under Discussion') {
+        matchesStatus = l.status === 'Under Discussion' || l.status === 'Negotiation';
+      } else if (statusFilter === 'Won') {
+        matchesStatus = l.status === 'Won' || l.status === 'Converted';
+      } else {
+        matchesStatus = l.status === statusFilter;
+      }
     }
-    if (statusFilter === 'Won') {
-      return l.status === 'Won' || l.status === 'Converted';
+
+    if (!matchesStatus) return false;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch = 
+        (l.customerName || "").toLowerCase().includes(q) ||
+        (l.id || "").toLowerCase().includes(q) ||
+        (l.customerEmail || "").toLowerCase().includes(q) ||
+        (l.mobileNumber || "").toLowerCase().includes(q) ||
+        (l.city || "").toLowerCase().includes(q);
+      if (!matchesSearch) return false;
     }
-    return l.status === statusFilter;
+
+    return true;
   });
 
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
@@ -615,18 +635,32 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead }: Dashb
                 onClick={() => {
                   try {
                     if (!filteredLeads.length) return;
-                    const headers = ['Ref', 'Prospect Name', 'Email', 'Mobile', 'City', 'Status', 'Creator', 'Created At'];
-                    const rows = filteredLeads.map(l => [
-                      l.id,
-                      `"${l.customerName || ''}"`,
-                      l.customerEmail || '',
-                      l.mobileNumber || '',
-                      `"${l.city || ''}"`,
-                      l.status || '',
-                      `"${l.createdBy || ''}"`,
-                      l.createdAt || ''
-                    ]);
-                    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join("\n");
+                    
+                    const headers = ['Ref', 'Prospect Name', 'Email', 'Mobile', 'City', 'Status', 'Creator', 'Created At', 'Tech Specs (KW)', 'Final KW', 'Current Step', 'Current Owner'];
+                    const escapeCell = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
+                    
+                    const rows = filteredLeads.map(l => {
+                      const activeStep = getGeneralActiveStep(l);
+                      return [
+                        l.id,
+                        l.customerName || '',
+                        l.customerEmail || '',
+                        l.mobileNumber || '',
+                        l.city || '',
+                        l.status || '',
+                        l.createdBy || '',
+                        l.createdAt || '',
+                        l.requiredKw || '',
+                        l.finalKw || '',
+                        activeStep.label || '',
+                        activeStep.name || ''
+                      ];
+                    });
+                    
+                    const csvContent = "data:text/csv;charset=utf-8," + [
+                      headers.map(escapeCell).join(','),
+                      ...rows.map(row => row.map(escapeCell).join(','))
+                    ].join("\n");
                     const encodedUri = encodeURI(csvContent);
                     const link = document.createElement("a");
                     link.setAttribute("href", encodedUri);

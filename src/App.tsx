@@ -73,6 +73,7 @@ export default function App() {
   const [pendingCount, setPendingCount] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -531,6 +532,8 @@ export default function App() {
               <input 
                 type="text" 
                 placeholder="Search leads..." 
+                value={globalSearchQuery}
+                onChange={(e) => setGlobalSearchQuery(e.target.value)}
                 className="pl-9 pr-4 py-1.5 bg-slate-100 border-none rounded-lg text-sm w-48 lg:w-64 focus:ring-2 focus:ring-slate-200 focus:bg-white transition-all outline-none"
               />
             </div>
@@ -569,6 +572,7 @@ export default function App() {
                     role={role}
                     onSelectLead={navigateToDetail} 
                     onNewLead={() => setActiveTab("new-lead")} 
+                    searchQuery={globalSearchQuery}
                   />
                 </motion.div>
               )}

@@ -251,6 +251,7 @@ export default function TaskSheet({
       emailField: "s9_assignedToEmail",
       nameField: "s9_assignedTo",
       submitField: "isStep12Submitted",
+      condition: (l: any) => l.loanRequired === "Yes",
       label: "Step 12: Loan Final",
       tab: "execution",
       stepId: 12,
@@ -418,8 +419,8 @@ export default function TaskSheet({
           // If viewMode is 'incharge', show tasks for the Project Incharge (Oversight + Unassigned Execution steps)
           // If viewMode is 'all' (Admin only), show all assigned tasks that aren't submitted
           const isProjectInchargeOfThisLead =
-            typeof l.projectInchargeEmail === "string" &&
-            l.projectInchargeEmail.toLowerCase().trim() === normalizedUserEmail;
+            (typeof l.projectInchargeEmail === "string" && l.projectInchargeEmail.toLowerCase().trim() === normalizedUserEmail) ||
+            (typeof l.projectAssigneeEmail === "string" && l.projectAssigneeEmail.toLowerCase().trim() === normalizedUserEmail);
 
           if (viewMode === "mine") {
             return isMine && !isSubmitted;
@@ -610,8 +611,8 @@ export default function TaskSheet({
     )
       return false;
     const isProjectInchargeOfThisLead =
-      typeof l.projectInchargeEmail === "string" &&
-      l.projectInchargeEmail.toLowerCase().trim() === normalizedUserEmail;
+      (typeof l.projectInchargeEmail === "string" && l.projectInchargeEmail.toLowerCase().trim() === normalizedUserEmail) ||
+      (typeof l.projectAssigneeEmail === "string" && l.projectAssigneeEmail.toLowerCase().trim() === normalizedUserEmail);
     return isProjectInchargeOfThisLead || role === "Admin";
   });
 
@@ -676,8 +677,8 @@ export default function TaskSheet({
 
     const email = user?.email?.toLowerCase()?.trim();
     const assignedLeads = leads.filter((l) => {
-      return typeof l.projectInchargeEmail === "string" &&
-        l.projectInchargeEmail.toLowerCase().trim() === email;
+      return (typeof l.projectInchargeEmail === "string" && l.projectInchargeEmail.toLowerCase().trim() === email) ||
+             (typeof l.projectAssigneeEmail === "string" && l.projectAssigneeEmail.toLowerCase().trim() === email);
     });
 
     const hasTaskExecutionStarted = (l: Lead) => {
