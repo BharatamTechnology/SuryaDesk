@@ -1,26 +1,35 @@
 import { userService } from "../services/userService";
+import { auth } from "../lib/firebase";
 
 // Map to cache real-time personnel/user names from Firestore indexed by email
 let userMapByEmail = new Map<string, string>();
+let isSubscribed = false;
 
-// Subscribe to real-time users collection in Personnel Protocols
-try {
-  userService.subscribeToUsers((users) => {
-    const newMap = new Map<string, string>();
-    if (Array.isArray(users)) {
-      users.forEach((u) => {
-        if (u.email && u.name) {
-          newMap.set(u.email.toLowerCase().trim(), u.name.trim());
-        }
-      });
-    }
-    userMapByEmail = newMap;
-  });
-} catch (error) {
-  console.error("Failed to subscribe to users in creatorUtils:", error);
+export function initializeUserCache() {
+  if (isSubscribed) return;
+  if (!auth.currentUser) return;
+
+  isSubscribed = true;
+  try {
+    userService.subscribeToUsers((users) => {
+      const newMap = new Map<string, string>();
+      if (Array.isArray(users)) {
+        users.forEach((u) => {
+          if (u.email && u.name) {
+            newMap.set(u.email.toLowerCase().trim(), u.name.trim());
+          }
+        });
+      }
+      userMapByEmail = newMap;
+    });
+  } catch (error) {
+    console.error("Failed to subscribe to users in creatorUtils:", error);
+    isSubscribed = false;
+  }
 }
 
 export function formatCreatorName(name: string | undefined, email: string | undefined): string {
+  initializeUserCache();
   if (!name && !email) return "System / Auto";
   const normalizedEmail = email?.toLowerCase().trim() || "";
   const normalizedName = name?.toUpperCase().trim() || "";

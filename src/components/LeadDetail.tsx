@@ -270,12 +270,12 @@ export default function LeadDetail({
         user?.email,
         (data) => {
           setAllLeads(data as unknown as Lead[]);
-        }
+        },
       );
       const unsubPayments = paymentService.subscribeToPendingPayments(
         (pymts) => {
           setPendingPayments(pymts || []);
-        }
+        },
       );
       return () => {
         unsubLeads();
@@ -302,7 +302,9 @@ export default function LeadDetail({
     message: string;
   } | null>(null);
 
-  const confirmationUsers = users.filter((u) => u.role === "Admin" || u.category === "Accountant");
+  const confirmationUsers = users.filter(
+    (u) => u.role === "Admin" || u.category === "Accountant",
+  );
 
   const isAdminUser = useMemo(() => {
     const userEmail = user?.email?.toLowerCase()?.trim();
@@ -319,7 +321,6 @@ export default function LeadDetail({
     return (
       (role as string) === "Developer" ||
       userEmail === "hemant.tyagi@bharatamtechnology.com" ||
-      userEmail === "hemanttyagi225@gmail.com" ||
       currentUserObj?.role?.toLowerCase()?.trim() === "developer"
     );
   }, [role, user, users]);
@@ -331,7 +332,9 @@ export default function LeadDetail({
   const loggedInAppUser = useMemo(() => {
     if (!user?.email) return null;
     const normalizedEmail = user.email.toLowerCase().trim();
-    return users.find((u) => (u.email || "").toLowerCase().trim() === normalizedEmail);
+    return users.find(
+      (u) => (u.email || "").toLowerCase().trim() === normalizedEmail,
+    );
   }, [users, user]);
 
   const showCalendar = useMemo(() => {
@@ -345,7 +348,7 @@ export default function LeadDetail({
 
   const allSystemTasks = useMemo(() => {
     if (allLeads.length === 0) return [];
-    
+
     const SEQUENCE = [
       {
         emailField: "assignedPreSales",
@@ -510,9 +513,11 @@ export default function LeadDetail({
 
       const hasReachedFurtherSteps = l.status === "Won";
 
-      const isProjectCoordinator = loggedInAppUser?.category === "Project Coordinator";
+      const isProjectCoordinator =
+        loggedInAppUser?.category === "Project Coordinator";
       const activeSteps = SEQUENCE.filter((step, index) => {
-        if (isProjectCoordinator && step.label === "Final Execution Review") return false;
+        if (isProjectCoordinator && step.label === "Final Execution Review")
+          return false;
         if (!hasReachedFurtherSteps && index >= 3) return false;
         if (hasReachedFurtherSteps && index < 3) return false;
         if (step.condition && !step.condition(l)) return false;
@@ -586,9 +591,7 @@ export default function LeadDetail({
         : new Date();
 
       let assigneeEmail = p.recordedBy || "";
-      const assigneeLower = (p.confirmationAssignee || "")
-        .toLowerCase()
-        .trim();
+      const assigneeLower = (p.confirmationAssignee || "").toLowerCase().trim();
       if (assigneeLower) {
         let matchedUser = users.find(
           (u) => (u.name || "").toLowerCase().trim() === assigneeLower,
@@ -613,20 +616,22 @@ export default function LeadDetail({
         }
       }
 
-      return [{
-        lead: associatedLead,
-        label:
-          p.paymentType === "Other"
-            ? `Confirm Payment: Other (₹${p.amount.toLocaleString()})`
-            : `Confirm ${p.paymentType} Payment (₹${p.amount.toLocaleString()})`,
-        tab: "accounts" as Tab,
-        payment: p,
-        assignedDate: p.recordedAt,
-        dueDate: createdDate,
-        assigneeName: p.confirmationAssignee || "Unassigned",
-        assigneeEmail: assigneeEmail,
-        isPaymentTask: true,
-      }];
+      return [
+        {
+          lead: associatedLead,
+          label:
+            p.paymentType === "Other"
+              ? `Confirm Payment: Other (₹${p.amount.toLocaleString()})`
+              : `Confirm ${p.paymentType} Payment (₹${p.amount.toLocaleString()})`,
+          tab: "accounts" as Tab,
+          payment: p,
+          assignedDate: p.recordedAt,
+          dueDate: createdDate,
+          assigneeName: p.confirmationAssignee || "Unassigned",
+          assigneeEmail: assigneeEmail,
+          isPaymentTask: true,
+        },
+      ];
     });
 
     return [...leadTasks, ...paymentTasks];
@@ -644,7 +649,9 @@ export default function LeadDetail({
 
     return (
       userEmail === "hemant.tyagi@bharatamtechnology.com" ||
-      (lead.projectInchargeEmail || lead.projectAssigneeEmail || "").toLowerCase().trim() === userEmail ||
+      (lead.projectInchargeEmail || lead.projectAssigneeEmail || "")
+        .toLowerCase()
+        .trim() === userEmail ||
       isProjectCoordinator
     );
   }, [lead, user, users]);
@@ -663,34 +670,12 @@ export default function LeadDetail({
     const isProjectCoordinator =
       currentUserObj?.category === "Project Coordinator";
 
-    if (!isProjectCoordinator) {
-      return false; // strictly limited to Project Coordinator and Admin only
+    if (isProjectCoordinator) {
+      return true; // Allow any Project Coordinator to assign tasks
     }
 
-    // Now for Project Coordinator:
-    // If a project has not yet been assigned to a Project Coordinator, then even the Project Coordinator should not be able to assign tasks from Project Control for that project.
-    const assignedInchargeEmail = (lead.projectInchargeEmail || lead.projectAssigneeEmail || "")
-      .toLowerCase()
-      .trim();
-    const assignedInchargeName = (lead.projectInchargeName || lead.projectAssignee || "")
-      .toLowerCase()
-      .trim();
-    const currentUserName = (currentUserObj?.name || "").toLowerCase().trim();
-
-    if (!assignedInchargeEmail && !assignedInchargeName) {
-      return false; // has not yet been assigned to *any* Project Coordinator
-    }
-
-    // Task assignment by the Project Coordinator should only be allowed after the project is formally assigned to them.
-    const isAssignedToMe =
-      assignedInchargeEmail === userEmail ||
-      (currentUserName && assignedInchargeName === currentUserName);
-    if (!isAssignedToMe) {
-      return false; // must be formally assigned to them
-    }
-
-    return true;
-  }, [lead, user, users, isAdminUser]);
+    return false; // strictly limited to Project Coordinator and Admin only
+  }, [lead, user, users, isPrivilegedUser]);
 
   const isExecutionFlowFinished = useMemo(() => {
     if (!lead) return false;
@@ -719,11 +704,16 @@ export default function LeadDetail({
       { id: 9 },
       { id: 10 },
       { id: 11 },
-      { id: 12, condition: typeof lead !== "undefined" && lead?.loanRequired === "Yes" },
+      {
+        id: 12,
+        condition: typeof lead !== "undefined" && lead?.loanRequired === "Yes",
+      },
       { id: 13 },
     ].filter((step) => step.condition !== false);
 
-    return stepsList.every((step) => !!(lead as any)[`isStep${step.id}Submitted`]);
+    return stepsList.every(
+      (step) => !!(lead as any)[`isStep${step.id}Submitted`],
+    );
   }, [lead]);
 
   const taskMetrics = useMemo(() => {
@@ -765,7 +755,11 @@ export default function LeadDetail({
       { id: 9 },
       { id: 10 },
       { id: 11 },
-      { id: 12, condition: typeof lead !== "undefined" && lead?.loanRequired === "Yes", requiredField: "loanRequired" },
+      {
+        id: 12,
+        condition: typeof lead !== "undefined" && lead?.loanRequired === "Yes",
+        requiredField: "loanRequired",
+      },
       { id: 13 },
     ].filter((step) => step.condition !== false);
 
@@ -923,6 +917,7 @@ export default function LeadDetail({
         12: "s9_assignedToEmail",
         13: "s11_assignedToEmail",
         14: "s_newConn_assignedToEmail",
+        15: "s12_assignedToEmail",
       };
 
       const field = assignmentFields[stepIndex];
@@ -944,58 +939,96 @@ export default function LeadDetail({
     [lead, isAdminUser, user, isSteward],
   );
 
-  const isStepCompletedAndAssigned = useCallback((stage: string): { completed: boolean; assigned: boolean; nextAssigneeField: string | null } => {
-    if (!lead) return { completed: false, assigned: false, nextAssigneeField: null };
+  const isStepCompletedAndAssigned = useCallback(
+    (
+      stage: string,
+    ): {
+      completed: boolean;
+      assigned: boolean;
+      nextAssigneeField: string | null;
+    } => {
+      if (!lead)
+        return { completed: false, assigned: false, nextAssigneeField: null };
 
-    const isValSet = (val: any) => typeof val === "string" && val.trim().length > 0;
+      const isValSet = (val: any) =>
+        typeof val === "string" && val.trim().length > 0;
 
-    switch (stage) {
-      case "basic":
-        return {
-          completed: lead.isBasicSubmitted === true,
-          assigned: isValSet(lead.assignedPreSales) || isValSet(lead.assignedPreSalesName),
-          nextAssigneeField: "Sales Team (Pre-Sales)"
-        };
-      case "pre_sales":
-        // Pre-sales status can be Discussion Done or Not Interested or isPreSalesSubmitted
-        return {
-          completed: lead.isPreSalesSubmitted === true || lead.preSalesStatus === "Discussion Done" || lead.preSalesStatus === "Not Interested",
-          assigned: isValSet(lead.assignedTo) || isValSet(lead.assignedToName),
-          nextAssigneeField: "Site Survey Surveyor"
-        };
-      case "survey":
-        return {
-          completed: lead.isSurveySubmitted === true,
-          assigned: isValSet(lead.assignedSales) || isValSet(lead.assignedSalesEmail),
-          nextAssigneeField: "Sales Representative"
-        };
-      case "sales":
-        return {
-          completed: lead.isSalesSubmitted === true,
-          assigned: isValSet(lead.projectAssignee) || isValSet(lead.projectAssigneeEmail),
-          nextAssigneeField: "Project Assignee / Incharge"
-        };
-      case "financials":
-        return {
-          completed: lead.isFinancialsSubmitted === true,
-          assigned: isValSet(lead.accAssignee) || isValSet(lead.accAssigneeEmail),
-          nextAssigneeField: "Accounts Accountant"
-        };
-      case "accounts":
-        return {
-          completed: lead.isAccountsSubmitted === true,
-          assigned: isValSet(lead.projectInchargeEmail) || isValSet(lead.projectInchargeName),
-          nextAssigneeField: "Project Steward (Incharge)"
-        };
-      default:
-        return { completed: true, assigned: true, nextAssigneeField: null };
-    }
-  }, [lead]);
+      switch (stage) {
+        case "basic":
+          return {
+            completed: lead.isBasicSubmitted === true,
+            assigned:
+              isValSet(lead.assignedPreSales) ||
+              isValSet(lead.assignedPreSalesName),
+            nextAssigneeField: "Sales Team (Pre-Sales)",
+          };
+        case "pre_sales":
+          // Pre-sales status can be Discussion Done or Not Interested or isPreSalesSubmitted
+          return {
+            completed:
+              lead.isPreSalesSubmitted === true ||
+              lead.preSalesStatus === "Discussion Done" ||
+              lead.preSalesStatus === "Not Interested",
+            assigned:
+              isValSet(lead.assignedTo) || isValSet(lead.assignedToName),
+            nextAssigneeField: "Site Survey Surveyor",
+          };
+        case "survey":
+          return {
+            completed: lead.isSurveySubmitted === true,
+            assigned:
+              isValSet(lead.assignedSales) || isValSet(lead.assignedSalesEmail),
+            nextAssigneeField: "Sales Representative",
+          };
+        case "sales":
+          return {
+            completed: lead.isSalesSubmitted === true,
+            assigned:
+              isValSet(lead.projectAssignee) ||
+              isValSet(lead.projectAssigneeEmail),
+            nextAssigneeField: "Project Assignee / Incharge",
+          };
+        case "financials":
+          return {
+            completed: lead.isFinancialsSubmitted === true,
+            assigned:
+              isValSet(lead.accAssignee) || isValSet(lead.accAssigneeEmail),
+            nextAssigneeField: "Accounts Accountant",
+          };
+        case "accounts":
+          return {
+            completed: lead.isAccountsSubmitted === true,
+            assigned:
+              isValSet(lead.projectInchargeEmail) ||
+              isValSet(lead.projectInchargeName),
+            nextAssigneeField: "Project Steward (Incharge)",
+          };
+        default:
+          return { completed: true, assigned: true, nextAssigneeField: null };
+      }
+    },
+    [lead],
+  );
 
-  const isTabInaccessible = useCallback((tab: Tab): { blocked: boolean; reason: string | null; missingStep: string | null; missingAssignee: string | null } => {
-    // Under the new rules, any authorized lead participant can access all tabs/sections at any time to view or edit.
-    return { blocked: false, reason: null, missingStep: null, missingAssignee: null };
-  }, []);
+  const isTabInaccessible = useCallback(
+    (
+      tab: Tab,
+    ): {
+      blocked: boolean;
+      reason: string | null;
+      missingStep: string | null;
+      missingAssignee: string | null;
+    } => {
+      // Under the new rules, any authorized lead participant can access all tabs/sections at any time to view or edit.
+      return {
+        blocked: false,
+        reason: null,
+        missingStep: null,
+        missingAssignee: null,
+      };
+    },
+    [],
+  );
 
   const canEditTab = useCallback(
     (tab: Tab) => {
@@ -1005,9 +1038,37 @@ export default function LeadDetail({
       // Rule 1: Admin and Developer can edit any step/tab at any time
       if (isPrivilegedUser) return true;
 
-      // Rule 2: Once Project Details (financials tab) is submitted, normal involved users are locked out from editing (view & download only)
+      const isProjectCoordinator =
+        users.find((u) => u.email?.toLowerCase()?.trim() === userEmail)
+          ?.category === "Project Coordinator";
+
+      // Rule 2: Once Project Details (financials tab) is submitted, normal involved users are locked out from editing EARLY tabs
       const isProjectDetailsSubmitted = lead.isFinancialsSubmitted === true;
       if (isProjectDetailsSubmitted) {
+        if (
+          ["basic", "pre_sales", "survey", "sales", "financials"].includes(tab)
+        ) {
+          return false;
+        }
+
+        if (tab === "project_incharge") {
+          const assignedToIncharge =
+            (lead.projectInchargeEmail || lead.projectAssigneeEmail || "")
+              .toLowerCase()
+              .trim() === userEmail;
+          if (isProjectCoordinator || assignedToIncharge) return true;
+        }
+
+        if (tab === "accounts") {
+          const assignedToAccount =
+            lead.accAssigneeEmail?.toLowerCase()?.trim() === userEmail;
+          if (assignedToAccount) return true;
+        }
+
+        if (tab === "execution") {
+          return isSteward || isAssignedToLead;
+        }
+
         return false;
       }
 
@@ -1018,7 +1079,7 @@ export default function LeadDetail({
 
       return false;
     },
-    [lead, user, isPrivilegedUser, isAssignedToLead, isSteward],
+    [lead, user, isPrivilegedUser, isAssignedToLead, isSteward, users],
   );
 
   const shouldHighlightTab = useCallback(
@@ -1113,21 +1174,27 @@ export default function LeadDetail({
     [lead, user, isAssignedToStep],
   );
 
+  const lastSelectedLeadId = useRef<string | null>(null);
+
   useEffect(() => {
     if (lead) {
-      if (!autoSelectedExecutionStep.current && !canEditTab(activeTab)) {
-        const tabsList = [
-          "survey",
-          "sales",
-          "financials",
-          "accounts",
-          "project_incharge",
-          "execution",
-        ] as Tab[];
-        for (const t of tabsList) {
-          if (canEditTab(t)) {
-            setActiveTab(t);
-            break;
+      const leadId = lead.id;
+      if (lastSelectedLeadId.current !== leadId) {
+        lastSelectedLeadId.current = leadId;
+        if (!autoSelectedExecutionStep.current && !canEditTab(activeTab)) {
+          const tabsList = [
+            "survey",
+            "sales",
+            "financials",
+            "accounts",
+            "project_incharge",
+            "execution",
+          ] as Tab[];
+          for (const t of tabsList) {
+            if (canEditTab(t)) {
+              setActiveTab(t);
+              break;
+            }
           }
         }
       }
@@ -1370,6 +1437,12 @@ export default function LeadDetail({
         missing.push("Upload Photos (New Connection)");
       if (!lead.executionNewConnectionPhotosUrl)
         missing.push("New Connection Photos (Project Details)");
+    } else if (stepId === 15) {
+      if (!lead.s12_insuranceStatus) missing.push("Insurance Status");
+      if (lead.s12_insuranceStatus === "Done") {
+        if (!lead.s12_policyDetails) missing.push("Policy Details");
+        if (!lead.s12_policyDate) missing.push("Policy Date");
+      }
     }
     return missing;
   };
@@ -1455,8 +1528,9 @@ export default function LeadDetail({
               paymentType: "Installment 1",
               status: "Pending",
               method: "Online",
-              remarks: "Auto-logged via Step 4 (Installment 1) validation - Pending Approval",
-              confirmationAssignee: lead.accAssignee || ""
+              remarks:
+                "Auto-logged via Step 4 (Installment 1) validation - Pending Approval",
+              confirmationAssignee: lead.accAssignee || "",
             });
           }
         } else if (
@@ -1481,7 +1555,7 @@ export default function LeadDetail({
               status: "Pending",
               method: "Online",
               remarks: `Auto-logged via Step ${stepId} (${stepId === 9 ? "Installment 2 Validation" : "LOAN OFFICER Post-Install"}) - Pending Approval`,
-              confirmationAssignee: lead.accAssignee || ""
+              confirmationAssignee: lead.accAssignee || "",
             });
           }
         } else if (
@@ -1609,7 +1683,7 @@ export default function LeadDetail({
       updatedAt: new Date() as any,
     };
 
-    const todayStr = new Date().toLocaleDateString('en-CA');
+    const todayStr = new Date().toLocaleDateString("en-CA");
     const dueDates = { ...(lead.stepDueDates || {}) };
     dueDates[stepId] = todayStr;
     updates.stepDueDates = dueDates;
@@ -1815,6 +1889,8 @@ export default function LeadDetail({
       const isCreator = lead.createdBy?.toLowerCase()?.trim() === userEmail;
 
       const isAnyAssignee = [
+        lead.assignedTo,
+        lead.assignedPreSales,
         lead.assignedToEmail,
         lead.assignedSalesEmail,
         lead.projectAssigneeEmail,
@@ -1834,6 +1910,7 @@ export default function LeadDetail({
         lead.s9_assignedToEmail,
         lead.s10_assignedToEmail,
         lead.s11_assignedToEmail,
+        lead.s12_assignedToEmail,
         lead.s_newConn_assignedToEmail,
       ]
         .map((e) => (e || "").toLowerCase().trim())
@@ -1898,6 +1975,7 @@ export default function LeadDetail({
           lead.s9_assignedToEmail,
           lead.s10_assignedToEmail,
           lead.s11_assignedToEmail,
+          lead.s12_assignedToEmail,
           lead.s_newConn_assignedToEmail,
         ]
           .map((e) => (e || "").toLowerCase().trim())
@@ -2448,8 +2526,7 @@ export default function LeadDetail({
       const missing = [];
       if (!lead.s6_materialReceivedDate) missing.push("Material Received Date");
       if (!lead.s6_workStartDate) missing.push("Work Start Date");
-      if (!lead.s6_workEndDate)
-        missing.push("Work End Date");
+      if (!lead.s6_workEndDate) missing.push("Work End Date");
       if (!lead.s7_assignedTo)
         missing.push("Assign for Step 11: Office Executive");
 
@@ -2457,7 +2534,7 @@ export default function LeadDetail({
         showNotification(
           "Please fill mandatory fields: " + missing.join(", "),
           "warning",
-          );
+        );
         return;
       }
       if (
@@ -2474,7 +2551,7 @@ export default function LeadDetail({
         showNotification(
           "Please upload Material List and All 8 required Project Photos (including Sr No photos)",
           "warning",
-          );
+        );
         return;
       }
       if (!lead.s6_workCompletionReportUrl) {
@@ -2814,11 +2891,10 @@ export default function LeadDetail({
     return (
       <div className="flex flex-col items-center justify-center p-12 bg-white rounded-3xl border border-slate-100 shadow-sm max-w-lg mx-auto my-12 text-center space-y-4">
         <AlertTriangle className="w-12 h-12 text-rose-500 mb-2" />
-        <h3 className="text-xl font-bold text-slate-900">
-          Access Denied
-        </h3>
+        <h3 className="text-xl font-bold text-slate-900">Access Denied</h3>
         <p className="text-slate-500 max-w-md">
-          You are not authorized to view or access this lead. Only users involved in this lead can access this section.
+          You are not authorized to view or access this lead. Only users
+          involved in this lead can access this section.
         </p>
         <button
           onClick={onBack}
@@ -2956,7 +3032,7 @@ export default function LeadDetail({
             <div className="w-16 h-16 rounded-3xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-500">
               <Lock className="w-8 h-8" />
             </div>
-            
+
             <div className="space-y-2">
               <h3 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
                 This Stage is Locked
@@ -2972,13 +3048,28 @@ export default function LeadDetail({
               </h4>
               <ul className="space-y-2.5">
                 <li className="flex items-center gap-3 text-xs md:text-sm font-semibold text-slate-700">
-                  <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-500 font-bold shrink-0">1</span>
-                  <span>Submit preceding section: <strong className="text-slate-900 font-bold">{isTabInaccessible(activeTab).missingStep || "Previous Section"}</strong></span>
+                  <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-500 font-bold shrink-0">
+                    1
+                  </span>
+                  <span>
+                    Submit preceding section:{" "}
+                    <strong className="text-slate-900 font-bold">
+                      {isTabInaccessible(activeTab).missingStep ||
+                        "Previous Section"}
+                    </strong>
+                  </span>
                 </li>
                 {isTabInaccessible(activeTab).missingAssignee && (
                   <li className="flex items-center gap-3 text-xs md:text-sm font-semibold text-slate-700">
-                    <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-500 font-bold shrink-0">2</span>
-                    <span>Assign a responsible user/team for: <strong className="text-slate-900 font-bold">{isTabInaccessible(activeTab).missingAssignee}</strong></span>
+                    <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-500 font-bold shrink-0">
+                      2
+                    </span>
+                    <span>
+                      Assign a responsible user/team for:{" "}
+                      <strong className="text-slate-900 font-bold">
+                        {isTabInaccessible(activeTab).missingAssignee}
+                      </strong>
+                    </span>
                   </li>
                 )}
               </ul>
@@ -2994,1074 +3085,473 @@ export default function LeadDetail({
         ) : (
           <>
             {activeTab === "basic" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-8 rounded-2xl md:rounded-[2.5rem] bg-white border border-slate-100 shadow-xl shadow-slate-200/50">
-            <div className="col-span-full pb-3 border-b border-slate-50 mb-2 md:mb-4">
-              <h3 className="text-base md:text-lg font-bold text-slate-900 leading-tight">
-                Section A: Lead Capture
-              </h3>
-              <p className="text-xs md:text-sm text-slate-400">
-                Initial registration and core customer details.
-              </p>
-            </div>
-            <InputField
-              label="Lead ID"
-              value={lead.leadId}
-              name="leadId"
-              onUpdate={handleUpdate}
-              disabled
-            />
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                Creator
-              </label>
-              <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-500 font-medium">
-                {formatCreatorName(lead.createdByName, lead.createdBy)}
-              </div>
-            </div>
-            <InputField
-              label="Email Address"
-              value={lead.customerEmail}
-              name="customerEmail"
-              type="email"
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("basic")}
-            />
-            <InputField
-              label="Date"
-              value={lead.punchDate}
-              name="punchDate"
-              type="date"
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("basic")}
-            />
-            <InputField
-              label="Customer Name"
-              value={lead.customerName}
-              name="customerName"
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("basic")}
-            />
-            <InputField
-              label="Mobile Number"
-              value={lead.mobileNumber}
-              name="mobileNumber"
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("basic")}
-            />
-            <InputField
-              label="Address"
-              value={lead.address}
-              name="address"
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("basic")}
-            />
-            <InputField
-              label="Reference"
-              value={lead.reference}
-              name="reference"
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("basic")}
-            />
-            <InputField
-              label="Required KW"
-              value={lead.requiredKw}
-              name="requiredKw"
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("basic")}
-            />
-            <InputField
-              label="Assign To Sales Team (Pre-Sales)"
-              value={lead.assignedPreSalesName || lead.assignedPreSales}
-              name="assignedPreSalesName"
-              options={users.map((u) => u.name)}
-              onUpdate={(updates) => {
-                const selectedUser = users.find(
-                  (u) => u.name === updates.assignedPreSalesName,
-                );
-                handleUpdate({
-                  ...updates,
-                  assignedPreSalesName:
-                    selectedUser?.name || updates.assignedPreSalesName,
-                  assignedPreSales:
-                    selectedUser?.email || lead.assignedPreSales,
-                });
-              }}
-              disabled={!canEditTab("basic")}
-            />
-            <InputField
-              label="Remark"
-              value={lead.remarkInitial}
-              name="remarkInitial"
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("basic")}
-            />
-            <InputField
-              label="Plan Site Visit Date"
-              value={lead.planSiteVisitDate}
-              name="planSiteVisitDate"
-              type="date"
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("basic")}
-            />
-            <div className="col-span-full flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mt-6 md:mt-8 pt-6 md:pt-8 border-t border-slate-100">
-              <div className="flex flex-col">
-                <span className="text-sm font-bold text-slate-900">
-                  Save Basic Information
-                </span>
-                <p className="text-[11px] md:text-xs text-slate-400 font-medium">
-                  Capture initial customer registration details.
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    if (
-                      !lead.customerName ||
-                      !lead.mobileNumber ||
-                      !lead.address ||
-                      !lead.requiredKw ||
-                      !lead.assignedPreSalesName ||
-                      !lead.planSiteVisitDate
-                    ) {
-                      showNotification("Please fill all the fields", "warning");
-                      return;
-                    }
-                    handleUpdate(
-                      { isBasicSubmitted: true, updatedAt: new Date() as any },
-                      true,
-                    );
-                  }}
-                  disabled={isSaving || !canEditTab("basic")}
-                  className="w-full md:w-auto px-6 md:px-10 py-2.5 md:py-3 bg-zinc-900 text-white rounded-xl md:rounded-2xl text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 active:scale-95 disabled:opacity-50 transition-all shadow-lg"
-                >
-                  {isSaving ? (
-                    <Clock className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5" />
-                  )}
-                  Submit Basic Info
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "pre_sales" && (
-          <div
-            className={`space-y-6 md:space-y-8 p-4 md:p-8 rounded-2xl md:rounded-3xl transition-all duration-500 bg-white border border-slate-100 shadow-xl ${shouldHighlightTab("pre_sales") ? "ring-2 md:ring-4 ring-amber-400 ring-offset-2 shadow-2xl bg-amber-50/20 scale-[1.002]" : ""}`}
-          >
-            {shouldHighlightTab("pre_sales") && (
-              <div className="mb-2">
-                <span className="inline-flex bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] font-black uppercase px-3 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest items-center gap-1.5 border border-orange-400">
-                  <AlertCircle className="w-3 h-3" /> ACTION ASSIGNED TO YOU
-                </span>
-              </div>
-            )}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
-              <div className="col-span-full pb-3 border-b border-slate-50 mb-2">
-                <h3 className="text-base md:text-lg font-bold text-slate-900 leading-tight">
-                  Pre-Sales Discussion
-                </h3>
-                <p className="text-xs md:text-sm text-slate-400">
-                  Initial client interaction and lead qualification by the sales
-                  team.
-                </p>
-              </div>
-
-              <InputField
-                label="Assign for Survey (Next Phase)"
-                value={lead.assignedToName || lead.assignedTo}
-                name="assignedToName"
-                options={users.map((u) => u.name)}
-                onUpdate={(updates) => {
-                  const selectedUser = users.find(
-                    (u) => u.name === updates.assignedToName,
-                  );
-                  handleUpdate({
-                    ...updates,
-                    assignedToName:
-                      selectedUser?.name || updates.assignedToName,
-                    assignedTo: selectedUser?.email || lead.assignedTo,
-                  });
-                }}
-                disabled={!canEditTab("pre_sales")}
-              />
-
-              <InputField
-                label="Pre-Sales Status"
-                value={lead.preSalesStatus || "Pending"}
-                name="preSalesStatus"
-                options={["Pending", "Discussion Done", "Not Interested"]}
-                onUpdate={handleUpdate}
-                disabled={!canEditTab("pre_sales")}
-              />
-
-              <InputField
-                label="Discussion Remark"
-                value={lead.preSalesRemark}
-                name="preSalesRemark"
-                multiline
-                rows={3}
-                onUpdate={handleUpdate}
-                disabled={!canEditTab("pre_sales")}
-              />
-            </div>
-
-            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mt-6 pt-6 border-t border-slate-100">
-              <div className="flex flex-col">
-                <span className="text-sm font-bold text-slate-900">
-                  Complete Pre-Sales Discussion
-                </span>
-                <p className="text-[11px] md:text-xs text-slate-400 font-medium">
-                  Forward to Site Survey.
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  if (!lead.assignedToName) {
-                    showNotification(
-                      "Please select a surveyor before completing.",
-                      "warning",
-                    );
-                    return;
-                  }
-                  handleUpdate(
-                    {
-                      isPreSalesSubmitted: true,
-                      updatedAt: new Date() as any,
-                      stepAssignmentDates: {
-                        ...lead.stepAssignmentDates,
-                        survey: new Date().toISOString(),
-                      },
-                      stepCompletionDates: {
-                        ...lead.stepCompletionDates,
-                        pre_sales: new Date().toISOString(),
-                      },
-                    },
-                    true,
-                  );
-                }}
-                disabled={
-                  isSaving ||
-                  !canEditTab("pre_sales") ||
-                  lead.isPreSalesSubmitted
-                }
-                className="w-full md:w-auto px-6 md:px-10 py-2.5 md:py-3 bg-indigo-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg"
-              >
-                {isSaving ? (
-                  <Clock className="w-4 h-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="w-4 h-4" />
-                )}
-                {lead.isPreSalesSubmitted ? "Forwarded" : "Forward to Survey"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "survey" && (
-          <div
-            className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-8 rounded-2xl md:rounded-3xl transition-all duration-500 bg-white border border-slate-100 shadow-xl ${shouldHighlightTab("survey") ? "ring-2 md:ring-4 ring-amber-400 ring-offset-2 shadow-2xl bg-amber-50/20 scale-[1.002]" : ""}`}
-          >
-            {shouldHighlightTab("survey") && (
-              <div className="col-span-full mb-2">
-                <span className="inline-flex bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] md:text-[10px] font-black uppercase px-3 py-1 md:py-1.5 rounded-full shadow-lg animate-pulse tracking-widest items-center gap-1.5 border border-orange-400">
-                  <AlertCircle className="w-3 md:w-3.5 h-3 md:h-3.5" /> ACTION
-                  ASSIGNED TO YOU
-                </span>
-              </div>
-            )}
-            <div className="col-span-full pb-3 border-b border-slate-50 mb-2">
-              <h3 className="text-base md:text-lg font-bold text-slate-900 leading-tight">
-                Section B: Site Survey & Tech Specs
-              </h3>
-              <p className="text-xs md:text-sm text-slate-400">
-                Field report and technical feasibility data.
-              </p>
-            </div>
-            <InputField
-              label="Site Visit Date"
-              value={lead.siteVisitDate}
-              name="siteVisitDate"
-              type="date"
-              max={format(new Date(), "yyyy-MM-dd")}
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("survey")}
-            />
-            <InputField
-              label="Visited By"
-              value={lead.visitedBy}
-              name="visitedBy"
-              options={users.map((u) => u.name)}
-              onUpdate={(updates) => {
-                const selectedUser = users.find(
-                  (u) => u.name === updates.visitedBy,
-                );
-                handleUpdate({
-                  ...updates,
-                  visitedBy: selectedUser?.name || updates.visitedBy,
-                  visitedByEmail: selectedUser?.email || lead.visitedByEmail,
-                });
-              }}
-              disabled={!canEditTab("survey")}
-            />
-            <InputField
-              label="Roof Type"
-              value={lead.roofType}
-              name="roofType"
-              options={["RCC", "Tin", "Mix(RCC+Tin)", "Asbestos"]}
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("survey")}
-            />
-            <InputField
-              label="Shadow Issue"
-              value={lead.shadowIssue}
-              name="shadowIssue"
-              options={["No", "Yes"]}
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("survey")}
-            />
-            <InputField
-              label="Within City / Outside City"
-              value={lead.locationType}
-              name="locationType"
-              options={["Jaipur", "Outside Jaipur"]}
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("survey")}
-            />
-            <InputField
-              label="Phase"
-              value={lead.phase}
-              name="phase"
-              options={["1 Phase", "3 Phase"]}
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("survey")}
-            />
-            <InputField
-              label="Final KW"
-              value={lead.finalKw}
-              name="finalKw"
-              options={kwOptions}
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("survey")}
-            />
-            <InputField
-              label="Connection Type"
-              value={lead.connectionType}
-              name="connectionType"
-              options={[
-                { value: "DS", label: "DS (Domestic)" },
-                { value: "NDS", label: "NDS (Non-Domestic)" },
-              ]}
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("survey")}
-            />
-            <InputField
-              label="DCR / NDCR"
-              value={lead.dcrType}
-              name="dcrType"
-              options={dcrOptions}
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("survey")}
-            />
-            <InputField
-              label="Std. Package"
-              value={lead.stdPackage}
-              name="stdPackage"
-              options={["Diamond", "Gold", "Silver"]}
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("survey")}
-            />
-            <InputField
-              label="Brand"
-              value={lead.brand}
-              name="brand"
-              onUpdate={handleUpdate}
-              disabled={!canEditTab("survey")}
-            />
-
-            <div className="col-span-full border-t border-slate-100 pt-8 mt-4">
-              <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
-                <Settings className="w-4 h-4 text-slate-400" />
-                Rates & Deviations
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-8 rounded-2xl md:rounded-[2.5rem] bg-white border border-slate-100 shadow-xl shadow-slate-200/50">
+                <div className="col-span-full pb-3 border-b border-slate-50 mb-2 md:mb-4">
+                  <h3 className="text-base md:text-lg font-bold text-slate-900 leading-tight">
+                    Section A: Lead Capture
+                  </h3>
+                  <p className="text-xs md:text-sm text-slate-400">
+                    Initial registration and core customer details.
+                  </p>
+                </div>
                 <InputField
-                  label="Current Rate (Calculated)"
-                  value={lead.originalRate}
-                  name="originalRate"
-                  type="number"
+                  label="Lead ID"
+                  value={lead.leadId}
+                  name="leadId"
                   onUpdate={handleUpdate}
                   disabled
                 />
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Creator
+                  </label>
+                  <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-500 font-medium">
+                    {formatCreatorName(lead.createdByName, lead.createdBy)}
+                  </div>
+                </div>
                 <InputField
-                  label="Deviation / Extra Notes"
-                  value={lead.rateDeviationNotes}
-                  name="rateDeviationNotes"
+                  label="Email Address"
+                  value={lead.customerEmail}
+                  name="customerEmail"
+                  type="email"
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("basic")}
+                />
+                <InputField
+                  label="Date"
+                  value={lead.punchDate}
+                  name="punchDate"
+                  type="date"
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("basic")}
+                />
+                <InputField
+                  label="Customer Name"
+                  value={lead.customerName}
+                  name="customerName"
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("basic")}
+                />
+                <InputField
+                  label="Mobile Number"
+                  value={lead.mobileNumber}
+                  name="mobileNumber"
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("basic")}
+                />
+                <InputField
+                  label="Address"
+                  value={lead.address}
+                  name="address"
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("basic")}
+                />
+                <InputField
+                  label="Reference"
+                  value={lead.reference}
+                  name="reference"
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("basic")}
+                />
+                <InputField
+                  label="Required KW"
+                  value={lead.requiredKw}
+                  name="requiredKw"
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("basic")}
+                />
+                <InputField
+                  label="Assign To Sales Team (Pre-Sales)"
+                  value={lead.assignedPreSalesName || lead.assignedPreSales}
+                  name="assignedPreSalesName"
+                  options={users.map((u) => u.name)}
+                  onUpdate={(updates) => {
+                    const selectedUser = users.find(
+                      (u) => u.name === updates.assignedPreSalesName,
+                    );
+                    handleUpdate({
+                      ...updates,
+                      assignedPreSalesName:
+                        selectedUser?.name || updates.assignedPreSalesName,
+                      assignedPreSales:
+                        selectedUser?.email || lead.assignedPreSales,
+                    });
+                  }}
+                  disabled={!canEditTab("basic")}
+                />
+                <InputField
+                  label="Remark"
+                  value={lead.remarkInitial}
+                  name="remarkInitial"
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("basic")}
+                />
+                <InputField
+                  label="Plan Site Visit Date"
+                  value={lead.planSiteVisitDate}
+                  name="planSiteVisitDate"
+                  type="date"
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("basic")}
+                />
+                <div className="col-span-full flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mt-6 md:mt-8 pt-6 md:pt-8 border-t border-slate-100">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-slate-900">
+                      Save Basic Information
+                    </span>
+                    <p className="text-[11px] md:text-xs text-slate-400 font-medium">
+                      Capture initial customer registration details.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        if (
+                          !lead.customerName ||
+                          !lead.mobileNumber ||
+                          !lead.address ||
+                          !lead.requiredKw ||
+                          !lead.assignedPreSalesName ||
+                          !lead.planSiteVisitDate
+                        ) {
+                          showNotification(
+                            "Please fill all the fields",
+                            "warning",
+                          );
+                          return;
+                        }
+                        handleUpdate(
+                          {
+                            isBasicSubmitted: true,
+                            updatedAt: new Date() as any,
+                          },
+                          true,
+                        );
+                      }}
+                      disabled={isSaving || !canEditTab("basic")}
+                      className="w-full md:w-auto px-6 md:px-10 py-2.5 md:py-3 bg-zinc-900 text-white rounded-xl md:rounded-2xl text-xs md:text-sm font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 active:scale-95 disabled:opacity-50 transition-all shadow-lg"
+                    >
+                      {isSaving ? (
+                        <Clock className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5" />
+                      )}
+                      Submit Basic Info
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "pre_sales" && (
+              <div
+                className={`space-y-6 md:space-y-8 p-4 md:p-8 rounded-2xl md:rounded-3xl transition-all duration-500 bg-white border border-slate-100 shadow-xl ${shouldHighlightTab("pre_sales") ? "ring-2 md:ring-4 ring-amber-400 ring-offset-2 shadow-2xl bg-amber-50/20 scale-[1.002]" : ""}`}
+              >
+                {shouldHighlightTab("pre_sales") && (
+                  <div className="mb-2">
+                    <span className="inline-flex bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] font-black uppercase px-3 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest items-center gap-1.5 border border-orange-400">
+                      <AlertCircle className="w-3 h-3" /> ACTION ASSIGNED TO YOU
+                    </span>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
+                  <div className="col-span-full pb-3 border-b border-slate-50 mb-2">
+                    <h3 className="text-base md:text-lg font-bold text-slate-900 leading-tight">
+                      Pre-Sales Discussion
+                    </h3>
+                    <p className="text-xs md:text-sm text-slate-400">
+                      Initial client interaction and lead qualification by the
+                      sales team.
+                    </p>
+                  </div>
+
+                  <InputField
+                    label="Assign for Survey (Next Phase)"
+                    value={lead.assignedToName || lead.assignedTo}
+                    name="assignedToName"
+                    options={users.map((u) => u.name)}
+                    onUpdate={(updates) => {
+                      const selectedUser = users.find(
+                        (u) => u.name === updates.assignedToName,
+                      );
+                      handleUpdate({
+                        ...updates,
+                        assignedToName:
+                          selectedUser?.name || updates.assignedToName,
+                        assignedTo: selectedUser?.email || lead.assignedTo,
+                      });
+                    }}
+                    disabled={!canEditTab("pre_sales")}
+                  />
+
+                  <InputField
+                    label="Pre-Sales Status"
+                    value={lead.preSalesStatus || "Pending"}
+                    name="preSalesStatus"
+                    options={["Pending", "Discussion Done", "Not Interested"]}
+                    onUpdate={handleUpdate}
+                    disabled={!canEditTab("pre_sales")}
+                  />
+
+                  <InputField
+                    label="Discussion Remark"
+                    value={lead.preSalesRemark}
+                    name="preSalesRemark"
+                    multiline
+                    rows={3}
+                    onUpdate={handleUpdate}
+                    disabled={!canEditTab("pre_sales")}
+                  />
+                </div>
+
+                <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mt-6 pt-6 border-t border-slate-100">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-slate-900">
+                      Complete Pre-Sales Discussion
+                    </span>
+                    <p className="text-[11px] md:text-xs text-slate-400 font-medium">
+                      Forward to Site Survey.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!lead.assignedToName) {
+                        showNotification(
+                          "Please select a surveyor before completing.",
+                          "warning",
+                        );
+                        return;
+                      }
+                      handleUpdate(
+                        {
+                          isPreSalesSubmitted: true,
+                          updatedAt: new Date() as any,
+                          stepAssignmentDates: {
+                            ...lead.stepAssignmentDates,
+                            survey: new Date().toISOString(),
+                          },
+                          stepCompletionDates: {
+                            ...lead.stepCompletionDates,
+                            pre_sales: new Date().toISOString(),
+                          },
+                        },
+                        true,
+                      );
+                    }}
+                    disabled={
+                      isSaving ||
+                      !canEditTab("pre_sales") ||
+                      lead.isPreSalesSubmitted
+                    }
+                    className="w-full md:w-auto px-6 md:px-10 py-2.5 md:py-3 bg-indigo-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg"
+                  >
+                    {isSaving ? (
+                      <Clock className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4" />
+                    )}
+                    {lead.isPreSalesSubmitted
+                      ? "Forwarded"
+                      : "Forward to Survey"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "survey" && (
+              <div
+                className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-8 rounded-2xl md:rounded-3xl transition-all duration-500 bg-white border border-slate-100 shadow-xl ${shouldHighlightTab("survey") ? "ring-2 md:ring-4 ring-amber-400 ring-offset-2 shadow-2xl bg-amber-50/20 scale-[1.002]" : ""}`}
+              >
+                {shouldHighlightTab("survey") && (
+                  <div className="col-span-full mb-2">
+                    <span className="inline-flex bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] md:text-[10px] font-black uppercase px-3 py-1 md:py-1.5 rounded-full shadow-lg animate-pulse tracking-widest items-center gap-1.5 border border-orange-400">
+                      <AlertCircle className="w-3 md:w-3.5 h-3 md:h-3.5" />{" "}
+                      ACTION ASSIGNED TO YOU
+                    </span>
+                  </div>
+                )}
+                <div className="col-span-full pb-3 border-b border-slate-50 mb-2">
+                  <h3 className="text-base md:text-lg font-bold text-slate-900 leading-tight">
+                    Section B: Site Survey & Tech Specs
+                  </h3>
+                  <p className="text-xs md:text-sm text-slate-400">
+                    Field report and technical feasibility data.
+                  </p>
+                </div>
+                <InputField
+                  label="Site Visit Date"
+                  value={lead.siteVisitDate}
+                  name="siteVisitDate"
+                  type="date"
+                  max={format(new Date(), "yyyy-MM-dd")}
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("survey")}
+                />
+                <InputField
+                  label="Visited By"
+                  value={lead.visitedBy}
+                  name="visitedBy"
+                  options={users.map((u) => u.name)}
+                  onUpdate={(updates) => {
+                    const selectedUser = users.find(
+                      (u) => u.name === updates.visitedBy,
+                    );
+                    handleUpdate({
+                      ...updates,
+                      visitedBy: selectedUser?.name || updates.visitedBy,
+                      visitedByEmail:
+                        selectedUser?.email || lead.visitedByEmail,
+                    });
+                  }}
+                  disabled={!canEditTab("survey")}
+                />
+                <InputField
+                  label="Roof Type"
+                  value={lead.roofType}
+                  name="roofType"
+                  options={["RCC", "Tin", "Mix(RCC+Tin)", "Asbestos"]}
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("survey")}
+                />
+                <InputField
+                  label="Shadow Issue"
+                  value={lead.shadowIssue}
+                  name="shadowIssue"
                   options={["No", "Yes"]}
                   onUpdate={handleUpdate}
                   disabled={!canEditTab("survey")}
                 />
-                {lead.rateDeviationNotes === "Yes" && (
-                  <>
+                <InputField
+                  label="Within City / Outside City"
+                  value={lead.locationType}
+                  name="locationType"
+                  options={["Jaipur", "Outside Jaipur"]}
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("survey")}
+                />
+                <InputField
+                  label="Phase"
+                  value={lead.phase}
+                  name="phase"
+                  options={["1 Phase", "3 Phase"]}
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("survey")}
+                />
+                <InputField
+                  label="Final KW"
+                  value={lead.finalKw}
+                  name="finalKw"
+                  options={kwOptions}
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("survey")}
+                />
+                <InputField
+                  label="Connection Type"
+                  value={lead.connectionType}
+                  name="connectionType"
+                  options={[
+                    { value: "DS", label: "DS (Domestic)" },
+                    { value: "NDS", label: "NDS (Non-Domestic)" },
+                  ]}
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("survey")}
+                />
+                <InputField
+                  label="DCR / NDCR"
+                  value={lead.dcrType}
+                  name="dcrType"
+                  options={dcrOptions}
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("survey")}
+                />
+                <InputField
+                  label="Std. Package"
+                  value={lead.stdPackage}
+                  name="stdPackage"
+                  options={["Diamond", "Gold", "Silver"]}
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("survey")}
+                />
+                <InputField
+                  label="Brand"
+                  value={lead.brand}
+                  name="brand"
+                  onUpdate={handleUpdate}
+                  disabled={!canEditTab("survey")}
+                />
+
+                <div className="col-span-full border-t border-slate-100 pt-8 mt-4">
+                  <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+                    <Settings className="w-4 h-4 text-slate-400" />
+                    Rates & Deviations
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <InputField
-                      label="Deviation Details"
-                      value={lead.deviationDetails}
-                      name="deviationDetails"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditTab("survey")}
-                    />
-                    <InputField
-                      label="Deviation Cost (₹)"
-                      value={lead.deviationCost}
-                      name="deviationCost"
+                      label="Current Rate (Calculated)"
+                      value={lead.originalRate}
+                      name="originalRate"
                       type="number"
                       onUpdate={handleUpdate}
+                      disabled
+                    />
+                    <InputField
+                      label="Deviation / Extra Notes"
+                      value={lead.rateDeviationNotes}
+                      name="rateDeviationNotes"
+                      options={["No", "Yes"]}
+                      onUpdate={handleUpdate}
                       disabled={!canEditTab("survey")}
                     />
-                  </>
-                )}
-                <InputField
-                  label="Rate After Deviation"
-                  value={lead.rateAfterDeviation}
-                  name="rateAfterDeviation"
-                  type="number"
-                  onUpdate={handleUpdate}
-                  disabled
-                />
-              </div>
-            </div>
-
-            <div className="col-span-full border-t border-slate-100 pt-8 mt-4">
-              <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
-                <Upload className="w-4 h-4 text-slate-400" />
-                Required Documents
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {Object.entries(docFields).map(([docType, fieldName]) => {
-                  const url = (lead as any)[fieldName];
-                  const isUploading = uploadingDoc === docType;
-
-                  return (
-                    <div
-                      key={docType}
-                      className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${url ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                    >
-                      {url ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      ) : isUploading ? (
-                        <div className="relative">
-                          <Clock className="w-5 h-5 text-blue-500 animate-spin" />
-                          <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
-                            {uploadProgress > 0
-                              ? `${Math.round(uploadProgress)}%`
-                              : "Sync..."}
-                          </span>
-                        </div>
-                      ) : (
-                        <Upload className="w-5 h-5 text-slate-400" />
-                      )}
-
-                      <div className="flex flex-col">
-                        <span className="text-xs font-semibold text-slate-600">
-                          {docType}
-                        </span>
-                        <span
-                          className={`text-[10px] font-bold ${url ? "text-emerald-600" : "text-slate-400"}`}
-                        >
-                          {isUploading
-                            ? `Syncing... ${uploadProgress > 0 ? Math.round(uploadProgress) + "%" : ""}`
-                            : getDocStatus(url)}
-                        </span>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <label
-                          htmlFor={`input-${docType.replace(/\s+/g, "-").toLowerCase()}`}
-                          className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${isUploading || !canEditTab("survey") ? "opacity-50 pointer-events-none" : ""}`}
-                        >
-                          {url ? "Replace" : "Upload"}
-                          <input
-                            id={`input-${docType.replace(/\s+/g, "-").toLowerCase()}`}
-                            type="file"
-                            className="hidden"
-                            accept={
-                              fieldName === "gpsUrl" || fieldName === "meterUrl"
-                                ? "image/*,application/pdf"
-                                : "application/pdf"
-                            }
-                            onChange={(e) =>
-                              handleFileUpload(e, docType, fieldName)
-                            }
-                            disabled={isUploading || !canEditTab("survey")}
-                          />
-                        </label>
-                        {url && (
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            View <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="col-span-full border-t border-slate-100 pt-8 mt-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                <InputField
-                  label="Smart meter installed"
-                  value={lead.smartMeterInstalled}
-                  name="smartMeterInstalled"
-                  options={["Yes", "No"]}
-                  onUpdate={handleUpdate}
-                  disabled={!canEditTab("survey")}
-                />
-              </div>
-              <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
-                <Users className="w-4 h-4 text-slate-400" />
-                Next Phase Assignment
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <InputField
-                  label="Assign for Sales"
-                  value={lead.assignedSales}
-                  name="assignedSales"
-                  options={users.map((u) => u.name)}
-                  onUpdate={(updates) => {
-                    const selectedUser = users.find(
-                      (u) => u.name === updates.assignedSales,
-                    );
-                    handleUpdate({
-                      ...updates,
-                      assignedSales:
-                        selectedUser?.name || updates.assignedSales,
-                      assignedSalesEmail:
-                        selectedUser?.email || lead.assignedSalesEmail,
-                    });
-                  }}
-                  disabled={!canEditTab("survey")}
-                />
-              </div>
-            </div>
-
-            <div className="col-span-full flex flex-col md:flex-row items-center justify-between gap-4 mt-8 pt-8 border-t border-slate-100">
-              <div className="flex flex-col">
-                <span className="text-sm font-bold text-slate-900">
-                  Finalize Site Survey
-                </span>
-                <p className="text-xs text-slate-400 font-medium">
-                  Click save to confirm all technical data entry.
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => {
-                    if (
-                      !lead.siteVisitDate ||
-                      !lead.visitedBy ||
-                      !lead.roofType ||
-                      !lead.shadowIssue ||
-                      !lead.locationType ||
-                      !lead.phase ||
-                      !lead.finalKw ||
-                      !lead.connectionType ||
-                      !lead.dcrType ||
-                      !lead.stdPackage ||
-                      !lead.assignedSales ||
-                      !lead.smartMeterInstalled
-                    ) {
-                      showNotification(
-                        "Please fill all the fields (including Smart Meter & Sales Person assignment)",
-                        "warning",
-                      );
-                      return;
-                    }
-
-                    if (
-                      !lead.billUrl ||
-                      !lead.drawingUrl ||
-                      !lead.gpsUrl ||
-                      !lead.meterUrl
-                    ) {
-                      showNotification(
-                        "Please upload all documents",
-                        "warning",
-                      );
-                      return;
-                    }
-
-                    handleUpdate(
-                      { isSurveySubmitted: true, updatedAt: new Date() as any },
-                      false,
-                    );
-                  }}
-                  disabled={isSaving || !canEditTab("survey")}
-                  className="w-full md:w-auto px-10 py-3 bg-zinc-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 active:scale-95 disabled:opacity-50 transition-all shadow-lg"
-                >
-                  {isSaving ? (
-                    <Clock className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="w-5 h-5" />
-                  )}
-                  Submit & Lock Survey
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "sales" && (
-          <div
-            className={`space-y-8 p-6 md:p-8 rounded-3xl transition-all duration-500 ${shouldHighlightTab("sales") ? "ring-4 ring-amber-400 ring-offset-2 shadow-2xl bg-amber-50/20 scale-[1.005]" : ""}`}
-          >
-            {shouldHighlightTab("sales") && (
-              <div className="mb-4">
-                <span className="inline-flex bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest items-center gap-1.5 border border-orange-400">
-                  <AlertCircle className="w-3.5 h-3.5" /> ACTION ASSIGNED TO YOU
-                </span>
-              </div>
-            )}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-8">
-              <div className="col-span-full pb-4 border-b border-slate-100">
-                <h1 className="text-lg font-bold text-slate-900">
-                  Sales Progression & Follow-ups
-                </h1>
-                <p className="text-sm text-slate-400">
-                  Section C: Manage lead status and capture follow-up details.
-                </p>
-              </div>
-
-              <InputField
-                label="Current Status"
-                value={lead.status}
-                name="status"
-                options={[
-                  "New",
-                  "Under Discussion",
-                  "Negotiation",
-                  "Won",
-                  "Lost",
-                ]}
-                onUpdate={handleUpdate}
-                disabled={!canEditTab("sales")}
-              />
-
-              {(lead.status === "Under Discussion" ||
-                lead.status === "Negotiation") && (
-                <InputField
-                  label="Next Follow-up Date"
-                  value={lead.nextFollowUpDate}
-                  name="nextFollowUpDate"
-                  type="date"
-                  onUpdate={handleUpdate}
-                  disabled={!canEditTab("sales")}
-                />
-              )}
-
-              {lead.status === "Lost" && (
-                <InputField
-                  label="Lost Reason"
-                  value={lead.lostReason}
-                  name="lostReason"
-                  options={['Price is too high', 'Quality is not as required', 'Material not available', 'All decide later', 'Finalised other', 'Other']}
-                  onUpdate={handleUpdate}
-                  disabled={!canEditTab("sales")}
-                />
-              )}
-
-              {lead.status === "Won" && (
-                <InputField
-                  label="Assign for Project Details"
-                  value={lead.projectAssignee}
-                  name="projectAssignee"
-                  options={users.map((u) => u.name)}
-                  onUpdate={(updates) => {
-                    const selectedUser = users.find(
-                      (u) => u.name === updates.projectAssignee,
-                    );
-                    handleUpdate({
-                      ...updates,
-                      projectAssignee:
-                        selectedUser?.name || updates.projectAssignee,
-                      projectAssigneeEmail:
-                        selectedUser?.email || lead.projectAssigneeEmail,
-                    });
-                  }}
-                  disabled={!canEditTab("sales")}
-                />
-              )}
-
-              <InputField
-                label="Section Sales Assignee"
-                value={lead.assignedSales}
-                name="assignedSales"
-                options={users.map((u) => u.name)}
-                onUpdate={(updates) => {
-                  const selectedUser = users.find(
-                    (u) => u.name === updates.assignedSales,
-                  );
-                  handleUpdate({
-                    ...updates,
-                    assignedSales: selectedUser?.name || updates.assignedSales,
-                    assignedSalesEmail:
-                      selectedUser?.email || lead.assignedSalesEmail,
-                  });
-                }}
-                disabled={!canEditTab("sales")}
-              />
-
-              <InputField
-                label="Interaction Remark"
-                value={lead.salesRemark}
-                name="salesRemark"
-                multiline
-                rows={3}
-                placeholder="Enter what happened during this interaction..."
-                onUpdate={handleUpdate}
-                disabled={!canEditTab("sales")}
-              />
-
-              <div className="col-span-full flex flex-col md:flex-row items-center justify-between gap-4 mt-4 pt-8 border-t border-slate-100">
-                <div className="flex flex-col">
-                  <span className="text-sm font-bold text-slate-900">
-                    {lead.status === "Won"
-                      ? "Finalize & Move to Project Details"
-                      : lead.status === "Lost"
-                        ? "Mark as Lost"
-                        : "Submit Follow-up"}
-                  </span>
-                  <p className="text-xs text-slate-400 font-medium">
-                    {lead.status === "Won"
-                      ? "This will lock the sales section and notify the project incharge."
-                      : "This will add a record to the follow-up history."}
-                  </p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => {
-                      if (
-                        !lead.status ||
-                        !lead.assignedSales ||
-                        !lead.salesRemark
-                      ) {
-                        showNotification(
-                          "Please fill Status, Remark & Sales Person",
-                          "warning",
-                        );
-                        return;
-                      }
-                      if (
-                        (lead.status === "Under Discussion" ||
-                          lead.status === "Negotiation") &&
-                        !lead.nextFollowUpDate
-                      ) {
-                        showNotification(
-                          "Please select next follow-up date",
-                          "warning",
-                        );
-                        return;
-                      }
-                      if (lead.status === "Lost" && !lead.lostReason) {
-                        showNotification("Enter lost reason", "warning");
-                        return;
-                      }
-                      if (lead.status === "Won" && !lead.projectAssignee) {
-                        showNotification(
-                          "Please assign a Project Incharge for the next phase",
-                          "warning",
-                        );
-                        return;
-                      }
-
-                      const newFollowUp = {
-                        date: new Date().toISOString(),
-                        status: lead.status,
-                        remark: lead.salesRemark,
-                        nextFollowUpDate: lead.nextFollowUpDate || null,
-                        timestamp: new Date(),
-                      };
-
-                      const followUps = [
-                        ...(lead.followUps || []),
-                        newFollowUp,
-                      ];
-                      const isFinal =
-                        lead.status === "Won" || lead.status === "Lost";
-
-                      handleUpdate(
-                        {
-                          followUps,
-                          isSalesSubmitted: isFinal,
-                          updatedAt: new Date() as any,
-                          ...(isFinal
-                            ? {}
-                            : { salesRemark: "", nextFollowUpDate: "" }),
-                        },
-                        false,
-                      );
-                    }}
-                    disabled={isSaving || !canEditTab("sales")}
-                    className={`w-full md:w-auto px-10 py-3 ${lead.status === "Won" ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200" : "bg-blue-600 hover:bg-blue-700 shadow-blue-200"} text-white rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 transition-all shadow-lg`}
-                  >
-                    {isSaving ? (
-                      <Clock className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="w-5 h-5" />
+                    {lead.rateDeviationNotes === "Yes" && (
+                      <>
+                        <InputField
+                          label="Deviation Details"
+                          value={lead.deviationDetails}
+                          name="deviationDetails"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditTab("survey")}
+                        />
+                        <InputField
+                          label="Deviation Cost (₹)"
+                          value={lead.deviationCost}
+                          name="deviationCost"
+                          type="number"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditTab("survey")}
+                        />
+                      </>
                     )}
-                    {lead.status === "Won"
-                      ? "Finalize Won Lead"
-                      : lead.status === "Lost"
-                        ? "Confirm Lost"
-                        : "Submit Interaction"}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Interaction History */}
-            {lead.followUps && lead.followUps.length > 0 && (
-              <div className="mt-12 bg-slate-50 rounded-3xl p-6 md:p-8 border border-slate-200">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-200">
-                    <History className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">
-                      Interaction History
-                    </h2>
-                    <p className="text-xs text-slate-500 font-medium">
-                      Timeline of all sales follow-ups and status changes.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {[...lead.followUps].reverse().map((fw, idx) => (
-                    <div
-                      key={idx}
-                      className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-start gap-4"
-                    >
-                      <div className="md:w-32 shrink-0">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                          Date
-                        </div>
-                        <div className="text-xs font-bold text-slate-900">
-                          {format(new Date(fw.date), "dd MMM yyyy")}
-                        </div>
-                        <div className="text-[10px] font-medium text-slate-400">
-                          {format(new Date(fw.date), "hh:mm a")}
-                        </div>
-                      </div>
-
-                      <div className="md:w-40 shrink-0">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                          Status
-                        </div>
-                        <span
-                          className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            fw.status === "Won"
-                              ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-                              : fw.status === "Lost"
-                                ? "bg-rose-100 text-rose-700 border border-rose-200"
-                                : "bg-blue-100 text-blue-700 border border-blue-200"
-                          }`}
-                        >
-                          {fw.status}
-                        </span>
-                      </div>
-
-                      <div className="flex-1">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                          Remark
-                        </div>
-                        <p className="text-sm text-slate-700 font-medium leading-relaxed">
-                          {fw.remark}
-                        </p>
-                        {fw.nextFollowUpDate && (
-                          <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-amber-50 text-amber-700 rounded-lg border border-amber-100">
-                            <Calendar className="w-3 h-3" />
-                            <span className="text-[10px] font-bold uppercase tracking-wider">
-                              Next Follow-up:{" "}
-                              {format(
-                                new Date(fw.nextFollowUpDate),
-                                "dd MMM yyyy",
-                              )}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "financials" && (
-          <div
-            className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-8 rounded-2xl md:rounded-3xl transition-all duration-500 bg-white border border-slate-100 shadow-xl ${shouldHighlightTab("financials") ? "ring-2 md:ring-4 ring-amber-400 ring-offset-2 shadow-2xl bg-amber-50/20 scale-[1.002]" : ""}`}
-          >
-            {shouldHighlightTab("financials") && (
-              <div className="col-span-full mb-2">
-                <span className="inline-flex bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] md:text-[10px] font-black uppercase px-3 py-1 md:py-1.5 rounded-full shadow-lg animate-pulse tracking-widest items-center gap-1.5 border border-orange-400">
-                  <AlertCircle className="w-3 md:w-3.5 h-3 md:h-3.5" /> ACTION
-                  ASSIGNED TO YOU
-                </span>
-              </div>
-            )}
-            <div className="col-span-full pb-3 border-b border-slate-50 mb-2">
-              <h3 className="text-base md:text-lg font-bold text-slate-900 leading-tight">
-                Project Details
-              </h3>
-              <p className="text-xs md:text-sm text-slate-400">
-                Section D: Project specs, load extension, and loan status.
-              </p>
-            </div>
-
-            {/* New Connection Section (On Top) */}
-            <div className="col-span-full pt-2">
-              <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
-                <FileCheck className="w-4 h-4 text-slate-400" />
-                New Connection
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <InputField
-                  label="New Connection Required"
-                  value={lead.newConnectionRequired}
-                  name="newConnectionRequired"
-                  options={["Yes", "No"]}
-                  onUpdate={handleUpdate}
-                  disabled={!canEditTab("financials")}
-                />
-
-                {lead.newConnectionRequired === "Yes" && (
-                  <>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                        Property Documents
-                      </label>
-                      <div className={`flex items-center gap-3 border rounded-xl px-3 py-2.5 transition-all ${lead.newConnectionPhotosUrl ? "border-emerald-200 bg-emerald-50/40" : "bg-white border-slate-200"}`}>
-                        {lead.newConnectionPhotosUrl ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        ) : (
-                          <Upload className="w-4 h-4 text-slate-400" />
-                        )}
-
-                        {uploadingDoc === "New Connection Photos" ? (
-                          <div className="flex-1 flex items-center gap-2">
-                            <div className="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                                style={{ width: `${uploadProgress}%` }}
-                              />
-                            </div>
-                            <span className="text-[10px] font-bold text-slate-500 w-8">
-                              {uploadProgress > 0
-                                ? `${Math.round(uploadProgress)}%`
-                                : "Wait..."}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className={`flex-1 text-sm truncate font-semibold ${lead.newConnectionPhotosUrl ? "text-emerald-700 font-semibold" : "text-slate-700 font-medium"}`}>
-                            {lead.newConnectionPhotosUrl
-                              ? "Document Uploaded"
-                              : "No file chosen"}
-                          </div>
-                        )}
-
-                        <label
-                          htmlFor="input-new-connection-photos"
-                          className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "New Connection Photos" || !canEditTab("financials") ? "opacity-50 pointer-events-none" : ""}`}
-                        >
-                          {lead.newConnectionPhotosUrl
-                            ? "Replace"
-                            : "Upload File"}
-                          <input
-                            id="input-new-connection-photos"
-                            type="file"
-                            className="hidden"
-                            accept="application/pdf"
-                            onChange={(e) =>
-                              handleFileUpload(
-                                e,
-                                "New Connection Photos",
-                                "newConnectionPhotosUrl",
-                              )
-                            }
-                            disabled={
-                              uploadingDoc === "New Connection Photos" ||
-                              !canEditTab("financials")
-                            }
-                          />
-                        </label>
-                        {lead.newConnectionPhotosUrl && (
-                          <a
-                            href={lead.newConnectionPhotosUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            View <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
                     <InputField
-                      label="Details"
-                      value={lead.newConnectionDetails}
-                      name="newConnectionDetails"
-                      type="textarea"
+                      label="Rate After Deviation"
+                      value={lead.rateAfterDeviation}
+                      name="rateAfterDeviation"
+                      type="number"
                       onUpdate={handleUpdate}
-                      disabled={!canEditTab("financials")}
+                      disabled
                     />
-                  </>
-                )}
-              </div>
-            </div>
+                  </div>
+                </div>
 
-            {/* Load Extension Required Section (Below New Connection) */}
-            {lead.newConnectionRequired !== "Yes" && (
-              <div className="col-span-full border-t border-slate-100 pt-8 mt-4">
-                <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-slate-400" />
-                  Load Extension Required
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  <InputField
-                    label="Load Extension Required"
-                    value={lead.loadExtensionRequired}
-                    name="loadExtensionRequired"
-                    options={["Yes", "No"]}
-                    onUpdate={handleUpdate}
-                    disabled={!canEditTab("financials")}
-                  />
+                <div className="col-span-full border-t border-slate-100 pt-8 mt-4">
+                  <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+                    <Upload className="w-4 h-4 text-slate-400" />
+                    Required Documents
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {Object.entries(docFields).map(([docType, fieldName]) => {
+                      const url = (lead as any)[fieldName];
+                      const isUploading = uploadingDoc === docType;
 
-                  {lead.loadExtensionRequired === "Yes" && (
-                    <>
-                      <InputField
-                        label="Required KW"
-                        value={lead.loadExtensionKw}
-                        name="loadExtensionKw"
-                        onUpdate={handleUpdate}
-                        disabled={!canEditTab("financials")}
-                      />
-                      <div
-                        className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.loadPropertyUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          {lead.loadPropertyUrl ? (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                          ) : uploadingDoc === "Property Ownership" ? (
+                      return (
+                        <div
+                          key={docType}
+                          className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${url ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                        >
+                          {url ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          ) : isUploading ? (
                             <div className="relative">
-                              <Clock className="w-4 h-4 text-blue-500 animate-spin" />
+                              <Clock className="w-5 h-5 text-blue-500 animate-spin" />
                               <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
                                 {uploadProgress > 0
                                   ? `${Math.round(uploadProgress)}%`
@@ -4069,1180 +3559,2312 @@ export default function LeadDetail({
                               </span>
                             </div>
                           ) : (
-                            <Upload className="w-4 h-4 text-slate-400" />
+                            <Upload className="w-5 h-5 text-slate-400" />
                           )}
-                          <span className="text-xs font-semibold text-slate-600">
-                            Property Ownership Docs
-                          </span>
-                        </div>
-                        <div className="flex gap-2">
-                          <label
-                            htmlFor="input-property-ownership"
-                            className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Property Ownership" || !canEditTab("financials") ? "opacity-50 pointer-events-none" : ""}`}
-                          >
-                            {lead.loadPropertyUrl
-                              ? "Replace"
-                              : "Click to upload"}
-                            <input
-                              id="input-property-ownership"
-                              type="file"
-                              className="hidden"
-                              accept="application/pdf"
-                              onChange={(e) =>
-                                handleFileUpload(
-                                  e,
-                                  "Property Ownership",
-                                  "loadPropertyUrl",
-                                )
-                              }
-                              disabled={
-                                uploadingDoc === "Property Ownership" ||
-                                !canEditTab("financials")
-                              }
-                            />
-                          </label>
-                          {lead.loadPropertyUrl && (
-                            <a
-                              href={lead.loadPropertyUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-1"
+
+                          <div className="flex flex-col">
+                            <span className="text-xs font-semibold text-slate-600">
+                              {docType}
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold ${url ? "text-emerald-600" : "text-slate-400"}`}
                             >
-                              View <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
-                          )}
+                              {isUploading
+                                ? `Syncing... ${uploadProgress > 0 ? Math.round(uploadProgress) + "%" : ""}`
+                                : getDocStatus(url)}
+                            </span>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <label
+                              htmlFor={`input-${docType.replace(/\s+/g, "-").toLowerCase()}`}
+                              className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${isUploading || !canEditTab("survey") ? "opacity-50 pointer-events-none" : ""}`}
+                            >
+                              {url ? "Replace" : "Upload"}
+                              <input
+                                id={`input-${docType.replace(/\s+/g, "-").toLowerCase()}`}
+                                type="file"
+                                className="hidden"
+                                accept={
+                                  fieldName === "gpsUrl" ||
+                                  fieldName === "meterUrl"
+                                    ? "image/*,application/pdf"
+                                    : "application/pdf"
+                                }
+                                onChange={(e) =>
+                                  handleFileUpload(e, docType, fieldName)
+                                }
+                                disabled={isUploading || !canEditTab("survey")}
+                              />
+                            </label>
+                            {url && (
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                View <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </>
-                  )}
+                      );
+                    })}
+                  </div>
+                </div>
 
-                  <InputField
-                    label="Does Document Correction Required?"
-                    value={lead.s_docCorr_required}
-                    name="s_docCorr_required"
-                    options={["Yes", "No"]}
-                    onUpdate={handleUpdate}
-                    disabled={!canEditTab("financials")}
-                  />
-
-                  {lead.s_docCorr_required === "Yes" && (
+                <div className="col-span-full border-t border-slate-100 pt-8 mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                     <InputField
-                      label="Correction Remark"
-                      value={lead.docCorrectionRemark}
-                      name="docCorrectionRemark"
-                      multiline
-                      rows={2}
+                      label="Smart meter installed"
+                      value={lead.smartMeterInstalled}
+                      name="smartMeterInstalled"
+                      options={["Yes", "No"]}
                       onUpdate={handleUpdate}
-                      disabled={!canEditTab("financials")}
+                      disabled={!canEditTab("survey")}
                     />
-                  )}
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-slate-400" />
+                    Next Phase Assignment
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <InputField
+                      label="Assign for Sales"
+                      value={lead.assignedSales}
+                      name="assignedSales"
+                      options={users.map((u) => u.name)}
+                      onUpdate={(updates) => {
+                        const selectedUser = users.find(
+                          (u) => u.name === updates.assignedSales,
+                        );
+                        handleUpdate({
+                          ...updates,
+                          assignedSales:
+                            selectedUser?.name || updates.assignedSales,
+                          assignedSalesEmail:
+                            selectedUser?.email || lead.assignedSalesEmail,
+                        });
+                      }}
+                      disabled={!canEditTab("survey")}
+                    />
+                  </div>
+                </div>
+
+                <div className="col-span-full flex flex-col md:flex-row items-center justify-between gap-4 mt-8 pt-8 border-t border-slate-100">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-slate-900">
+                      Finalize Site Survey
+                    </span>
+                    <p className="text-xs text-slate-400 font-medium">
+                      Click save to confirm all technical data entry.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => {
+                        if (
+                          !lead.siteVisitDate ||
+                          !lead.visitedBy ||
+                          !lead.roofType ||
+                          !lead.shadowIssue ||
+                          !lead.locationType ||
+                          !lead.phase ||
+                          !lead.finalKw ||
+                          !lead.connectionType ||
+                          !lead.dcrType ||
+                          !lead.stdPackage ||
+                          !lead.assignedSales ||
+                          !lead.smartMeterInstalled
+                        ) {
+                          showNotification(
+                            "Please fill all the fields (including Smart Meter & Sales Person assignment)",
+                            "warning",
+                          );
+                          return;
+                        }
+
+                        if (
+                          !lead.billUrl ||
+                          !lead.drawingUrl ||
+                          !lead.gpsUrl ||
+                          !lead.meterUrl
+                        ) {
+                          showNotification(
+                            "Please upload all documents",
+                            "warning",
+                          );
+                          return;
+                        }
+
+                        handleUpdate(
+                          {
+                            isSurveySubmitted: true,
+                            updatedAt: new Date() as any,
+                          },
+                          false,
+                        );
+                      }}
+                      disabled={isSaving || !canEditTab("survey")}
+                      className="w-full md:w-auto px-10 py-3 bg-zinc-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 active:scale-95 disabled:opacity-50 transition-all shadow-lg"
+                    >
+                      {isSaving ? (
+                        <Clock className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-5 h-5" />
+                      )}
+                      Submit & Lock Survey
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Proposal Rates Section (Below Load Extension) */}
-            <div className="col-span-full border-t border-slate-100 pt-8 mt-4">
-              <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-slate-400" />
-                Proposal Rates
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <InputField
-                  label="Base Rate (from Survey)"
-                  value={lead.originalRate}
-                  name="originalRate"
-                  type="number"
-                  onUpdate={handleUpdate}
-                  disabled
-                />
-                <InputField
-                  label="Deviation Cost"
-                  value={lead.deviationCost}
-                  name="deviationCost"
-                  type="number"
-                  onUpdate={handleUpdate}
-                  disabled={!canEditTab("financials")}
-                />
-                <InputField
-                  label="Rate After Deviation"
-                  value={lead.rateAfterDeviation}
-                  name="rateAfterDeviation"
-                  type="number"
-                  onUpdate={handleUpdate}
-                  disabled={!canEditTab("financials")}
-                />
-                <InputField
-                  label="Discount (Subtract)"
-                  value={lead.discount}
-                  name="discount"
-                  type="number"
-                  onUpdate={handleUpdate}
-                  disabled={!canEditTab("financials")}
-                />
-                <InputField
-                  label="Final Proposal Rate"
-                  value={lead.finalRate}
-                  name="finalRate"
-                  type="number"
-                  onUpdate={handleUpdate}
-                  disabled
-                />
-              </div>
-            </div>
+            {activeTab === "sales" && (
+              <div
+                className={`space-y-8 p-6 md:p-8 rounded-3xl transition-all duration-500 ${shouldHighlightTab("sales") ? "ring-4 ring-amber-400 ring-offset-2 shadow-2xl bg-amber-50/20 scale-[1.005]" : ""}`}
+              >
+                {shouldHighlightTab("sales") && (
+                  <div className="mb-4">
+                    <span className="inline-flex bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest items-center gap-1.5 border border-orange-400">
+                      <AlertCircle className="w-3.5 h-3.5" /> ACTION ASSIGNED TO
+                      YOU
+                    </span>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-8">
+                  <div className="col-span-full pb-4 border-b border-slate-100">
+                    <h1 className="text-lg font-bold text-slate-900">
+                      Sales Progression & Follow-ups
+                    </h1>
+                    <p className="text-sm text-slate-400">
+                      Section C: Manage lead status and capture follow-up
+                      details.
+                    </p>
+                  </div>
 
-            {/* Loan Requirements Section */}
-            <div className="col-span-full border-t border-slate-100 pt-8 mt-4">
-              <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-slate-400" />
-                Loan Requirements
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <InputField
-                  label="Loan Required"
-                  value={lead.loanRequired}
-                  name="loanRequired"
-                  options={["Yes", "No"]}
-                  onUpdate={handleUpdate}
-                  disabled={!canEditTab("financials")}
-                />
+                  <InputField
+                    label="Current Status"
+                    value={lead.status}
+                    name="status"
+                    options={[
+                      "New",
+                      "Under Discussion",
+                      "Negotiation",
+                      "Won",
+                      "Lost",
+                    ]}
+                    onUpdate={handleUpdate}
+                    disabled={!canEditTab("sales")}
+                  />
 
-                <InputField
-                  label="Mail ID"
-                  value={lead.customerMailId}
-                  name="customerMailId"
-                  type="email"
-                  onUpdate={handleUpdate}
-                  disabled={!canEditTab("financials")}
-                />
-
-                {lead.loanRequired !== undefined &&
-                  lead.loanRequired !== "" && (
-                    <>
-                      {lead.loanRequired === "Yes" && (
-                        <>
-                          <InputField
-                            label="Loan Amount"
-                            value={lead.loanAmount}
-                            name="loanAmount"
-                            type="number"
-                            onUpdate={handleUpdate}
-                            disabled={!canEditTab("financials")}
-                          />
-                          <InputField
-                            label="Margin Amount"
-                            value={lead.marginAmount}
-                            name="marginAmount"
-                            type="number"
-                            onUpdate={handleUpdate}
-                            disabled={!canEditTab("financials")}
-                          />
-                        </>
-                      )}
-
-                      {/* Common Files for Loan Yes/No */}
-                      <div className="col-span-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-                        {Object.entries(financialDocFields)
-                          .filter(([docType]) => {
-                            if (lead.loanRequired === "No") {
-                              return (
-                                docType === "Aadhaar Card" ||
-                                docType === "Cheque Book/Pass Book" ||
-                                docType === "Work Agreement" ||
-                                docType === "Model Agreement"
-                              );
-                            }
-                            return docType !== "Property Ownership"; // handled above
-                          })
-                          .map(([docType, fieldName]) => {
-                            const url = (lead as any)[fieldName];
-                            const isUploading = uploadingDoc === docType;
-                            return (
-                              <div
-                                key={docType}
-                                className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${url ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                              >
-                                {url ? (
-                                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                                ) : isUploading ? (
-                                  <div className="relative">
-                                    <Clock className="w-5 h-5 text-blue-500 animate-spin" />
-                                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
-                                      {Math.round(uploadProgress)}%
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <Upload className="w-5 h-5 text-slate-400" />
-                                )}
-
-                                <div className="flex flex-col">
-                                  <span className="text-xs font-semibold text-slate-600">
-                                    {docType}
-                                  </span>
-                                  <span
-                                    className={`text-[10px] font-bold ${url ? "text-emerald-600" : "text-slate-400"}`}
-                                  >
-                                    {isUploading
-                                      ? `Uploading... ${Math.round(uploadProgress)}%`
-                                      : getDocStatus(url)}
-                                  </span>
-                                </div>
-
-                                <div className="flex gap-2">
-                                  <label
-                                    htmlFor={`input-fin-${docType.replace(/\s+/g, "-").toLowerCase()}`}
-                                    className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${isUploading || !canEditTab("financials") ? "opacity-50 pointer-events-none" : ""}`}
-                                  >
-                                    {url ? "Replace" : "Upload"}
-                                    <input
-                                      id={`input-fin-${docType.replace(/\s+/g, "-").toLowerCase()}`}
-                                      type="file"
-                                      className="hidden"
-                                      accept="application/pdf"
-                                      onChange={(e) =>
-                                        handleFileUpload(e, docType, fieldName)
-                                      }
-                                      disabled={
-                                        isUploading || !canEditTab("financials")
-                                      }
-                                    />
-                                  </label>
-                                  {url && (
-                                    <a
-                                      href={url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-1"
-                                    >
-                                      View{" "}
-                                      <ExternalLink className="w-2.5 h-2.5" />
-                                    </a>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </>
-                  )}
-              </div>
-            </div>
-
-            <div className="col-span-full border-t border-slate-100 pt-8 mt-4">
-              <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
-                <FileCheck className="w-4 h-4 text-slate-400" />
-                Project Detail & Advance
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <InputField
-                  label="Project Type"
-                  value={lead.projectType}
-                  name="projectType"
-                  options={["PM Surya Ghar", "SSO", "Surya Ghar + SSO"]}
-                  onUpdate={handleUpdate}
-                  disabled={!canEditTab("financials")}
-                />
-
-                {(lead.projectType === "SSO" ||
-                  lead.projectType === "Surya Ghar + SSO") && (
-                  <>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                        Passport Size Photo{" "}
-                        <span className="text-red-500">*</span>
-                      </label>
-                      <div className={`flex items-center gap-3 border rounded-xl px-3 py-2.5 transition-all ${lead.ssoPassportPhotoUrl ? "border-emerald-200 bg-emerald-50/40" : "bg-white border-slate-200"}`}>
-                        {lead.ssoPassportPhotoUrl ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        ) : (
-                          <Upload className="w-4 h-4 text-slate-400" />
-                        )}
-
-                        {uploadingDoc === "Passport Photo" ? (
-                          <div className="flex-1 flex items-center gap-2">
-                            <div className="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                                style={{ width: `${uploadProgress}%` }}
-                              />
-                            </div>
-                            <span className="text-[10px] font-bold text-slate-500 w-8">
-                              {uploadProgress > 0
-                                ? `${Math.round(uploadProgress)}%`
-                                : "Wait..."}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className={`flex-1 text-sm truncate font-semibold ${lead.ssoPassportPhotoUrl ? "text-emerald-700 font-semibold" : "text-slate-700 font-medium"}`}>
-                            {lead.ssoPassportPhotoUrl
-                              ? "Document Uploaded"
-                              : "No file chosen"}
-                          </div>
-                        )}
-
-                        <label
-                          htmlFor="input-sso-passport"
-                          className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Passport Photo" || !canEditTab("financials") ? "opacity-50 pointer-events-none" : ""}`}
-                        >
-                          {lead.ssoPassportPhotoUrl ? "Replace" : "Upload File"}
-                          <input
-                            id="input-sso-passport"
-                            type="file"
-                            className="hidden"
-                            accept="application/pdf"
-                            onChange={(e) =>
-                              handleFileUpload(
-                                e,
-                                "Passport Photo",
-                                "ssoPassportPhotoUrl",
-                              )
-                            }
-                            disabled={
-                              uploadingDoc === "Passport Photo" ||
-                              !canEditTab("financials")
-                            }
-                          />
-                        </label>
-                        {lead.ssoPassportPhotoUrl && (
-                          <a
-                            href={lead.ssoPassportPhotoUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            View <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                        Signature (PDF) <span className="text-red-500">*</span>
-                      </label>
-                      <div className={`flex items-center gap-3 border rounded-xl px-3 py-2.5 transition-all ${lead.ssoSignatureUrl ? "border-emerald-200 bg-emerald-50/40" : "bg-white border-slate-200"}`}>
-                        {lead.ssoSignatureUrl ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        ) : (
-                          <Upload className="w-4 h-4 text-slate-400" />
-                        )}
-
-                        {uploadingDoc === "Signature" ? (
-                          <div className="flex-1 flex items-center gap-2">
-                            <div className="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                                style={{ width: `${uploadProgress}%` }}
-                              />
-                            </div>
-                            <span className="text-[10px] font-bold text-slate-500 w-8">
-                              {uploadProgress > 0
-                                ? `${Math.round(uploadProgress)}%`
-                                : "Wait..."}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className={`flex-1 text-sm truncate font-semibold ${lead.ssoSignatureUrl ? "text-emerald-700 font-semibold" : "text-slate-700 font-medium"}`}>
-                            {lead.ssoSignatureUrl
-                              ? "Signature Uploaded"
-                              : "No file chosen"}
-                          </div>
-                        )}
-
-                        <label
-                          htmlFor="input-sso-signature"
-                          className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Signature" || !canEditTab("financials") ? "opacity-50 pointer-events-none" : ""}`}
-                        >
-                          {lead.ssoSignatureUrl ? "Replace" : "Upload File"}
-                          <input
-                            id="input-sso-signature"
-                            type="file"
-                            className="hidden"
-                            accept="application/pdf"
-                            onChange={(e) =>
-                              handleFileUpload(
-                                e,
-                                "Signature",
-                                "ssoSignatureUrl",
-                              )
-                            }
-                            disabled={
-                              uploadingDoc === "Signature" ||
-                              !canEditTab("financials")
-                            }
-                          />
-                        </label>
-                        {lead.ssoSignatureUrl && (
-                          <a
-                            href={lead.ssoSignatureUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            View <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
+                  {(lead.status === "Under Discussion" ||
+                    lead.status === "Negotiation") && (
                     <InputField
-                      label="SSO ID & Password"
-                      value={lead.ssoIdAndPassword}
-                      name="ssoIdAndPassword"
-                      type="text"
+                      label="Next Follow-up Date"
+                      value={lead.nextFollowUpDate}
+                      name="nextFollowUpDate"
+                      type="date"
+                      onUpdate={handleUpdate}
+                      disabled={!canEditTab("sales")}
+                    />
+                  )}
+
+                  {lead.status === "Lost" && (
+                    <InputField
+                      label="Lost Reason"
+                      value={lead.lostReason}
+                      name="lostReason"
+                      options={[
+                        "Price is too high",
+                        "Quality is not as required",
+                        "Material not available",
+                        "All decide later",
+                        "Finalised other",
+                        "Other",
+                      ]}
+                      onUpdate={handleUpdate}
+                      disabled={!canEditTab("sales")}
+                    />
+                  )}
+
+                  {lead.status === "Won" && (
+                    <InputField
+                      label="Assign for Project Details"
+                      value={lead.projectAssignee}
+                      name="projectAssignee"
+                      options={users.map((u) => u.name)}
+                      onUpdate={(updates) => {
+                        const selectedUser = users.find(
+                          (u) => u.name === updates.projectAssignee,
+                        );
+                        handleUpdate({
+                          ...updates,
+                          projectAssignee:
+                            selectedUser?.name || updates.projectAssignee,
+                          projectAssigneeEmail:
+                            selectedUser?.email || lead.projectAssigneeEmail,
+                        });
+                      }}
+                      disabled={!canEditTab("sales")}
+                    />
+                  )}
+
+                  <InputField
+                    label="Section Sales Assignee"
+                    value={lead.assignedSales}
+                    name="assignedSales"
+                    options={users.map((u) => u.name)}
+                    onUpdate={(updates) => {
+                      const selectedUser = users.find(
+                        (u) => u.name === updates.assignedSales,
+                      );
+                      handleUpdate({
+                        ...updates,
+                        assignedSales:
+                          selectedUser?.name || updates.assignedSales,
+                        assignedSalesEmail:
+                          selectedUser?.email || lead.assignedSalesEmail,
+                      });
+                    }}
+                    disabled={!canEditTab("sales")}
+                  />
+
+                  <InputField
+                    label="Interaction Remark"
+                    value={lead.salesRemark}
+                    name="salesRemark"
+                    multiline
+                    rows={3}
+                    placeholder="Enter what happened during this interaction..."
+                    onUpdate={handleUpdate}
+                    disabled={!canEditTab("sales")}
+                  />
+
+                  <div className="col-span-full flex flex-col md:flex-row items-center justify-between gap-4 mt-4 pt-8 border-t border-slate-100">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-slate-900">
+                        {lead.status === "Won"
+                          ? "Finalize & Move to Project Details"
+                          : lead.status === "Lost"
+                            ? "Mark as Lost"
+                            : "Submit Follow-up"}
+                      </span>
+                      <p className="text-xs text-slate-400 font-medium">
+                        {lead.status === "Won"
+                          ? "This will lock the sales section and notify the project incharge."
+                          : "This will add a record to the follow-up history."}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={() => {
+                          if (
+                            !lead.status ||
+                            !lead.assignedSales ||
+                            !lead.salesRemark
+                          ) {
+                            showNotification(
+                              "Please fill Status, Remark & Sales Person",
+                              "warning",
+                            );
+                            return;
+                          }
+                          if (
+                            (lead.status === "Under Discussion" ||
+                              lead.status === "Negotiation") &&
+                            !lead.nextFollowUpDate
+                          ) {
+                            showNotification(
+                              "Please select next follow-up date",
+                              "warning",
+                            );
+                            return;
+                          }
+                          if (lead.status === "Lost" && !lead.lostReason) {
+                            showNotification("Enter lost reason", "warning");
+                            return;
+                          }
+                          if (lead.status === "Won" && !lead.projectAssignee) {
+                            showNotification(
+                              "Please assign a Project Incharge for the next phase",
+                              "warning",
+                            );
+                            return;
+                          }
+
+                          const newFollowUp = {
+                            date: new Date().toISOString(),
+                            status: lead.status,
+                            remark: lead.salesRemark,
+                            nextFollowUpDate: lead.nextFollowUpDate || null,
+                            timestamp: new Date(),
+                          };
+
+                          const followUps = [
+                            ...(lead.followUps || []),
+                            newFollowUp,
+                          ];
+                          const isFinal =
+                            lead.status === "Won" || lead.status === "Lost";
+
+                          handleUpdate(
+                            {
+                              followUps,
+                              isSalesSubmitted: isFinal,
+                              updatedAt: new Date() as any,
+                              ...(isFinal
+                                ? {}
+                                : { salesRemark: "", nextFollowUpDate: "" }),
+                            },
+                            false,
+                          );
+                        }}
+                        disabled={isSaving || !canEditTab("sales")}
+                        className={`w-full md:w-auto px-10 py-3 ${lead.status === "Won" ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200" : "bg-blue-600 hover:bg-blue-700 shadow-blue-200"} text-white rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 transition-all shadow-lg`}
+                      >
+                        {isSaving ? (
+                          <Clock className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-5 h-5" />
+                        )}
+                        {lead.status === "Won"
+                          ? "Finalize Won Lead"
+                          : lead.status === "Lost"
+                            ? "Confirm Lost"
+                            : "Submit Interaction"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Interaction History */}
+                {lead.followUps && lead.followUps.length > 0 && (
+                  <div className="mt-12 bg-slate-50 rounded-3xl p-6 md:p-8 border border-slate-200">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-200">
+                        <History className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-900">
+                          Interaction History
+                        </h2>
+                        <p className="text-xs text-slate-500 font-medium">
+                          Timeline of all sales follow-ups and status changes.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {[...lead.followUps].reverse().map((fw, idx) => (
+                        <div
+                          key={idx}
+                          className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-start gap-4"
+                        >
+                          <div className="md:w-32 shrink-0">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                              Date
+                            </div>
+                            <div className="text-xs font-bold text-slate-900">
+                              {format(new Date(fw.date), "dd MMM yyyy")}
+                            </div>
+                            <div className="text-[10px] font-medium text-slate-400">
+                              {format(new Date(fw.date), "hh:mm a")}
+                            </div>
+                          </div>
+
+                          <div className="md:w-40 shrink-0">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                              Status
+                            </div>
+                            <span
+                              className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                fw.status === "Won"
+                                  ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                                  : fw.status === "Lost"
+                                    ? "bg-rose-100 text-rose-700 border border-rose-200"
+                                    : "bg-blue-100 text-blue-700 border border-blue-200"
+                              }`}
+                            >
+                              {fw.status}
+                            </span>
+                          </div>
+
+                          <div className="flex-1">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                              Remark
+                            </div>
+                            <p className="text-sm text-slate-700 font-medium leading-relaxed">
+                              {fw.remark}
+                            </p>
+                            {fw.nextFollowUpDate && (
+                              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-amber-50 text-amber-700 rounded-lg border border-amber-100">
+                                <Calendar className="w-3 h-3" />
+                                <span className="text-[10px] font-bold uppercase tracking-wider">
+                                  Next Follow-up:{" "}
+                                  {format(
+                                    new Date(fw.nextFollowUpDate),
+                                    "dd MMM yyyy",
+                                  )}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === "financials" && (
+              <div
+                className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-8 rounded-2xl md:rounded-3xl transition-all duration-500 bg-white border border-slate-100 shadow-xl ${shouldHighlightTab("financials") ? "ring-2 md:ring-4 ring-amber-400 ring-offset-2 shadow-2xl bg-amber-50/20 scale-[1.002]" : ""}`}
+              >
+                {shouldHighlightTab("financials") && (
+                  <div className="col-span-full mb-2">
+                    <span className="inline-flex bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] md:text-[10px] font-black uppercase px-3 py-1 md:py-1.5 rounded-full shadow-lg animate-pulse tracking-widest items-center gap-1.5 border border-orange-400">
+                      <AlertCircle className="w-3 md:w-3.5 h-3 md:h-3.5" />{" "}
+                      ACTION ASSIGNED TO YOU
+                    </span>
+                  </div>
+                )}
+                <div className="col-span-full pb-3 border-b border-slate-50 mb-2">
+                  <h3 className="text-base md:text-lg font-bold text-slate-900 leading-tight">
+                    Project Details
+                  </h3>
+                  <p className="text-xs md:text-sm text-slate-400">
+                    Section D: Project specs, load extension, and loan status.
+                  </p>
+                </div>
+
+                {/* New Connection Section (On Top) */}
+                <div className="col-span-full pt-2">
+                  <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+                    <FileCheck className="w-4 h-4 text-slate-400" />
+                    New Connection
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <InputField
+                      label="New Connection Required"
+                      value={lead.newConnectionRequired}
+                      name="newConnectionRequired"
+                      options={["Yes", "No"]}
                       onUpdate={handleUpdate}
                       disabled={!canEditTab("financials")}
                     />
-                  </>
+
+                    {lead.newConnectionRequired === "Yes" && (
+                      <>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                            Property Documents
+                          </label>
+                          <div
+                            className={`flex items-center gap-3 border rounded-xl px-3 py-2.5 transition-all ${lead.newConnectionPhotosUrl ? "border-emerald-200 bg-emerald-50/40" : "bg-white border-slate-200"}`}
+                          >
+                            {lead.newConnectionPhotosUrl ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            ) : (
+                              <Upload className="w-4 h-4 text-slate-400" />
+                            )}
+
+                            {uploadingDoc === "New Connection Photos" ? (
+                              <div className="flex-1 flex items-center gap-2">
+                                <div className="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                                    style={{ width: `${uploadProgress}%` }}
+                                  />
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-500 w-8">
+                                  {uploadProgress > 0
+                                    ? `${Math.round(uploadProgress)}%`
+                                    : "Wait..."}
+                                </span>
+                              </div>
+                            ) : (
+                              <div
+                                className={`flex-1 text-sm truncate font-semibold ${lead.newConnectionPhotosUrl ? "text-emerald-700 font-semibold" : "text-slate-700 font-medium"}`}
+                              >
+                                {lead.newConnectionPhotosUrl
+                                  ? "Document Uploaded"
+                                  : "No file chosen"}
+                              </div>
+                            )}
+
+                            <label
+                              htmlFor="input-new-connection-photos"
+                              className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "New Connection Photos" || !canEditTab("financials") ? "opacity-50 pointer-events-none" : ""}`}
+                            >
+                              {lead.newConnectionPhotosUrl
+                                ? "Replace"
+                                : "Upload File"}
+                              <input
+                                id="input-new-connection-photos"
+                                type="file"
+                                className="hidden"
+                                accept="application/pdf"
+                                onChange={(e) =>
+                                  handleFileUpload(
+                                    e,
+                                    "New Connection Photos",
+                                    "newConnectionPhotosUrl",
+                                  )
+                                }
+                                disabled={
+                                  uploadingDoc === "New Connection Photos" ||
+                                  !canEditTab("financials")
+                                }
+                              />
+                            </label>
+                            {lead.newConnectionPhotosUrl && (
+                              <a
+                                href={lead.newConnectionPhotosUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                View <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                        <InputField
+                          label="Details"
+                          value={lead.newConnectionDetails}
+                          name="newConnectionDetails"
+                          type="textarea"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditTab("financials")}
+                        />
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Load Extension Required Section (Below New Connection) */}
+                {lead.newConnectionRequired !== "Yes" && (
+                  <div className="col-span-full border-t border-slate-100 pt-8 mt-4">
+                    <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-slate-400" />
+                      Load Extension Required
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                      <InputField
+                        label="Load Extension Required"
+                        value={lead.loadExtensionRequired}
+                        name="loadExtensionRequired"
+                        options={["Yes", "No"]}
+                        onUpdate={handleUpdate}
+                        disabled={!canEditTab("financials")}
+                      />
+
+                      {lead.loadExtensionRequired === "Yes" && (
+                        <>
+                          <InputField
+                            label="Required KW"
+                            value={lead.loadExtensionKw}
+                            name="loadExtensionKw"
+                            onUpdate={handleUpdate}
+                            disabled={!canEditTab("financials")}
+                          />
+                          <div
+                            className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.loadPropertyUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                          >
+                            <div className="flex items-center gap-2">
+                              {lead.loadPropertyUrl ? (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                              ) : uploadingDoc === "Property Ownership" ? (
+                                <div className="relative">
+                                  <Clock className="w-4 h-4 text-blue-500 animate-spin" />
+                                  <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                    {uploadProgress > 0
+                                      ? `${Math.round(uploadProgress)}%`
+                                      : "Sync..."}
+                                  </span>
+                                </div>
+                              ) : (
+                                <Upload className="w-4 h-4 text-slate-400" />
+                              )}
+                              <span className="text-xs font-semibold text-slate-600">
+                                Property Ownership Docs
+                              </span>
+                            </div>
+                            <div className="flex gap-2">
+                              <label
+                                htmlFor="input-property-ownership"
+                                className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Property Ownership" || !canEditTab("financials") ? "opacity-50 pointer-events-none" : ""}`}
+                              >
+                                {lead.loadPropertyUrl
+                                  ? "Replace"
+                                  : "Click to upload"}
+                                <input
+                                  id="input-property-ownership"
+                                  type="file"
+                                  className="hidden"
+                                  accept="application/pdf"
+                                  onChange={(e) =>
+                                    handleFileUpload(
+                                      e,
+                                      "Property Ownership",
+                                      "loadPropertyUrl",
+                                    )
+                                  }
+                                  disabled={
+                                    uploadingDoc === "Property Ownership" ||
+                                    !canEditTab("financials")
+                                  }
+                                />
+                              </label>
+                              {lead.loadPropertyUrl && (
+                                <a
+                                  href={lead.loadPropertyUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-1"
+                                >
+                                  View <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      <InputField
+                        label="Does Document Correction Required?"
+                        value={lead.s_docCorr_required}
+                        name="s_docCorr_required"
+                        options={["Yes", "No"]}
+                        onUpdate={handleUpdate}
+                        disabled={!canEditTab("financials")}
+                      />
+
+                      {lead.s_docCorr_required === "Yes" && (
+                        <InputField
+                          label="Correction Remark"
+                          value={lead.docCorrectionRemark}
+                          name="docCorrectionRemark"
+                          multiline
+                          rows={2}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditTab("financials")}
+                        />
+                      )}
+                    </div>
+                  </div>
                 )}
 
-                <InputField
-                  label="Advance Received"
-                  value={lead.advanceReceived}
-                  name="advanceReceived"
-                  options={["Yes", "No"]}
-                  onUpdate={handleUpdate}
-                  disabled={!canEditTab("financials")}
-                />
-
-                {lead.advanceReceived === "Yes" && (
-                  <>
+                {/* Proposal Rates Section (Below Load Extension) */}
+                <div className="col-span-full border-t border-slate-100 pt-8 mt-4">
+                  <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-slate-400" />
+                    Proposal Rates
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <InputField
-                      label="Amount"
-                      value={lead.tempAdvanceAmount}
-                      name="tempAdvanceAmount"
+                      label="Base Rate (from Survey)"
+                      value={lead.originalRate}
+                      name="originalRate"
+                      type="number"
+                      onUpdate={handleUpdate}
+                      disabled
+                    />
+                    <InputField
+                      label="Deviation Cost"
+                      value={lead.deviationCost}
+                      name="deviationCost"
                       type="number"
                       onUpdate={handleUpdate}
                       disabled={!canEditTab("financials")}
                     />
                     <InputField
-                      label="UTR / URT No"
-                      value={lead.tempAdvanceUrtNo}
-                      name="tempAdvanceUrtNo"
+                      label="Rate After Deviation"
+                      value={lead.rateAfterDeviation}
+                      name="rateAfterDeviation"
+                      type="number"
                       onUpdate={handleUpdate}
                       disabled={!canEditTab("financials")}
                     />
                     <InputField
-                      label="Advance Date"
-                      value={lead.tempAdvanceDate}
-                      name="tempAdvanceDate"
-                      type="date"
+                      label="Discount (Subtract)"
+                      value={lead.discount}
+                      name="discount"
+                      type="number"
                       onUpdate={handleUpdate}
                       disabled={!canEditTab("financials")}
-                      max={new Date().toLocaleDateString("en-CA")}
+                    />
+                    <InputField
+                      label="Final Proposal Rate"
+                      value={lead.finalRate}
+                      name="finalRate"
+                      type="number"
+                      onUpdate={handleUpdate}
+                      disabled
+                    />
+                  </div>
+                </div>
+
+                {/* Loan Requirements Section */}
+                <div className="col-span-full border-t border-slate-100 pt-8 mt-4">
+                  <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-slate-400" />
+                    Loan Requirements
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <InputField
+                      label="Loan Required"
+                      value={lead.loanRequired}
+                      name="loanRequired"
+                      options={["Yes", "No"]}
+                      onUpdate={handleUpdate}
+                      disabled={!canEditTab("financials")}
+                    />
+
+                    <InputField
+                      label="Mail ID"
+                      value={lead.customerMailId}
+                      name="customerMailId"
+                      type="email"
+                      onUpdate={handleUpdate}
+                      disabled={!canEditTab("financials")}
+                    />
+
+                    {lead.loanRequired !== undefined &&
+                      lead.loanRequired !== "" && (
+                        <>
+                          {lead.loanRequired === "Yes" && (
+                            <>
+                              <InputField
+                                label="Loan Amount"
+                                value={lead.loanAmount}
+                                name="loanAmount"
+                                type="number"
+                                onUpdate={handleUpdate}
+                                disabled={!canEditTab("financials")}
+                              />
+                              <InputField
+                                label="Margin Amount"
+                                value={lead.marginAmount}
+                                name="marginAmount"
+                                type="number"
+                                onUpdate={handleUpdate}
+                                disabled={!canEditTab("financials")}
+                              />
+                            </>
+                          )}
+
+                          {/* Common Files for Loan Yes/No */}
+                          <div className="col-span-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                            {Object.entries(financialDocFields)
+                              .filter(([docType]) => {
+                                if (lead.loanRequired === "No") {
+                                  return (
+                                    docType === "Aadhaar Card" ||
+                                    docType === "Cheque Book/Pass Book" ||
+                                    docType === "Work Agreement" ||
+                                    docType === "Model Agreement"
+                                  );
+                                }
+                                return docType !== "Property Ownership"; // handled above
+                              })
+                              .map(([docType, fieldName]) => {
+                                const url = (lead as any)[fieldName];
+                                const isUploading = uploadingDoc === docType;
+                                return (
+                                  <div
+                                    key={docType}
+                                    className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${url ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                                  >
+                                    {url ? (
+                                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                    ) : isUploading ? (
+                                      <div className="relative">
+                                        <Clock className="w-5 h-5 text-blue-500 animate-spin" />
+                                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                          {Math.round(uploadProgress)}%
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <Upload className="w-5 h-5 text-slate-400" />
+                                    )}
+
+                                    <div className="flex flex-col">
+                                      <span className="text-xs font-semibold text-slate-600">
+                                        {docType}
+                                      </span>
+                                      <span
+                                        className={`text-[10px] font-bold ${url ? "text-emerald-600" : "text-slate-400"}`}
+                                      >
+                                        {isUploading
+                                          ? `Uploading... ${Math.round(uploadProgress)}%`
+                                          : getDocStatus(url)}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                      <label
+                                        htmlFor={`input-fin-${docType.replace(/\s+/g, "-").toLowerCase()}`}
+                                        className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${isUploading || !canEditTab("financials") ? "opacity-50 pointer-events-none" : ""}`}
+                                      >
+                                        {url ? "Replace" : "Upload"}
+                                        <input
+                                          id={`input-fin-${docType.replace(/\s+/g, "-").toLowerCase()}`}
+                                          type="file"
+                                          className="hidden"
+                                          accept="application/pdf"
+                                          onChange={(e) =>
+                                            handleFileUpload(
+                                              e,
+                                              docType,
+                                              fieldName,
+                                            )
+                                          }
+                                          disabled={
+                                            isUploading ||
+                                            !canEditTab("financials")
+                                          }
+                                        />
+                                      </label>
+                                      {url && (
+                                        <a
+                                          href={url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-1"
+                                        >
+                                          View{" "}
+                                          <ExternalLink className="w-2.5 h-2.5" />
+                                        </a>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </>
+                      )}
+                  </div>
+                </div>
+
+                <div className="col-span-full border-t border-slate-100 pt-8 mt-4">
+                  <h4 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+                    <FileCheck className="w-4 h-4 text-slate-400" />
+                    Project Detail & Advance
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <InputField
+                      label="Project Type"
+                      value={lead.projectType}
+                      name="projectType"
+                      options={["PM Surya Ghar", "SSO", "Surya Ghar + SSO"]}
+                      onUpdate={handleUpdate}
+                      disabled={!canEditTab("financials")}
+                    />
+
+                    {(lead.projectType === "SSO" ||
+                      lead.projectType === "Surya Ghar + SSO") && (
+                      <>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                            Passport Size Photo{" "}
+                            <span className="text-red-500">*</span>
+                          </label>
+                          <div
+                            className={`flex items-center gap-3 border rounded-xl px-3 py-2.5 transition-all ${lead.ssoPassportPhotoUrl ? "border-emerald-200 bg-emerald-50/40" : "bg-white border-slate-200"}`}
+                          >
+                            {lead.ssoPassportPhotoUrl ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            ) : (
+                              <Upload className="w-4 h-4 text-slate-400" />
+                            )}
+
+                            {uploadingDoc === "Passport Photo" ? (
+                              <div className="flex-1 flex items-center gap-2">
+                                <div className="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                                    style={{ width: `${uploadProgress}%` }}
+                                  />
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-500 w-8">
+                                  {uploadProgress > 0
+                                    ? `${Math.round(uploadProgress)}%`
+                                    : "Wait..."}
+                                </span>
+                              </div>
+                            ) : (
+                              <div
+                                className={`flex-1 text-sm truncate font-semibold ${lead.ssoPassportPhotoUrl ? "text-emerald-700 font-semibold" : "text-slate-700 font-medium"}`}
+                              >
+                                {lead.ssoPassportPhotoUrl
+                                  ? "Document Uploaded"
+                                  : "No file chosen"}
+                              </div>
+                            )}
+
+                            <label
+                              htmlFor="input-sso-passport"
+                              className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Passport Photo" || !canEditTab("financials") ? "opacity-50 pointer-events-none" : ""}`}
+                            >
+                              {lead.ssoPassportPhotoUrl
+                                ? "Replace"
+                                : "Upload File"}
+                              <input
+                                id="input-sso-passport"
+                                type="file"
+                                className="hidden"
+                                accept="application/pdf"
+                                onChange={(e) =>
+                                  handleFileUpload(
+                                    e,
+                                    "Passport Photo",
+                                    "ssoPassportPhotoUrl",
+                                  )
+                                }
+                                disabled={
+                                  uploadingDoc === "Passport Photo" ||
+                                  !canEditTab("financials")
+                                }
+                              />
+                            </label>
+                            {lead.ssoPassportPhotoUrl && (
+                              <a
+                                href={lead.ssoPassportPhotoUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                View <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                            Signature (PDF){" "}
+                            <span className="text-red-500">*</span>
+                          </label>
+                          <div
+                            className={`flex items-center gap-3 border rounded-xl px-3 py-2.5 transition-all ${lead.ssoSignatureUrl ? "border-emerald-200 bg-emerald-50/40" : "bg-white border-slate-200"}`}
+                          >
+                            {lead.ssoSignatureUrl ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            ) : (
+                              <Upload className="w-4 h-4 text-slate-400" />
+                            )}
+
+                            {uploadingDoc === "Signature" ? (
+                              <div className="flex-1 flex items-center gap-2">
+                                <div className="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                                    style={{ width: `${uploadProgress}%` }}
+                                  />
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-500 w-8">
+                                  {uploadProgress > 0
+                                    ? `${Math.round(uploadProgress)}%`
+                                    : "Wait..."}
+                                </span>
+                              </div>
+                            ) : (
+                              <div
+                                className={`flex-1 text-sm truncate font-semibold ${lead.ssoSignatureUrl ? "text-emerald-700 font-semibold" : "text-slate-700 font-medium"}`}
+                              >
+                                {lead.ssoSignatureUrl
+                                  ? "Signature Uploaded"
+                                  : "No file chosen"}
+                              </div>
+                            )}
+
+                            <label
+                              htmlFor="input-sso-signature"
+                              className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Signature" || !canEditTab("financials") ? "opacity-50 pointer-events-none" : ""}`}
+                            >
+                              {lead.ssoSignatureUrl ? "Replace" : "Upload File"}
+                              <input
+                                id="input-sso-signature"
+                                type="file"
+                                className="hidden"
+                                accept="application/pdf"
+                                onChange={(e) =>
+                                  handleFileUpload(
+                                    e,
+                                    "Signature",
+                                    "ssoSignatureUrl",
+                                  )
+                                }
+                                disabled={
+                                  uploadingDoc === "Signature" ||
+                                  !canEditTab("financials")
+                                }
+                              />
+                            </label>
+                            {lead.ssoSignatureUrl && (
+                              <a
+                                href={lead.ssoSignatureUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                View <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="SSO ID & Password"
+                          value={lead.ssoIdAndPassword}
+                          name="ssoIdAndPassword"
+                          type="text"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditTab("financials")}
+                        />
+                      </>
+                    )}
+
+                    <InputField
+                      label="Advance Received"
+                      value={lead.advanceReceived}
+                      name="advanceReceived"
+                      options={["Yes", "No"]}
+                      onUpdate={handleUpdate}
+                      disabled={!canEditTab("financials")}
+                    />
+
+                    {lead.advanceReceived === "Yes" && (
+                      <>
+                        <InputField
+                          label="Amount"
+                          value={lead.tempAdvanceAmount}
+                          name="tempAdvanceAmount"
+                          type="number"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditTab("financials")}
+                        />
+                        <InputField
+                          label="UTR / URT No"
+                          value={lead.tempAdvanceUrtNo}
+                          name="tempAdvanceUrtNo"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditTab("financials")}
+                        />
+                        <InputField
+                          label="Advance Date"
+                          value={lead.tempAdvanceDate}
+                          name="tempAdvanceDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditTab("financials")}
+                          max={new Date().toLocaleDateString("en-CA")}
+                        />
+                      </>
+                    )}
+
+                    <InputField
+                      label="Assign for Accounts"
+                      value={lead.accAssignee}
+                      name="accAssignee"
+                      options={users
+                        .filter(
+                          (u) =>
+                            u.role === "Admin" || u.category === "Accountant",
+                        )
+                        .map((u) => u.name)}
+                      onUpdate={(updates) => {
+                        const selectedUser = users.find(
+                          (u) => u.name === updates.accAssignee,
+                        );
+                        handleUpdate({
+                          ...updates,
+                          accAssignee:
+                            selectedUser?.name || updates.accAssignee,
+                          accAssigneeEmail:
+                            selectedUser?.email || lead.accAssigneeEmail,
+                        });
+                      }}
+                      disabled={!canEditTab("financials")}
+                    />
+
+                    <InputField
+                      label="Project Remark"
+                      value={lead.projectRemark}
+                      name="projectRemark"
+                      multiline
+                      rows={2}
+                      onUpdate={handleUpdate}
+                      disabled={!canEditTab("financials")}
+                    />
+                  </div>
+                </div>
+
+                <div className="col-span-full flex flex-col md:flex-row items-center justify-between gap-4 mt-8 pt-8 border-t border-slate-100">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-slate-900">
+                      Save Project Details & Data
+                    </span>
+                    <p className="text-xs text-slate-400 font-medium">
+                      Click save to confirm proposal, loan and project
+                      assignment.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => {
+                        if (
+                          !lead.projectType ||
+                          !lead.advanceReceived ||
+                          !lead.projectAssignee ||
+                          !lead.accAssignee
+                        ) {
+                          showNotification(
+                            "Please fill all the fields, including Accountant assignment",
+                            "warning",
+                          );
+                          return;
+                        }
+
+                        if (
+                          lead.projectType === "SSO" ||
+                          lead.projectType === "Surya Ghar + SSO"
+                        ) {
+                          if (
+                            !lead.ssoPassportPhotoUrl ||
+                            !lead.ssoSignatureUrl ||
+                            !lead.ssoIdAndPassword
+                          ) {
+                            showNotification(
+                              "Please fill all mandatory SSO fields and upload documents",
+                              "warning",
+                            );
+                            return;
+                          }
+                        }
+
+                        if (
+                          lead.advanceReceived === "Yes" &&
+                          (!lead.tempAdvanceAmount ||
+                            !lead.tempAdvanceUrtNo ||
+                            !lead.tempAdvanceDate)
+                        ) {
+                          showNotification(
+                            "Please fill all advance payment details",
+                            "warning",
+                          );
+                          return;
+                        }
+
+                        const missingDocs = [];
+                        if (!lead.aadhaarUrl) missingDocs.push("Aadhaar Card");
+                        if (!lead.bankDocUrl)
+                          missingDocs.push("Cheque Book/Pass Book");
+                        if (lead.loanRequired === "Yes") {
+                          if (!lead.panUrl) missingDocs.push("PAN Card");
+                          if (!lead.propertyCertUrl)
+                            missingDocs.push("Property Certificate");
+                        }
+                        if (!lead.workAgreementUrl)
+                          missingDocs.push("Work Agreement");
+                        if (!lead.modelAgreementUrl)
+                          missingDocs.push("Model Agreement");
+                        if (!lead.billUrl) missingDocs.push("Electricity Bill");
+                        if (!lead.drawingUrl) missingDocs.push("Site Drawings");
+                        if (!lead.gpsUrl)
+                          missingDocs.push("GPS photo of Site/Roof");
+                        if (!lead.meterUrl) missingDocs.push("Meter Photo");
+
+                        if (missingDocs.length > 0) {
+                          showNotification(
+                            "Please upload all mandatory documents: " +
+                              missingDocs.join(", "),
+                            "warning",
+                          );
+                          return;
+                        }
+
+                        if (lead.loanRequired === "Yes") {
+                          if (!lead.loanAmount || !lead.customerMailId) {
+                            showNotification(
+                              "Please fill loan details",
+                              "warning",
+                            );
+                            return;
+                          }
+                        }
+
+                        if (lead.newConnectionRequired === "Yes") {
+                          if (!lead.newConnectionPhotosUrl) {
+                            showNotification(
+                              "Please upload all documents (New Connection Photos)",
+                              "warning",
+                            );
+                            return;
+                          }
+                        }
+
+                        if (lead.loadExtensionRequired === "Yes") {
+                          if (!lead.loadExtensionKw) {
+                            showNotification(
+                              "Please fill load extension KW",
+                              "warning",
+                            );
+                            return;
+                          }
+                          if (!lead.loadPropertyUrl) {
+                            showNotification(
+                              "Please upload all documents (Property Ownership)",
+                              "warning",
+                            );
+                            return;
+                          }
+                        }
+
+                        const proceed = async () => {
+                          try {
+                            const extraExecutionSetup: any = {};
+                            if (lead.s_docCorr_required === "No") {
+                              extraExecutionSetup.isStep1Submitted = true;
+                              extraExecutionSetup.step1Status = "Bypassed";
+                            }
+                            if (lead.loadExtensionRequired === "No") {
+                              extraExecutionSetup.isStep2Submitted = true;
+                              extraExecutionSetup.step2Status = "Bypassed";
+                            }
+                            if (lead.loanRequired === "No") {
+                              extraExecutionSetup.isStep4Submitted = true;
+                              extraExecutionSetup.step4Status = "Bypassed";
+                            }
+
+                            await handleUpdate(
+                              {
+                                isFinancialsSubmitted: true,
+                                updatedAt: new Date() as any,
+                                ...extraExecutionSetup,
+                              },
+                              false,
+                            );
+
+                            showNotification(
+                              "Project details submitted successfully!",
+                              "success",
+                            );
+                          } catch (error) {
+                            console.error(error);
+                            showNotification(
+                              "Error submitting project details or posting payment",
+                              "error",
+                            );
+                          }
+                        };
+                        proceed();
+                      }}
+                      disabled={isSaving || !canEditTab("financials")}
+                      className="w-full md:w-auto px-10 py-3 bg-emerald-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg"
+                    >
+                      {isSaving ? (
+                        <Clock className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-5 h-5" />
+                      )}
+                      Submit Project Details
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "accounts" && (
+              <div
+                className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-8 rounded-2xl md:rounded-3xl transition-all duration-500 bg-white border border-slate-100 shadow-xl ${shouldHighlightTab("accounts") ? "ring-2 md:ring-4 ring-amber-400 ring-offset-2 shadow-2xl bg-amber-50/20 scale-[1.002]" : ""}`}
+              >
+                {shouldHighlightTab("accounts") && (
+                  <div className="col-span-full mb-2">
+                    <span className="inline-flex bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] md:text-[10px] font-black uppercase px-3 py-1 md:py-1.5 rounded-full shadow-lg animate-pulse tracking-widest items-center gap-1.5 border border-orange-400">
+                      <AlertCircle className="w-3 md:w-3.5 h-3 md:h-3.5" />{" "}
+                      ACTION ASSIGNED TO YOU
+                    </span>
+                  </div>
+                )}
+                <div className="col-span-full pb-3 border-b border-slate-50 mb-2">
+                  <h3 className="text-base md:text-lg font-bold text-slate-900 leading-tight">
+                    Account Confirmation
+                  </h3>
+                  <p className="text-xs md:text-sm text-slate-400">
+                    Section G: Payment verification and account assignment.
+                  </p>
+                </div>
+
+                <InputField
+                  label="Payment Confirmation"
+                  value={lead.accPaymentStatus}
+                  name="accPaymentStatus"
+                  options={["Confirmed", "No"]}
+                  onUpdate={(updates) => {
+                    const finalUpdates = { ...updates };
+                    if (updates.accPaymentStatus === "Confirmed") {
+                      if (lead.tempAdvanceAmount && !lead.accAmount)
+                        finalUpdates.accAmount = lead.tempAdvanceAmount;
+                      if (lead.tempAdvanceUrtNo && !lead.accUtrNo)
+                        finalUpdates.accUtrNo = lead.tempAdvanceUrtNo;
+                      if (lead.tempAdvanceDate && !lead.accDate)
+                        finalUpdates.accDate = lead.tempAdvanceDate;
+                    }
+                    handleUpdate(finalUpdates);
+                  }}
+                  disabled={!canEditTab("accounts")}
+                />
+
+                {lead.accPaymentStatus === "Confirmed" && (
+                  <>
+                    <InputField
+                      label="Amount"
+                      value={lead.accAmount}
+                      name="accAmount"
+                      type="number"
+                      onUpdate={handleUpdate}
+                      disabled={!canEditTab("accounts")}
+                    />
+                    <InputField
+                      label="UTR No"
+                      value={lead.accUtrNo}
+                      name="accUtrNo"
+                      onUpdate={handleUpdate}
+                      disabled={!canEditTab("accounts")}
+                    />
+                    <InputField
+                      label="Date"
+                      value={lead.accDate}
+                      name="accDate"
+                      type="date"
+                      onUpdate={handleUpdate}
+                      disabled={!canEditTab("accounts")}
                     />
                   </>
                 )}
 
                 <InputField
-                  label="Assign for Accounts"
-                  value={lead.accAssignee}
-                  name="accAssignee"
+                  label="Assign Project Steward (Incharge)"
+                  value={lead.projectInchargeName}
+                  name="projectInchargeName"
                   options={users
-                    .filter(
-                      (u) => u.role === "Admin" || u.category === "Accountant",
-                    )
+                    .filter((u) => u.category === "Project Coordinator")
                     .map((u) => u.name)}
                   onUpdate={(updates) => {
                     const selectedUser = users.find(
-                      (u) => u.name === updates.accAssignee,
+                      (u) => u.name === updates.projectInchargeName,
                     );
                     handleUpdate({
                       ...updates,
-                      accAssignee: selectedUser?.name || updates.accAssignee,
-                      accAssigneeEmail:
-                        selectedUser?.email || lead.accAssigneeEmail,
+                      projectInchargeName:
+                        selectedUser?.name || updates.projectInchargeName,
+                      projectInchargeEmail:
+                        selectedUser?.email || lead.projectInchargeEmail,
                     });
                   }}
-                  disabled={!canEditTab("financials")}
-                />
-
-                <InputField
-                  label="Project Remark"
-                  value={lead.projectRemark}
-                  name="projectRemark"
-                  multiline
-                  rows={2}
-                  onUpdate={handleUpdate}
-                  disabled={!canEditTab("financials")}
-                />
-              </div>
-            </div>
-
-            <div className="col-span-full flex flex-col md:flex-row items-center justify-between gap-4 mt-8 pt-8 border-t border-slate-100">
-              <div className="flex flex-col">
-                <span className="text-sm font-bold text-slate-900">
-                  Save Project Details & Data
-                </span>
-                <p className="text-xs text-slate-400 font-medium">
-                  Click save to confirm proposal, loan and project assignment.
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => {
-                    if (
-                      !lead.projectType ||
-                      !lead.advanceReceived ||
-                      !lead.projectAssignee ||
-                      !lead.accAssignee
-                    ) {
-                      showNotification(
-                        "Please fill all the fields, including Accountant assignment",
-                        "warning",
-                      );
-                      return;
-                    }
-
-                    if (
-                      lead.projectType === "SSO" ||
-                      lead.projectType === "Surya Ghar + SSO"
-                    ) {
-                      if (
-                        !lead.ssoPassportPhotoUrl ||
-                        !lead.ssoSignatureUrl ||
-                        !lead.ssoIdAndPassword
-                      ) {
-                        showNotification(
-                          "Please fill all mandatory SSO fields and upload documents",
-                          "warning",
-                        );
-                        return;
-                      }
-                    }
-
-                    if (
-                      lead.advanceReceived === "Yes" &&
-                      (!lead.tempAdvanceAmount ||
-                        !lead.tempAdvanceUrtNo ||
-                        !lead.tempAdvanceDate)
-                    ) {
-                      showNotification(
-                        "Please fill all advance payment details",
-                        "warning",
-                      );
-                      return;
-                    }
-
-                    const missingDocs = [];
-                    if (!lead.aadhaarUrl) missingDocs.push("Aadhaar Card");
-                    if (!lead.bankDocUrl) missingDocs.push("Cheque Book/Pass Book");
-                    if (lead.loanRequired === "Yes") {
-                      if (!lead.panUrl) missingDocs.push("PAN Card");
-                      if (!lead.propertyCertUrl) missingDocs.push("Property Certificate");
-                    }
-                    if (!lead.workAgreementUrl) missingDocs.push("Work Agreement");
-                    if (!lead.modelAgreementUrl) missingDocs.push("Model Agreement");
-                    if (!lead.billUrl) missingDocs.push("Electricity Bill");
-                    if (!lead.drawingUrl) missingDocs.push("Site Drawings");
-                    if (!lead.gpsUrl) missingDocs.push("GPS photo of Site/Roof");
-                    if (!lead.meterUrl) missingDocs.push("Meter Photo");
-
-                    if (missingDocs.length > 0) {
-                      showNotification(
-                        "Please upload all mandatory documents: " + missingDocs.join(", "),
-                        "warning",
-                      );
-                      return;
-                    }
-
-                    if (lead.loanRequired === "Yes") {
-                      if (!lead.loanAmount || !lead.customerMailId) {
-                        showNotification("Please fill loan details", "warning");
-                        return;
-                      }
-                    }
-
-                    if (lead.newConnectionRequired === "Yes") {
-                      if (!lead.newConnectionPhotosUrl) {
-                        showNotification(
-                          "Please upload all documents (New Connection Photos)",
-                          "warning",
-                        );
-                        return;
-                      }
-                    }
-
-                    if (lead.loadExtensionRequired === "Yes") {
-                      if (!lead.loadExtensionKw) {
-                        showNotification(
-                          "Please fill load extension KW",
-                          "warning",
-                        );
-                        return;
-                      }
-                      if (!lead.loadPropertyUrl) {
-                        showNotification(
-                          "Please upload all documents (Property Ownership)",
-                          "warning",
-                        );
-                        return;
-                      }
-                    }
-
-                    const proceed = async () => {
-                      try {
-                        const extraExecutionSetup: any = {};
-                        if (lead.s_docCorr_required === "No") {
-                          extraExecutionSetup.isStep1Submitted = true;
-                          extraExecutionSetup.step1Status = "Bypassed";
-                        }
-                        if (lead.loadExtensionRequired === "No") {
-                          extraExecutionSetup.isStep2Submitted = true;
-                          extraExecutionSetup.step2Status = "Bypassed";
-                        }
-                        if (lead.loanRequired === "No") {
-                          extraExecutionSetup.isStep4Submitted = true;
-                          extraExecutionSetup.step4Status = "Bypassed";
-                        }
-
-                        await handleUpdate(
-                          {
-                            isFinancialsSubmitted: true,
-                            updatedAt: new Date() as any,
-                            ...extraExecutionSetup,
-                          },
-                          false,
-                        );
-
-                        showNotification(
-                          "Project details submitted successfully!",
-                          "success",
-                        );
-                      } catch (error) {
-                        console.error(error);
-                        showNotification(
-                          "Error submitting project details or posting payment",
-                          "error",
-                        );
-                      }
-                    };
-                    proceed();
-                  }}
-                  disabled={isSaving || !canEditTab("financials")}
-                  className="w-full md:w-auto px-10 py-3 bg-emerald-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg"
-                >
-                  {isSaving ? (
-                    <Clock className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="w-5 h-5" />
-                  )}
-                  Submit Project Details
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "accounts" && (
-          <div
-            className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-8 rounded-2xl md:rounded-3xl transition-all duration-500 bg-white border border-slate-100 shadow-xl ${shouldHighlightTab("accounts") ? "ring-2 md:ring-4 ring-amber-400 ring-offset-2 shadow-2xl bg-amber-50/20 scale-[1.002]" : ""}`}
-          >
-            {shouldHighlightTab("accounts") && (
-              <div className="col-span-full mb-2">
-                <span className="inline-flex bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] md:text-[10px] font-black uppercase px-3 py-1 md:py-1.5 rounded-full shadow-lg animate-pulse tracking-widest items-center gap-1.5 border border-orange-400">
-                  <AlertCircle className="w-3 md:w-3.5 h-3 md:h-3.5" /> ACTION
-                  ASSIGNED TO YOU
-                </span>
-              </div>
-            )}
-            <div className="col-span-full pb-3 border-b border-slate-50 mb-2">
-              <h3 className="text-base md:text-lg font-bold text-slate-900 leading-tight">
-                Account Confirmation
-              </h3>
-              <p className="text-xs md:text-sm text-slate-400">
-                Section G: Payment verification and account assignment.
-              </p>
-            </div>
-
-            <InputField
-              label="Payment Confirmation"
-              value={lead.accPaymentStatus}
-              name="accPaymentStatus"
-              options={["Confirmed", "No"]}
-              onUpdate={(updates) => {
-                const finalUpdates = { ...updates };
-                if (updates.accPaymentStatus === "Confirmed") {
-                  if (lead.tempAdvanceAmount && !lead.accAmount)
-                    finalUpdates.accAmount = lead.tempAdvanceAmount;
-                  if (lead.tempAdvanceUrtNo && !lead.accUtrNo)
-                    finalUpdates.accUtrNo = lead.tempAdvanceUrtNo;
-                  if (lead.tempAdvanceDate && !lead.accDate)
-                    finalUpdates.accDate = lead.tempAdvanceDate;
-                }
-                handleUpdate(finalUpdates);
-              }}
-              disabled={!canEditTab("accounts")}
-            />
-
-            {lead.accPaymentStatus === "Confirmed" && (
-              <>
-                <InputField
-                  label="Amount"
-                  value={lead.accAmount}
-                  name="accAmount"
-                  type="number"
-                  onUpdate={handleUpdate}
                   disabled={!canEditTab("accounts")}
                 />
-                <InputField
-                  label="UTR No"
-                  value={lead.accUtrNo}
-                  name="accUtrNo"
-                  onUpdate={handleUpdate}
-                  disabled={!canEditTab("accounts")}
-                />
-                <InputField
-                  label="Date"
-                  value={lead.accDate}
-                  name="accDate"
-                  type="date"
-                  onUpdate={handleUpdate}
-                  disabled={!canEditTab("accounts")}
-                />
-              </>
-            )}
 
-            <InputField
-              label="Assign Project Steward (Incharge)"
-              value={lead.projectInchargeName}
-              name="projectInchargeName"
-              options={users
-                .filter((u) => u.category === "Project Coordinator")
-                .map((u) => u.name)}
-              onUpdate={(updates) => {
-                const selectedUser = users.find(
-                  (u) => u.name === updates.projectInchargeName,
-                );
-                handleUpdate({
-                  ...updates,
-                  projectInchargeName:
-                    selectedUser?.name || updates.projectInchargeName,
-                  projectInchargeEmail:
-                    selectedUser?.email || lead.projectInchargeEmail,
-                });
-              }}
-              disabled={!canEditTab("accounts")}
-            />
-
-            <div className="col-span-full flex flex-col md:flex-row items-center justify-between gap-4 mt-8 pt-8 border-t border-slate-100">
-              <div className="flex flex-col">
-                <span className="text-sm font-bold text-slate-900">
-                  Save Account Status
-                </span>
-                <p className="text-xs text-slate-400 font-medium">
-                  Verify final payment details before moving to next stage.
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => {
-                    if (!lead.accPaymentStatus || !lead.projectInchargeName) {
-                      showNotification(
-                        "Please fill all the fields (Payment Status, Project Steward)",
-                        "warning",
-                      );
-                      return;
-                    }
-
-                    if (
-                      lead.accPaymentStatus === "Confirmed" &&
-                      (!lead.accAmount || !lead.accUtrNo || !lead.accDate)
-                    ) {
-                      showNotification(
-                        "Please fill all payment confirmation details",
-                        "warning",
-                      );
-                      return;
-                    }
-
-                    const proceed = async () => {
-                      setIsSaving(true);
-                      try {
-                        const q = query(
-                          collection(db, "payments"),
-                          where("leadId", "==", lead.id),
-                          where("paymentType", "==", "Advance"),
-                        );
-                        const paymentSnap = await getDocs(q);
-                        const pendingDoc = paymentSnap.docs.find(
-                          (d) => d.data().status === "Pending",
-                        );
-                        const confirmedDoc = paymentSnap.docs.find(
-                          (d) => d.data().status === "Confirmed",
-                        );
-
-                        if (lead.accPaymentStatus === "Confirmed") {
-                          if (pendingDoc) {
-                            // Confirm the existing pending advance payment
-                            await paymentService.confirmPayment(pendingDoc.id, {
-                              amount: Number(lead.accAmount),
-                              utrNo: lead.accUtrNo,
-                              date: lead.accDate,
-                              remarks: "Confirmed via Accounts Tab Submission",
-                            });
-                          } else if (confirmedDoc) {
-                            // Already confirmed, just update the document
-                            // NOTE: We don't call confirmPayment again to prevent incrementing lead.payment_receivedAmount repeatedly
-                            // We just update the payment document with the new values
-                            await updateDoc(
-                              doc(db, "payments", confirmedDoc.id),
-                              {
-                                amount: Number(lead.accAmount),
-                                utrNo: lead.accUtrNo || "",
-                                date: lead.accDate || "",
-                              },
-                            );
-                          } else {
-                            // Create and automatically confirm new payment
-                            await paymentService.addPayment({
-                              leadId: lead.id,
-                              leadName: lead.customerName || "Unknown",
-                              amount: Number(lead.accAmount),
-                              utrNo: lead.accUtrNo || "",
-                              date: lead.accDate || "",
-                              paymentType: "Advance",
-                              remarks: "Confirmed via Accounts Tab Submission",
-                              status: "Confirmed",
-                              method: "Online",
-                            });
-                          }
-                        } else if (
-                          lead.accPaymentStatus === "No" &&
-                          pendingDoc
-                        ) {
-                          // Reject the existing pending advance payment
-                          await paymentService.rejectPayment(pendingDoc.id);
-                        }
-
-                        // Save accounts submission status
-                        await handleUpdate(
-                          {
-                            isAccountsSubmitted: true,
-                            updatedAt: new Date() as any,
-                          },
-                          false,
-                        );
-
-                        showNotification(
-                          "Account details submitted and payment history updated!",
-                          "success",
-                        );
-                      } catch (error) {
-                        console.error(error);
-                        showNotification(
-                          "Error confirming payment or submitting details",
-                          "error",
-                        );
-                      } finally {
-                        setIsSaving(false);
-                      }
-                    };
-                    proceed();
-                  }}
-                  disabled={isSaving || !canEditTab("accounts")}
-                  className="w-full md:w-auto px-10 py-3 bg-emerald-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg"
-                >
-                  {isSaving ? (
-                    <Clock className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="w-5 h-5" />
-                  )}
-                  Submit Account Details
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "project_incharge" && (
-          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-1000">
-            {/* Real-time Dashboard Header */}
-            <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl md:rounded-3xl blur opacity-10 group-hover:opacity-20 transition duration-1000"></div>
-              <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-slate-950 rounded-2xl md:rounded-3xl p-6 md:p-8 text-white shadow-2xl overflow-hidden border border-white/5">
-                <div className="absolute top-0 right-0 w-72 h-72 bg-blue-500/10 rounded-full -mr-32 -mt-32 blur-[80px] animate-pulse" />
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 rounded-full -ml-24 -mb-24 blur-[60px]" />
-
-                <div className="relative z-10 flex-1">
-                  <div className="flex items-center gap-3 mb-3 md:mb-4">
-                    <div className="h-px w-6 md:w-8 bg-blue-500" />
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-blue-400">
-                      System Protocol Alpha
+                <div className="col-span-full flex flex-col md:flex-row items-center justify-between gap-4 mt-8 pt-8 border-t border-slate-100">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-slate-900">
+                      Save Account Status
                     </span>
+                    <p className="text-xs text-slate-400 font-medium">
+                      Verify final payment details before moving to next stage.
+                    </p>
                   </div>
-                  <h3 className="text-2xl md:text-3xl font-display font-bold mb-2 md:mb-3 tracking-tight md:tracking-tighter leading-tight bg-gradient-to-br from-white via-white to-slate-400 bg-clip-text text-transparent">
-                    Project Management System (PMS)
-                  </h3>
-                  <p className="text-slate-400 text-sm md:text-base font-medium max-w-xl leading-relaxed">
-                    Centrally managing the installation lifecycle, resource
-                    allocation, and real-time execution protocols across all
-                    active operational phases.
-                  </p>
-                </div>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => {
+                        if (
+                          !lead.accPaymentStatus ||
+                          !lead.projectInchargeName
+                        ) {
+                          showNotification(
+                            "Please fill all the fields (Payment Status, Project Steward)",
+                            "warning",
+                          );
+                          return;
+                        }
 
-                <div className="relative z-10 flex flex-col md:flex-row xl:flex-col gap-4 md:gap-6 w-full lg:w-auto min-w-0 md:min-w-[280px]">
-                  {/* Project Incharge Profile Card */}
-                  <div className="flex items-center gap-3 md:gap-4 bg-white/5 backdrop-blur-3xl p-4 md:p-5 rounded-2xl border border-white/10 shadow-2xl shadow-black/40 ring-1 ring-white/10 group/profile">
-                    <div className="relative">
-                      <div className="absolute -inset-2 bg-blue-500 rounded-xl blur opacity-0 group-hover/profile:opacity-20 transition duration-500"></div>
-                      <div className="relative w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center shadow-xl shadow-blue-500/30">
-                        <Shield className="w-6 h-6 text-white" />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em] mb-1 block opacity-80">
-                        Project In-Charge
-                      </label>
-                      <p className="text-lg font-display font-bold text-white leading-tight mb-1">
-                        {lead.projectInchargeName || "Authorization Required"}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                        <p className="text-xs text-slate-400 font-bold tracking-tight">
-                          {lead.projectInchargeEmail || "Pending Steward Sync"}
-                        </p>
-                      </div>
-                    </div>
+                        if (
+                          lead.accPaymentStatus === "Confirmed" &&
+                          (!lead.accAmount || !lead.accUtrNo || !lead.accDate)
+                        ) {
+                          showNotification(
+                            "Please fill all payment confirmation details",
+                            "warning",
+                          );
+                          return;
+                        }
+
+                        const proceed = async () => {
+                          setIsSaving(true);
+                          try {
+                            const q = query(
+                              collection(db, "payments"),
+                              where("leadId", "==", lead.id),
+                              where("paymentType", "==", "Advance"),
+                            );
+                            const paymentSnap = await getDocs(q);
+                            const pendingDoc = paymentSnap.docs.find(
+                              (d) => d.data().status === "Pending",
+                            );
+                            const confirmedDoc = paymentSnap.docs.find(
+                              (d) => d.data().status === "Confirmed",
+                            );
+
+                            if (lead.accPaymentStatus === "Confirmed") {
+                              if (pendingDoc) {
+                                // Confirm the existing pending advance payment
+                                await paymentService.confirmPayment(
+                                  pendingDoc.id,
+                                  {
+                                    amount: Number(lead.accAmount),
+                                    utrNo: lead.accUtrNo,
+                                    date: lead.accDate,
+                                    remarks:
+                                      "Confirmed via Accounts Tab Submission",
+                                  },
+                                );
+                              } else if (confirmedDoc) {
+                                // Already confirmed, just update the document
+                                // NOTE: We don't call confirmPayment again to prevent incrementing lead.payment_receivedAmount repeatedly
+                                // We just update the payment document with the new values
+                                await updateDoc(
+                                  doc(db, "payments", confirmedDoc.id),
+                                  {
+                                    amount: Number(lead.accAmount),
+                                    utrNo: lead.accUtrNo || "",
+                                    date: lead.accDate || "",
+                                  },
+                                );
+                              } else {
+                                // Create and automatically confirm new payment
+                                await paymentService.addPayment({
+                                  leadId: lead.id,
+                                  leadName: lead.customerName || "Unknown",
+                                  amount: Number(lead.accAmount),
+                                  utrNo: lead.accUtrNo || "",
+                                  date: lead.accDate || "",
+                                  paymentType: "Advance",
+                                  remarks:
+                                    "Confirmed via Accounts Tab Submission",
+                                  status: "Confirmed",
+                                  method: "Online",
+                                });
+                              }
+                            } else if (
+                              lead.accPaymentStatus === "No" &&
+                              pendingDoc
+                            ) {
+                              // Reject the existing pending advance payment
+                              await paymentService.rejectPayment(pendingDoc.id);
+                            }
+
+                            // Save accounts submission status
+                            await handleUpdate(
+                              {
+                                isAccountsSubmitted: true,
+                                updatedAt: new Date() as any,
+                              },
+                              false,
+                            );
+
+                            showNotification(
+                              "Account details submitted and payment history updated!",
+                              "success",
+                            );
+                          } catch (error) {
+                            console.error(error);
+                            showNotification(
+                              "Error confirming payment or submitting details",
+                              "error",
+                            );
+                          } finally {
+                            setIsSaving(false);
+                          }
+                        };
+                        proceed();
+                      }}
+                      disabled={isSaving || !canEditTab("accounts")}
+                      className="w-full md:w-auto px-10 py-3 bg-emerald-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg"
+                    >
+                      {isSaving ? (
+                        <Clock className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-5 h-5" />
+                      )}
+                      Submit Account Details
+                    </button>
                   </div>
-
-                  {/* Operational Status Ticker */}
-                  {(() => {
-                    const activeSteps = [
-                      { id: 1, active: lead.s_docCorr_required === "Yes" },
-                      { id: 2, active: lead.loadExtensionRequired === "Yes" },
-                      { id: 3, active: true },
-                      { id: 4, active: lead.loanRequired === "Yes" },
-                      { id: 5, active: true },
-                      { id: 6, active: true },
-                      { id: 7, active: true },
-                      { id: 8, active: true },
-                      { id: 9, active: true },
-                      { id: 10, active: true },
-                      { id: 11, active: true },
-                      { id: 12, active: lead.loanRequired === "Yes" },
-                      { id: 13, active: true },
-                    ].filter((s) => s.active);
-                    const totalActive = activeSteps.length;
-                    const submittedActive = activeSteps.filter(
-                      (s) => (lead as any)[`isStep${s.id}Submitted`],
-                    ).length;
-                    const velocity =
-                      totalActive > 0
-                        ? Math.round((submittedActive / totalActive) * 100)
-                        : 0;
-                    return (
-                      <div className="flex items-center justify-between gap-6 px-10 py-5 bg-white/5 backdrop-blur-md rounded-[2rem] border border-white/5">
-                        <div>
-                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">
-                            Execution Velocity
-                          </p>
-                          <p className="text-xl font-bold font-mono text-emerald-400">
-                            {velocity}%
-                          </p>
-                        </div>
-                        <div className="h-10 w-px bg-white/10" />
-                        <div>
-                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">
-                            Active Protocols
-                          </p>
-                          <p className="text-xl font-bold font-mono text-blue-400">
-                            {submittedActive}/{totalActive}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })()}
                 </div>
               </div>
-            </div>
+            )}
 
-            {showCalendar && (
-              <div className="space-y-4 my-4">
-                <button
-                  onClick={() => setShowAvailabilityCalendar(!showAvailabilityCalendar)}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95"
-                  id="toggle-detail-availability-calendar-btn"
-                >
-                  <Calendar className="w-4 h-4 text-white" />
-                  {showAvailabilityCalendar ? "Hide Team Availability Calendar" : "Show Team Availability Calendar"}
-                </button>
-                {showAvailabilityCalendar && (
-                  <div className="bg-white border border-slate-200/80 rounded-[2.5rem] p-6 md:p-10 shadow-sm relative overflow-hidden">
-                    <AvailabilityCalendar 
-                      users={users} 
-                      allTasks={allSystemTasks} 
-                      onSelectTask={(clickedLeadId, stepId, tab) => {
-                        if (clickedLeadId === lead.id) {
-                          if (tab) {
-                            setActiveTab(tab);
-                          }
-                        }
-                      }} 
-                    />
+            {activeTab === "project_incharge" && (
+              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-1000">
+                {/* Real-time Dashboard Header */}
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl md:rounded-3xl blur opacity-10 group-hover:opacity-20 transition duration-1000"></div>
+                  <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-slate-950 rounded-2xl md:rounded-3xl p-6 md:p-8 text-white shadow-2xl overflow-hidden border border-white/5">
+                    <div className="absolute top-0 right-0 w-72 h-72 bg-blue-500/10 rounded-full -mr-32 -mt-32 blur-[80px] animate-pulse" />
+                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 rounded-full -ml-24 -mb-24 blur-[60px]" />
+
+                    <div className="relative z-10 flex-1">
+                      <div className="flex items-center gap-3 mb-3 md:mb-4">
+                        <div className="h-px w-6 md:w-8 bg-blue-500" />
+                        <span className="text-[9px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-blue-400">
+                          System Protocol Alpha
+                        </span>
+                      </div>
+                      <h3 className="text-2xl md:text-3xl font-display font-bold mb-2 md:mb-3 tracking-tight md:tracking-tighter leading-tight bg-gradient-to-br from-white via-white to-slate-400 bg-clip-text text-transparent">
+                        Project Management System (PMS)
+                      </h3>
+                      <p className="text-slate-400 text-sm md:text-base font-medium max-w-xl leading-relaxed">
+                        Centrally managing the installation lifecycle, resource
+                        allocation, and real-time execution protocols across all
+                        active operational phases.
+                      </p>
+                    </div>
+
+                    <div className="relative z-10 flex flex-col md:flex-row xl:flex-col gap-4 md:gap-6 w-full lg:w-auto min-w-0 md:min-w-[280px]">
+                      {/* Project Incharge Profile Card */}
+                      <div className="flex items-center gap-3 md:gap-4 bg-white/5 backdrop-blur-3xl p-4 md:p-5 rounded-2xl border border-white/10 shadow-2xl shadow-black/40 ring-1 ring-white/10 group/profile">
+                        <div className="relative">
+                          <div className="absolute -inset-2 bg-blue-500 rounded-xl blur opacity-0 group-hover/profile:opacity-20 transition duration-500"></div>
+                          <div className="relative w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center shadow-xl shadow-blue-500/30">
+                            <Shield className="w-6 h-6 text-white" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em] mb-1 block opacity-80">
+                            Project In-Charge
+                          </label>
+                          <p className="text-lg font-display font-bold text-white leading-tight mb-1">
+                            {lead.projectInchargeName ||
+                              "Authorization Required"}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                            <p className="text-xs text-slate-400 font-bold tracking-tight">
+                              {lead.projectInchargeEmail ||
+                                "Pending Steward Sync"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Operational Status Ticker */}
+                      {(() => {
+                        const activeSteps = [
+                          { id: 1, active: lead.s_docCorr_required === "Yes" },
+                          {
+                            id: 2,
+                            active: lead.loadExtensionRequired === "Yes",
+                          },
+                          { id: 3, active: true },
+                          { id: 4, active: lead.loanRequired === "Yes" },
+                          { id: 5, active: true },
+                          { id: 6, active: true },
+                          { id: 7, active: true },
+                          { id: 8, active: true },
+                          { id: 9, active: true },
+                          { id: 10, active: true },
+                          { id: 11, active: true },
+                          { id: 12, active: lead.loanRequired === "Yes" },
+                          { id: 13, active: true },
+                        ].filter((s) => s.active);
+                        const totalActive = activeSteps.length;
+                        const submittedActive = activeSteps.filter(
+                          (s) => (lead as any)[`isStep${s.id}Submitted`],
+                        ).length;
+                        const velocity =
+                          totalActive > 0
+                            ? Math.round((submittedActive / totalActive) * 100)
+                            : 0;
+                        return (
+                          <div className="flex items-center justify-between gap-6 px-10 py-5 bg-white/5 backdrop-blur-md rounded-[2rem] border border-white/5">
+                            <div>
+                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">
+                                Execution Velocity
+                              </p>
+                              <p className="text-xl font-bold font-mono text-emerald-400">
+                                {velocity}%
+                              </p>
+                            </div>
+                            <div className="h-10 w-px bg-white/10" />
+                            <div>
+                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">
+                                Active Protocols
+                              </p>
+                              <p className="text-xl font-bold font-mono text-blue-400">
+                                {submittedActive}/{totalActive}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                {showCalendar && (
+                  <div className="space-y-4 my-4">
+                    <button
+                      onClick={() =>
+                        setShowAvailabilityCalendar(!showAvailabilityCalendar)
+                      }
+                      className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95"
+                      id="toggle-detail-availability-calendar-btn"
+                    >
+                      <Calendar className="w-4 h-4 text-white" />
+                      {showAvailabilityCalendar
+                        ? "Hide Team Availability Calendar"
+                        : "Show Team Availability Calendar"}
+                    </button>
+                    {showAvailabilityCalendar && (
+                      <div className="bg-white border border-slate-200/80 rounded-[2.5rem] p-6 md:p-10 shadow-sm relative overflow-hidden">
+                        <AvailabilityCalendar
+                          users={users}
+                          allTasks={allSystemTasks}
+                          onSelectTask={(clickedLeadId, stepId, tab) => {
+                            if (clickedLeadId === lead.id) {
+                              if (tab) {
+                                setActiveTab(tab);
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
-            )}
 
-            {/* Roadmap Intelligence Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12 mt-4">
-              <div>
-                <h3 className="text-3xl font-black text-slate-900 tracking-tight mb-2">
-                  Project Control Dashboard
-                </h3>
-                <p className="text-slate-500 font-medium max-w-xl">
-                  Strategic governance sequence for lead{" "}
-                  <span className="font-bold text-blue-600">
-                    #{lead.id.slice(-6).toUpperCase()}
-                  </span>
-                  . Assign stewards, define timelines, and set operational
-                  directives.
-                </p>
-              </div>
-              <div className="flex items-center gap-3 bg-blue-50/50 p-4 rounded-[1.5rem] border border-blue-100/50">
-                <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-500/20">
-                  <Activity className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none mb-1.5">
-                    Network Sync
-                  </p>
-                  <p className="text-sm font-bold text-slate-900 leading-none">
-                    Management Mode
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Visual Task Sheet Metrics Scorecards */}
-            <div className="bg-slate-50 border border-slate-200/80 rounded-3xl p-6.5 mb-8 shadow-sm">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                <div>
-                  <h3 className="text-base font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-2.5 h-4.5 rounded bg-indigo-600 block"></span>
-                    Execution Roadmap Stats
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium">
-                    Real-time status tracking for phase connection stages.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 text-xs font-black text-indigo-600 bg-indigo-50/60 border border-indigo-100 rounded-xl px-3 py-1.5 w-fit">
-                  {Math.round(
-                    ((taskMetrics.completed + taskMetrics.bypassed) /
-                      (taskMetrics.total || 1)) *
-                      100,
-                  )}
-                  % Progress Overall
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                {[
-                  {
-                    label: "Total Tasks",
-                    val: taskMetrics.total,
-                    bg: "bg-white border-slate-100 text-slate-900 hover:border-slate-300",
-                    accent:
-                      "bg-indigo-50 text-indigo-600 border border-indigo-100/50",
-                    subtext: "Total stages",
-                  },
-                  {
-                    label: "Completed",
-                    val: taskMetrics.completed,
-                    bg: "bg-emerald-50/35 border-emerald-100/70 text-emerald-950 hover:border-emerald-200",
-                    accent:
-                      "bg-emerald-100/60 text-emerald-700 border border-emerald-200/50",
-                    subtext: "Successfully verified",
-                  },
-                  {
-                    label: "On Time",
-                    val: taskMetrics.onTime,
-                    bg: "bg-teal-50/20 border-teal-100/60 text-teal-950 hover:border-teal-200",
-                    accent:
-                      "bg-teal-100/60 text-teal-700 border border-teal-200/50",
-                    subtext: "Completed prior to deadline",
-                  },
-                  {
-                    label: "Delayed",
-                    val: taskMetrics.delayed,
-                    bg: "bg-rose-50/30 border-rose-100 text-rose-950 hover:border-rose-200",
-                    accent:
-                      "bg-rose-100/60 text-rose-700 border border-rose-200/50",
-                    subtext: "Urgent action required",
-                    shake: taskMetrics.delayed > 0,
-                  },
-                  {
-                    label: "Bypassed",
-                    val: taskMetrics.bypassed,
-                    bg: "bg-slate-50/60 border-slate-200/60 text-slate-800 hover:border-slate-300",
-                    accent:
-                      "bg-slate-100 text-slate-600 border border-slate-250/20",
-                    subtext: "Force-approved or excluded",
-                  },
-                ].map((m, idx) => (
-                  <motion.div
-                    whileHover={{ y: -2, scale: 1.01 }}
-                    key={idx}
-                    className={`border p-4.5 rounded-2xl bg-white ${m.bg} flex flex-col justify-between shadow-sm transition-all duration-300 relative overflow-hidden group ${m.shake ? "ring-2 ring-rose-300 animate-pulse" : ""}`}
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">
-                        {m.label}
+                {/* Roadmap Intelligence Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12 mt-4">
+                  <div>
+                    <h3 className="text-3xl font-black text-slate-900 tracking-tight mb-2">
+                      Project Control Dashboard
+                    </h3>
+                    <p className="text-slate-500 font-medium max-w-xl">
+                      Strategic governance sequence for lead{" "}
+                      <span className="font-bold text-blue-600">
+                        #{lead.id.slice(-6).toUpperCase()}
                       </span>
-                      <div
-                        className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs ${m.accent}`}
-                      >
-                        {m.label[0]}
-                      </div>
+                      . Assign stewards, define timelines, and set operational
+                      directives.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 bg-blue-50/50 p-4 rounded-[1.5rem] border border-blue-100/50">
+                    <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-500/20">
+                      <Activity className="w-6 h-6" />
                     </div>
                     <div>
-                      <span className="text-2xl font-black text-slate-900 tracking-tight block leading-none mb-1">
-                        {m.val}
-                      </span>
-                      <span className="text-[9px] font-bold text-slate-450 uppercase tracking-wide leading-none">
-                        {m.subtext}
-                      </span>
+                      <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none mb-1.5">
+                        Network Sync
+                      </p>
+                      <p className="text-sm font-bold text-slate-900 leading-none">
+                        Management Mode
+                      </p>
                     </div>
-                    {/* Tiny decorative bar at bottom */}
-                    <div className="absolute bottom-0 inset-x-0 h-[3px] bg-slate-150 group-hover:bg-indigo-500/45 transition-colors" />
-                  </motion.div>
-                ))}
-              </div>
-            </div>
+                  </div>
+                </div>
 
-            {/* Execution Roadmap Task Sheet */}
-            {/* Desktop-only Table View */}
-            <div className="hidden lg:block overflow-x-auto bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden mb-20 animate-fade-in">
-              <table className="w-full text-left border-collapse min-w-[1100px]">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-100">
-                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] w-[260px]">
-                      Phase & Activity
-                    </th>
-                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] w-[110px]">
-                      Requirement
-                    </th>
-                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] text-center w-[120px]">
-                      Assignment Button
-                    </th>
-                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] w-[200px]">
-                      Steward Assigned
-                    </th>
-                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] w-[160px]">
-                      Assigned Date
-                    </th>
-                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] w-[140px]">
-                      Completed Date
-                    </th>
-                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] w-[130px]">
-                      Delay / On-Time
-                    </th>
-                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] w-[220px]">
-                      Directive Remark
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
+                {/* Visual Task Sheet Metrics Scorecards */}
+                <div className="bg-slate-50 border border-slate-200/80 rounded-3xl p-6.5 mb-8 shadow-sm">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                    <div>
+                      <h3 className="text-base font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                        <span className="w-2.5 h-4.5 rounded bg-indigo-600 block"></span>
+                        Execution Roadmap Stats
+                      </h3>
+                      <p className="text-xs text-slate-500 font-medium">
+                        Real-time status tracking for phase connection stages.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs font-black text-indigo-600 bg-indigo-50/60 border border-indigo-100 rounded-xl px-3 py-1.5 w-fit">
+                      {Math.round(
+                        ((taskMetrics.completed + taskMetrics.bypassed) /
+                          (taskMetrics.total || 1)) *
+                          100,
+                      )}
+                      % Progress Overall
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                    {[
+                      {
+                        label: "Total Tasks",
+                        val: taskMetrics.total,
+                        bg: "bg-white border-slate-100 text-slate-900 hover:border-slate-300",
+                        accent:
+                          "bg-indigo-50 text-indigo-600 border border-indigo-100/50",
+                        subtext: "Total stages",
+                      },
+                      {
+                        label: "Completed",
+                        val: taskMetrics.completed,
+                        bg: "bg-emerald-50/35 border-emerald-100/70 text-emerald-950 hover:border-emerald-200",
+                        accent:
+                          "bg-emerald-100/60 text-emerald-700 border border-emerald-200/50",
+                        subtext: "Successfully verified",
+                      },
+                      {
+                        label: "On Time",
+                        val: taskMetrics.onTime,
+                        bg: "bg-teal-50/20 border-teal-100/60 text-teal-950 hover:border-teal-200",
+                        accent:
+                          "bg-teal-100/60 text-teal-700 border border-teal-200/50",
+                        subtext: "Completed prior to deadline",
+                      },
+                      {
+                        label: "Delayed",
+                        val: taskMetrics.delayed,
+                        bg: "bg-rose-50/30 border-rose-100 text-rose-950 hover:border-rose-200",
+                        accent:
+                          "bg-rose-100/60 text-rose-700 border border-rose-200/50",
+                        subtext: "Urgent action required",
+                        shake: taskMetrics.delayed > 0,
+                      },
+                      {
+                        label: "Bypassed",
+                        val: taskMetrics.bypassed,
+                        bg: "bg-slate-50/60 border-slate-200/60 text-slate-800 hover:border-slate-300",
+                        accent:
+                          "bg-slate-100 text-slate-600 border border-slate-250/20",
+                        subtext: "Force-approved or excluded",
+                      },
+                    ].map((m, idx) => (
+                      <motion.div
+                        whileHover={{ y: -2, scale: 1.01 }}
+                        key={idx}
+                        className={`border p-4.5 rounded-2xl bg-white ${m.bg} flex flex-col justify-between shadow-sm transition-all duration-300 relative overflow-hidden group ${m.shake ? "ring-2 ring-rose-300 animate-pulse" : ""}`}
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">
+                            {m.label}
+                          </span>
+                          <div
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs ${m.accent}`}
+                          >
+                            {m.label[0]}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-2xl font-black text-slate-900 tracking-tight block leading-none mb-1">
+                            {m.val}
+                          </span>
+                          <span className="text-[9px] font-bold text-slate-450 uppercase tracking-wide leading-none">
+                            {m.subtext}
+                          </span>
+                        </div>
+                        {/* Tiny decorative bar at bottom */}
+                        <div className="absolute bottom-0 inset-x-0 h-[3px] bg-slate-150 group-hover:bg-indigo-500/45 transition-colors" />
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Execution Roadmap Task Sheet */}
+                {/* Desktop-only Table View */}
+                <div className="hidden lg:block overflow-x-auto bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden mb-20 animate-fade-in">
+                  <table className="w-full text-left border-collapse min-w-[1100px]">
+                    <thead>
+                      <tr className="bg-slate-50/80 border-b border-slate-100">
+                        <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] w-[260px]">
+                          Phase & Activity
+                        </th>
+                        <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] w-[110px]">
+                          Requirement
+                        </th>
+                        <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] text-center w-[120px]">
+                          Assignment Button
+                        </th>
+                        <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] w-[200px]">
+                          Steward Assigned
+                        </th>
+                        <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] w-[160px]">
+                          Assigned Date
+                        </th>
+                        <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] w-[140px]">
+                          Completed Date
+                        </th>
+                        <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] w-[130px]">
+                          Delay / On-Time
+                        </th>
+                        <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] w-[220px]">
+                          Directive Remark
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {[
+                        {
+                          id: 14,
+                          label: "New Connection",
+                          emailField: "s_newConn_assignedToEmail",
+                          nameField: "s_newConn_assignedTo",
+                          icon: PlusCircle,
+                          condition: lead.newConnectionRequired === "Yes",
+                          desc: "New Connection Details",
+                          requiredField: "newConnectionRequired",
+                        },
+                        {
+                          id: 1,
+                          label: "Doc Correction",
+                          emailField: "s_docCorr_assignedToEmail",
+                          nameField: "s_docCorr_assignedTo",
+                          icon: FileCheck,
+                          condition: lead.s_docCorr_required === "Yes",
+                          desc: "Document Audit",
+                          requiredField: "s_docCorr_required",
+                        },
+                        {
+                          id: 2,
+                          label: "Load Extension",
+                          emailField: "s_loadExt_assignedToEmail",
+                          nameField: "s_loadExt_assignedTo",
+                          icon: Zap,
+                          condition: lead.loadExtensionRequired === "Yes",
+                          desc: "Load Protocol",
+                          requiredField: "loadExtensionRequired",
+                        },
+                        {
+                          id: 3,
+                          label: "Online Registration",
+                          emailField: "execution_assignedToEmail",
+                          nameField: "execution_assignedTo",
+                          icon: ExternalLink,
+                          desc: "Onboarding",
+                        },
+                        {
+                          id: 4,
+                          label: "Loan Processing",
+                          emailField: "s4_loanAssignedToEmail",
+                          nameField: "s4_loanAssignedTo",
+                          icon: CreditCard,
+                          condition: lead.loanRequired === "Yes",
+                          desc: "Financial Sync",
+                          requiredField: "loanRequired",
+                        },
+                        {
+                          id: 5,
+                          label: "Meter Dispatch",
+                          emailField: "s5_storeDispatchAssignedToEmail",
+                          nameField: "s5_storeDispatchAssignedTo",
+                          icon: HardDrive,
+                          desc: "Logistics",
+                        },
+                        {
+                          id: 6,
+                          label: "DISCOM (Pre-Install)",
+                          emailField: "s5_discomPreAssignedToEmail",
+                          nameField: "s5_discomPreAssignedTo",
+                          icon: Zap,
+                          desc: "Utility Sync",
+                        },
+                        {
+                          id: 7,
+                          label: "SITE INCHARGE",
+                          emailField: "s6_inchargeAssignedToEmail",
+                          nameField: "s6_inchargeAssignedTo",
+                          icon: MapPin,
+                          desc: "Field Control",
+                        },
+                        {
+                          id: 8,
+                          label: "STORE INCHARGE",
+                          emailField: "s5_storeInchargeAssignedToEmail",
+                          nameField: "s5_storeInchargeAssignedTo",
+                          icon: HardDrive,
+                          desc: "Custodian",
+                        },
+                        {
+                          id: 9,
+                          label: "SITE TEAM",
+                          emailField: "s6_assignedToEmail",
+                          nameField: "s6_assignedTo",
+                          icon: Users,
+                          desc: "Installation",
+                        },
+                        {
+                          id: 10,
+                          label: "OFFICE EXEC (Post)",
+                          emailField: "s7_assignedToEmail",
+                          nameField: "s7_assignedTo",
+                          icon: FileCheck,
+                          desc: "Post-Install",
+                        },
+                        {
+                          id: 11,
+                          label: "DISCOM (Post-Install)",
+                          emailField: "s8_assignedToEmail",
+                          nameField: "s8_assignedTo",
+                          icon: Zap,
+                          desc: "Utility Closure",
+                        },
+                        {
+                          id: 12,
+                          label: "LOAN OFFICER (Post)",
+                          emailField: "s9_assignedToEmail",
+                          nameField: "s9_assignedTo",
+                          icon: CreditCard,
+                          condition: lead.loanRequired === "Yes",
+                          desc: "Final Audit",
+                          requiredField: "loanRequired",
+                        },
+                        {
+                          id: 13,
+                          label: "SUBSIDY SECTION",
+                          emailField: "s11_assignedToEmail",
+                          nameField: "s11_assignedTo",
+                          icon: FileText,
+                          desc: "Incentives",
+                        },
+                        {
+                          id: 15,
+                          label: "INSURANCE SECTION",
+                          emailField: "s12_assignedToEmail",
+                          nameField: "s12_assignedTo",
+                          icon: Shield,
+                          desc: "Insurance",
+                        },
+                      ]
+                        .filter((step) => step.condition !== false)
+                        .map((step, index) => {
+                          const isCompleted = (lead as any)[
+                            `isStep${step.id}Submitted`
+                          ];
+                          const assigneeName =
+                            (lead as any)[step.nameField] || "";
+                          const isRequired = step.requiredField
+                            ? (lead as any)[step.requiredField]
+                            : "Yes";
+                          const dueDateValue =
+                            lead.stepDueDates?.[step.id] || "";
+                          const remarkValue =
+                            (lead as any)[`step${step.id}Remark`] || "";
+
+                          const status =
+                            isRequired === "No"
+                              ? "Bypassed"
+                              : isCompleted
+                                ? "Completed"
+                                : assigneeName
+                                  ? "Assigned"
+                                  : "Unassigned";
+
+                          let rowBg = "hover:bg-slate-50/40";
+                          let rowBorderLeft = "border-l-4 border-l-transparent";
+
+                          if (status === "Bypassed") {
+                            rowBg =
+                              "bg-slate-50/20 opacity-70 hover:bg-slate-50/30";
+                            rowBorderLeft = "border-l-4 border-l-slate-200";
+                          }
+
+                          // Parse completed & due dates
+                          const completedDateStr =
+                            lead.stepCompletionDates?.[step.id];
+                          const completedDateObj = completedDateStr
+                            ? new Date(completedDateStr)
+                            : null;
+                          const dueDateObj = dueDateValue
+                            ? new Date(dueDateValue)
+                            : null;
+
+                          // Compute Delay / On-Time
+                          let timelineStatus: string = "On Time";
+                          let delayDays = 0;
+
+                          if (isRequired === "No") {
+                            timelineStatus = "Bypassed";
+                          } else if (!assigneeName) {
+                            timelineStatus = "Unassigned";
+                          } else {
+                            timelineStatus = "On Time";
+                          }
+
+                          return (
+                            <tr
+                              key={step.id}
+                              className={`group transition-all duration-300 ${rowBg} ${rowBorderLeft} border-b border-slate-100/60 last:border-0`}
+                            >
+                              {/* Phase & Activity */}
+                              <td className="px-5 py-5.5">
+                                <div className="flex items-center gap-3.5">
+                                  <div
+                                    className={`w-8.5 h-8.5 rounded-2xl flex items-center justify-center font-black text-[11px] shadow-sm tracking-tighter ${
+                                      status === "Completed"
+                                        ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-200"
+                                        : status === "Assigned"
+                                          ? "bg-gradient-to-br from-amber-400 to-amber-500 text-amber-950"
+                                          : status === "Unassigned"
+                                            ? "bg-gradient-to-br from-rose-500 to-red-600 text-white animate-pulse"
+                                            : "bg-slate-100 text-slate-400"
+                                    }`}
+                                  >
+                                    {String(index + 1).padStart(2, "0")}
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-black text-slate-900 tracking-tight leading-tight mb-0.5">
+                                      {step.label}
+                                    </p>
+                                    <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider">
+                                      {step.desc}
+                                    </p>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Requirement status */}
+                              <td className="px-5 py-5.5">
+                                {step.requiredField ? (
+                                  <button
+                                    onClick={() =>
+                                      handleUpdate({
+                                        [step.requiredField as string]:
+                                          isRequired === "Yes" ? "No" : "Yes",
+                                      })
+                                    }
+                                    disabled={
+                                      isCompleted ||
+                                      (!isAdminUser && !isSteward)
+                                    }
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider border transition-all active:scale-95 disabled:opacity-50 cursor-pointer ${
+                                      isRequired === "Yes"
+                                        ? "bg-emerald-50/50 text-emerald-700 border-emerald-200/60 shadow-xs"
+                                        : "bg-rose-50/50 text-rose-700 border-rose-200/60 shadow-xs"
+                                    }`}
+                                    title="Toggle Requirement"
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
+                                    {isRequired === "Yes"
+                                      ? "Required"
+                                      : "Bypassed"}
+                                  </button>
+                                ) : (
+                                  <span className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-50/50 text-indigo-700 border border-indigo-200/40 shadow-xs">
+                                    Mandatory
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Protocol Action buttons (Moved after Requirement) */}
+                              <td className="px-5 py-5.5">
+                                <div className="flex justify-center items-center gap-2">
+                                  {isCompleted ? (
+                                    <motion.button
+                                      disabled
+                                      className="px-3.5 py-1.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md shadow-emerald-600/15 flex items-center justify-center gap-1.5 transition-all border border-emerald-500/30"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />{" "}
+                                      Done
+                                    </motion.button>
+                                  ) : isRequired === "Yes" ? (
+                                    <motion.button
+                                      whileHover={{ scale: 1.05 }}
+                                      whileTap={{ scale: 0.95 }}
+                                      onClick={() => {
+                                        setActiveAssignStep({
+                                          id: step.id,
+                                          label: step.label,
+                                          nameField: step.nameField,
+                                          emailField: step.emailField || "",
+                                          currentAssigneeName: assigneeName,
+                                          currentDueDate: dueDateValue,
+                                          currentRemark: remarkValue,
+                                        });
+                                        setAssignSelectedUser(assigneeName);
+                                        setAssignDueDate(dueDateValue);
+                                        setAssignRemarkText(remarkValue);
+                                      }}
+                                      disabled={
+                                        !canEditTab("project_incharge") ||
+                                        !canUserAssignTasks
+                                      }
+                                      className={`px-3.5 py-1.5 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md active:scale-95 disabled:opacity-20 flex items-center justify-center gap-1.5 transition-all border cursor-pointer ${
+                                        assigneeName
+                                          ? "bg-amber-500 hover:bg-amber-600 border-amber-400/30 shadow-amber-500/15"
+                                          : "bg-indigo-600 hover:bg-indigo-700 border-indigo-500/30 shadow-indigo-600/15"
+                                      }`}
+                                      title="Set Deadlines and Remarks for this phase"
+                                    >
+                                      <Calendar className="w-3.5 h-3.5 shrink-0" />{" "}
+                                      {assigneeName ? "Assigned" : "Assign"}
+                                    </motion.button>
+                                  ) : (
+                                    <motion.button
+                                      whileHover={{ scale: 1.05 }}
+                                      whileTap={{ scale: 0.95 }}
+                                      onClick={() => {
+                                        handleUpdate({
+                                          [`isStep${step.id}Submitted`]: true,
+                                          [`step${step.id}Status`]: "Bypassed",
+                                          [`step${step.id}Remark`]:
+                                            "Marked as Not Required by In-charge",
+                                          updatedAt: new Date(),
+                                        });
+                                        showNotification(
+                                          `Bypassed phase: ${step.label}`,
+                                          "warning",
+                                        );
+                                      }}
+                                      disabled={
+                                        isCompleted ||
+                                        !canEditTab("project_incharge") ||
+                                        !canUserAssignTasks
+                                      }
+                                      className="w-8.5 h-8.5 bg-slate-50 text-slate-500 rounded-2xl hover:bg-emerald-600 hover:text-white border border-slate-200/50 transition-all flex items-center justify-center cursor-pointer shadow-xs"
+                                      title="Bypass Protocol"
+                                    >
+                                      <FileCheck className="w-4.5 h-4.5" />
+                                    </motion.button>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Steward assigned */}
+                              <td className="px-5 py-5.5">
+                                {isRequired === "Yes" ? (
+                                  <div className="flex items-center gap-2.5">
+                                    <div
+                                      className={`w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 shadow-xs border border-slate-100/50 ${assigneeName ? "bg-indigo-50/80 text-indigo-600" : "bg-slate-50 text-slate-400"}`}
+                                    >
+                                      {step.icon ? (
+                                        <step.icon className="w-4 h-4" />
+                                      ) : (
+                                        <Users className="w-4 h-4" />
+                                      )}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <span className="text-xs font-black text-slate-800 block leading-tight truncate max-w-[130px]">
+                                        {assigneeName || "Unassigned"}
+                                      </span>
+                                      {assigneeName && (
+                                        <span className="text-[9px] text-slate-400 font-bold block truncate max-w-[130px]">
+                                          {(lead as any)[
+                                            step.emailField || ""
+                                          ] || ""}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs font-bold text-slate-400 italic">
+                                    Skipped Phase
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Due Date column */}
+                              <td className="px-5 py-5.5">
+                                {isRequired === "Yes" ? (
+                                  dueDateObj && !isNaN(dueDateObj.getTime()) ? (
+                                    <div className="flex items-center gap-1.5 text-slate-700 bg-slate-50/80 border border-slate-200/50 px-2.5 py-1.5 rounded-xl w-fit shadow-xs">
+                                      <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                      <span className="text-[11px] font-bold text-slate-700 tracking-tight">
+                                        {format(dueDateObj, "dd MMM yyyy")}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[9px] font-black bg-rose-50/60 border border-rose-100/50 text-rose-500 uppercase">
+                                      Pending Assign
+                                    </span>
+                                  )
+                                ) : (
+                                  <span className="text-xs text-slate-400 italic font-medium">
+                                    —
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Completed Date column */}
+                              <td className="px-5 py-5.5 font-mono">
+                                {isRequired === "Yes" ? (
+                                  isCompleted && completedDateObj ? (
+                                    <div className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50/80 border border-emerald-100/50 px-2.5 py-1.5 rounded-xl w-fit shadow-xs">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                      <span className="text-[11px] font-bold uppercase text-emerald-600">
+                                        {format(
+                                          completedDateObj,
+                                          "dd MMM yyyy",
+                                        )}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[9px] font-black text-slate-300 tracking-widest bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
+                                      PENDING
+                                    </span>
+                                  )
+                                ) : (
+                                  <span className="text-xs text-slate-400 italic font-medium">
+                                    —
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Delay / On-Time status badge */}
+                              <td className="px-5 py-5.5">
+                                {timelineStatus === "Bypassed" ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[9px] font-black bg-slate-50 border border-slate-200/30 text-slate-450 uppercase">
+                                    Bypassed
+                                  </span>
+                                ) : timelineStatus === "Unassigned" ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[9px] font-black bg-rose-50/60 border border-rose-100/40 text-rose-500 uppercase animate-pulse">
+                                    Pending Assign
+                                  </span>
+                                ) : timelineStatus === "Delay" ? (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[9px] font-black bg-rose-50 text-rose-600 border border-rose-100/60 uppercase">
+                                    <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                    Delay ({delayDays}d)
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100 uppercase">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                    On Time
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Operational directive remark output */}
+                              <td className="px-5 py-5.5">
+                                {isRequired === "Yes" ? (
+                                  remarkValue ? (
+                                    <div
+                                      className="text-[11px] font-semibold text-slate-600 max-w-[210px] bg-slate-50/60 border border-slate-100/60 rounded-xl px-2.5 py-1.5 text-left truncate hover:whitespace-normal cursor-help shadow-xs"
+                                      title={remarkValue}
+                                    >
+                                      {remarkValue}
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-350 font-medium italic">
+                                      No guideline set.
+                                    </span>
+                                  )
+                                ) : (
+                                  <span className="text-xs text-slate-400 italic font-medium">
+                                    —
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile / Tablet Responsive Cards View */}
+                <div className="block lg:hidden space-y-4 mb-20 animate-fade-in">
                   {[
                     {
                       id: 14,
@@ -5366,6 +5988,14 @@ export default function LeadDetail({
                       icon: FileText,
                       desc: "Incentives",
                     },
+                    {
+                      id: 15,
+                      label: "INSURANCE SECTION",
+                      emailField: "s12_assignedToEmail",
+                      nameField: "s12_assignedTo",
+                      icon: Shield,
+                      desc: "Insurance",
+                    },
                   ]
                     .filter((step) => step.condition !== false)
                     .map((step, index) => {
@@ -5389,16 +6019,7 @@ export default function LeadDetail({
                               ? "Assigned"
                               : "Unassigned";
 
-                      let rowBg = "hover:bg-slate-50/40";
-                      let rowBorderLeft = "border-l-4 border-l-transparent";
-
-                      if (status === "Bypassed") {
-                        rowBg =
-                          "bg-slate-50/20 opacity-70 hover:bg-slate-50/30";
-                        rowBorderLeft = "border-l-4 border-l-slate-200";
-                      }
-
-                      // Parse completed & due dates
+                      // Delay / timeline status logic
                       const completedDateStr =
                         lead.stepCompletionDates?.[step.id];
                       const completedDateObj = completedDateStr
@@ -5408,7 +6029,6 @@ export default function LeadDetail({
                         ? new Date(dueDateValue)
                         : null;
 
-                      // Compute Delay / On-Time
                       let timelineStatus: string = "On Time";
                       let delayDays = 0;
 
@@ -5421,17 +6041,19 @@ export default function LeadDetail({
                       }
 
                       return (
-                        <tr
+                        <motion.div
                           key={step.id}
-                          className={`group transition-all duration-300 ${rowBg} ${rowBorderLeft} border-b border-slate-100/60 last:border-0`}
+                          initial={{ opacity: 0, y: 12 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`bg-white rounded-[2rem] border ${isRequired === "No" ? "border-slate-100 bg-slate-50/50 opacity-70" : "border-slate-150"} shadow-md p-5 flex flex-col gap-4 relative overflow-hidden transition-all duration-300 hover:shadow-lg`}
                         >
-                          {/* Phase & Activity */}
-                          <td className="px-5 py-5.5">
-                            <div className="flex items-center gap-3.5">
+                          {/* Header bar */}
+                          <div className="flex items-start justify-between gap-2.5">
+                            <div className="flex items-center gap-3">
                               <div
-                                className={`w-8.5 h-8.5 rounded-2xl flex items-center justify-center font-black text-[11px] shadow-sm tracking-tighter ${
+                                className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shrink-0 shadow-sm ${
                                   status === "Completed"
-                                    ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-200"
+                                    ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-100"
                                     : status === "Assigned"
                                       ? "bg-gradient-to-br from-amber-400 to-amber-500 text-amber-950"
                                       : status === "Unassigned"
@@ -5442,18 +6064,16 @@ export default function LeadDetail({
                                 {String(index + 1).padStart(2, "0")}
                               </div>
                               <div>
-                                <p className="text-xs font-black text-slate-900 tracking-tight leading-tight mb-0.5">
+                                <h4 className="text-xs font-black text-slate-900 leading-tight block">
                                   {step.label}
-                                </p>
-                                <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider">
+                                </h4>
+                                <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest">
                                   {step.desc}
-                                </p>
+                                </span>
                               </div>
                             </div>
-                          </td>
 
-                          {/* Requirement status */}
-                          <td className="px-5 py-5.5">
+                            {/* Requirement badge/button */}
                             {step.requiredField ? (
                               <button
                                 onClick={() =>
@@ -5465,37 +6085,114 @@ export default function LeadDetail({
                                 disabled={
                                   isCompleted || (!isAdminUser && !isSteward)
                                 }
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider border transition-all active:scale-95 disabled:opacity-50 cursor-pointer ${
+                                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border transition-all ${
                                   isRequired === "Yes"
-                                    ? "bg-emerald-50/50 text-emerald-700 border-emerald-200/60 shadow-xs"
-                                    : "bg-rose-50/50 text-rose-700 border-rose-200/60 shadow-xs"
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-100 shadow-xs"
+                                    : "bg-rose-50 text-rose-700 border-rose-100/80 shadow-xs"
                                 }`}
-                                title="Toggle Requirement"
                               >
-                                <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
                                 {isRequired === "Yes" ? "Required" : "Bypassed"}
                               </button>
                             ) : (
-                              <span className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-50/50 text-indigo-700 border border-indigo-200/40 shadow-xs">
+                              <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-xs">
                                 Mandatory
                               </span>
                             )}
-                          </td>
+                          </div>
 
-                          {/* Protocol Action buttons (Moved after Requirement) */}
-                          <td className="px-5 py-5.5">
-                            <div className="flex justify-center items-center gap-2">
+                          {isRequired === "Yes" && (
+                            <div className="grid grid-cols-2 gap-3.5 pt-3.5 border-t border-slate-100">
+                              {/* Steward assigned */}
+                              <div className="space-y-1">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+                                  Steward Assigned
+                                </span>
+                                <div className="flex items-center gap-2 bg-slate-50 border border-slate-100/70 rounded-xl p-2 md:p-2.5 min-w-0">
+                                  <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  <span className="text-[11px] font-bold text-slate-700 truncate block min-w-0 max-w-full">
+                                    {assigneeName || "Unassigned"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Due Date block */}
+                              <div className="space-y-1">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+                                  Assigned Date
+                                </span>
+                                <div className="flex items-center gap-2 bg-slate-50 border border-slate-100/70 rounded-xl p-2 md:p-2.5 min-w-0">
+                                  <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  <span className="text-[11px] font-bold text-slate-700 truncate block min-w-0 max-w-full">
+                                    {dueDateObj && !isNaN(dueDateObj.getTime())
+                                      ? format(dueDateObj, "dd MMM yyyy")
+                                      : "Pending"}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Deadline and Remark card details */}
+                          {isRequired === "Yes" && (
+                            <div className="space-y-2 bg-slate-50 rounded-2xl p-3 border border-slate-105/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <div className="shrink-0">
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+                                  Timeline State
+                                </span>
+                                {timelineStatus === "Delay" ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[9px] font-black bg-rose-100 text-rose-700 uppercase">
+                                    <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />{" "}
+                                    Delay ({delayDays}d)
+                                  </span>
+                                ) : timelineStatus === "Unassigned" ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[9px] font-black bg-rose-50 text-rose-500 uppercase">
+                                    Pending Assign
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[9px] font-black bg-emerald-50 text-emerald-700 uppercase">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />{" "}
+                                    On Time
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="sm:max-w-[65%] min-w-0">
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">
+                                  Directive Remark
+                                </span>
+                                <p
+                                  className="text-[11px] font-semibold text-slate-600 leading-tight italic truncate max-w-full"
+                                  title={remarkValue}
+                                >
+                                  {remarkValue || "No instructions set."}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Actions footer wrapper */}
+                          <div className="flex items-center justify-between gap-3 pt-3.5 border-t border-slate-100 mt-0.5">
+                            <div className="min-w-0">
+                              {isCompleted && completedDateObj && (
+                                <div className="text-[10px] font-black text-slate-450 flex items-center gap-1.5 truncate">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />{" "}
+                                  Completed on{" "}
+                                  {format(completedDateObj, "dd MMM yyyy")}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
                               {isCompleted ? (
                                 <motion.button
                                   disabled
-                                  className="px-3.5 py-1.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md shadow-emerald-600/15 flex items-center justify-center gap-1.5 transition-all border border-emerald-500/30"
+                                  className="px-3.5 py-2 bg-emerald-600 text-white font-extrabold rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm shadow-emerald-600/10"
                                 >
                                   <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />{" "}
                                   Done
                                 </motion.button>
                               ) : isRequired === "Yes" ? (
                                 <motion.button
-                                  whileHover={{ scale: 1.05 }}
                                   whileTap={{ scale: 0.95 }}
                                   onClick={() => {
                                     setActiveAssignStep({
@@ -5515,20 +6212,17 @@ export default function LeadDetail({
                                     !canEditTab("project_incharge") ||
                                     !canUserAssignTasks
                                   }
-                                  className={`px-3.5 py-1.5 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md active:scale-95 disabled:opacity-20 flex items-center justify-center gap-1.5 transition-all border cursor-pointer ${
-                                    assigneeName 
-                                      ? "bg-amber-500 hover:bg-amber-600 border-amber-400/30 shadow-amber-500/15" 
-                                      : "bg-indigo-600 hover:bg-indigo-700 border-indigo-500/30 shadow-indigo-600/15"
+                                  className={`px-3.5 py-2 text-white font-extrabold rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                                    assigneeName
+                                      ? "bg-amber-500 hover:bg-amber-600 shadow-amber-500/10"
+                                      : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/10"
                                   }`}
-                                  title="Set Deadlines and Remarks for this phase"
                                 >
                                   <Calendar className="w-3.5 h-3.5 shrink-0" />{" "}
                                   {assigneeName ? "Assigned" : "Assign"}
                                 </motion.button>
                               ) : (
-                                <motion.button
-                                  whileHover={{ scale: 1.05 }}
-                                  whileTap={{ scale: 0.95 }}
+                                <button
                                   onClick={() => {
                                     handleUpdate({
                                       [`isStep${step.id}Submitted`]: true,
@@ -5543,2201 +6237,352 @@ export default function LeadDetail({
                                     );
                                   }}
                                   disabled={
-                                    isCompleted ||
                                     !canEditTab("project_incharge") ||
                                     !canUserAssignTasks
                                   }
-                                  className="w-8.5 h-8.5 bg-slate-50 text-slate-500 rounded-2xl hover:bg-emerald-600 hover:text-white border border-slate-200/50 transition-all flex items-center justify-center cursor-pointer shadow-xs"
-                                  title="Bypass Protocol"
+                                  className="px-3 py-1.5 bg-slate-100 disabled:opacity-20 disabled:pointer-events-none text-slate-650 font-black text-[10px] uppercase tracking-wide rounded-xl hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-1 cursor-pointer"
                                 >
-                                  <FileCheck className="w-4.5 h-4.5" />
-                                </motion.button>
+                                  <FileCheck className="w-3.5 h-3.5 shrink-0" />{" "}
+                                  Force Complete
+                                </button>
                               )}
                             </div>
-                          </td>
-
-                          {/* Steward assigned */}
-                          <td className="px-5 py-5.5">
-                            {isRequired === "Yes" ? (
-                              <div className="flex items-center gap-2.5">
-                                <div
-                                  className={`w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 shadow-xs border border-slate-100/50 ${assigneeName ? "bg-indigo-50/80 text-indigo-600" : "bg-slate-50 text-slate-400"}`}
-                                >
-                                  {step.icon ? (
-                                    <step.icon className="w-4 h-4" />
-                                  ) : (
-                                    <Users className="w-4 h-4" />
-                                  )}
-                                </div>
-                                <div className="min-w-0">
-                                  <span className="text-xs font-black text-slate-800 block leading-tight truncate max-w-[130px]">
-                                    {assigneeName || "Unassigned"}
-                                  </span>
-                                  {assigneeName && (
-                                    <span className="text-[9px] text-slate-400 font-bold block truncate max-w-[130px]">
-                                      {(lead as any)[step.emailField || ""] ||
-                                        ""}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-xs font-bold text-slate-400 italic">
-                                Skipped Phase
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Due Date column */}
-                          <td className="px-5 py-5.5">
-                            {isRequired === "Yes" ? (
-                              dueDateObj && !isNaN(dueDateObj.getTime()) ? (
-                                <div className="flex items-center gap-1.5 text-slate-700 bg-slate-50/80 border border-slate-200/50 px-2.5 py-1.5 rounded-xl w-fit shadow-xs">
-                                  <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                  <span className="text-[11px] font-bold text-slate-700 tracking-tight">
-                                    {format(dueDateObj, "dd MMM yyyy")}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[9px] font-black bg-rose-50/60 border border-rose-100/50 text-rose-500 uppercase">
-                                  Pending Assign
-                                </span>
-                              )
-                            ) : (
-                              <span className="text-xs text-slate-400 italic font-medium">
-                                —
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Completed Date column */}
-                          <td className="px-5 py-5.5 font-mono">
-                            {isRequired === "Yes" ? (
-                              isCompleted && completedDateObj ? (
-                                <div className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50/80 border border-emerald-100/50 px-2.5 py-1.5 rounded-xl w-fit shadow-xs">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                                  <span className="text-[11px] font-bold uppercase text-emerald-600">
-                                    {format(completedDateObj, "dd MMM yyyy")}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-[9px] font-black text-slate-300 tracking-widest bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
-                                  PENDING
-                                </span>
-                              )
-                            ) : (
-                              <span className="text-xs text-slate-400 italic font-medium">
-                                —
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Delay / On-Time status badge */}
-                          <td className="px-5 py-5.5">
-                            {timelineStatus === "Bypassed" ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[9px] font-black bg-slate-50 border border-slate-200/30 text-slate-450 uppercase">
-                                Bypassed
-                              </span>
-                            ) : timelineStatus === "Unassigned" ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[9px] font-black bg-rose-50/60 border border-rose-100/40 text-rose-500 uppercase animate-pulse">
-                                Pending Assign
-                              </span>
-                            ) : timelineStatus === "Delay" ? (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[9px] font-black bg-rose-50 text-rose-600 border border-rose-100/60 uppercase">
-                                <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                                Delay ({delayDays}d)
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100 uppercase">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                                On Time
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Operational directive remark output */}
-                          <td className="px-5 py-5.5">
-                            {isRequired === "Yes" ? (
-                              remarkValue ? (
-                                <div
-                                  className="text-[11px] font-semibold text-slate-600 max-w-[210px] bg-slate-50/60 border border-slate-100/60 rounded-xl px-2.5 py-1.5 text-left truncate hover:whitespace-normal cursor-help shadow-xs"
-                                  title={remarkValue}
-                                >
-                                  {remarkValue}
-                                </div>
-                              ) : (
-                                <span className="text-[10px] text-slate-350 font-medium italic">
-                                  No guideline set.
-                                </span>
-                              )
-                            ) : (
-                              <span className="text-xs text-slate-400 italic font-medium">
-                                —
-                              </span>
-                            )}
-                          </td>
-                        </tr>
+                          </div>
+                        </motion.div>
                       );
                     })}
-                </tbody>
-              </table>
-            </div>
+                </div>
 
-            {/* Mobile / Tablet Responsive Cards View */}
-            <div className="block lg:hidden space-y-4 mb-20 animate-fade-in">
-              {[
-                {
-                  id: 14,
-                  label: "New Connection",
-                  emailField: "s_newConn_assignedToEmail",
-                  nameField: "s_newConn_assignedTo",
-                  icon: PlusCircle,
-                  condition: lead.newConnectionRequired === "Yes",
-                  desc: "New Connection Details",
-                  requiredField: "newConnectionRequired",
-                },
-                {
-                  id: 1,
-                  label: "Doc Correction",
-                  emailField: "s_docCorr_assignedToEmail",
-                  nameField: "s_docCorr_assignedTo",
-                  icon: FileCheck,
-                  condition: lead.s_docCorr_required === "Yes",
-                  desc: "Document Audit",
-                  requiredField: "s_docCorr_required",
-                },
-                {
-                  id: 2,
-                  label: "Load Extension",
-                  emailField: "s_loadExt_assignedToEmail",
-                  nameField: "s_loadExt_assignedTo",
-                  icon: Zap,
-                  condition: lead.loadExtensionRequired === "Yes",
-                  desc: "Load Protocol",
-                  requiredField: "loadExtensionRequired",
-                },
-                {
-                  id: 3,
-                  label: "Online Registration",
-                  emailField: "execution_assignedToEmail",
-                  nameField: "execution_assignedTo",
-                  icon: ExternalLink,
-                  desc: "Onboarding",
-                },
-                {
-                  id: 4,
-                  label: "Loan Processing",
-                  emailField: "s4_loanAssignedToEmail",
-                  nameField: "s4_loanAssignedTo",
-                  icon: CreditCard,
-                  condition: lead.loanRequired === "Yes",
-                  desc: "Financial Sync",
-                  requiredField: "loanRequired",
-                },
-                {
-                  id: 5,
-                  label: "Meter Dispatch",
-                  emailField: "s5_storeDispatchAssignedToEmail",
-                  nameField: "s5_storeDispatchAssignedTo",
-                  icon: HardDrive,
-                  desc: "Logistics",
-                },
-                {
-                  id: 6,
-                  label: "DISCOM (Pre-Install)",
-                  emailField: "s5_discomPreAssignedToEmail",
-                  nameField: "s5_discomPreAssignedTo",
-                  icon: Zap,
-                  desc: "Utility Sync",
-                },
-                {
-                  id: 7,
-                  label: "SITE INCHARGE",
-                  emailField: "s6_inchargeAssignedToEmail",
-                  nameField: "s6_inchargeAssignedTo",
-                  icon: MapPin,
-                  desc: "Field Control",
-                },
-                {
-                  id: 8,
-                  label: "STORE INCHARGE",
-                  emailField: "s5_storeInchargeAssignedToEmail",
-                  nameField: "s5_storeInchargeAssignedTo",
-                  icon: HardDrive,
-                  desc: "Custodian",
-                },
-                {
-                  id: 9,
-                  label: "SITE TEAM",
-                  emailField: "s6_assignedToEmail",
-                  nameField: "s6_assignedTo",
-                  icon: Users,
-                  desc: "Installation",
-                },
-                {
-                  id: 10,
-                  label: "OFFICE EXEC (Post)",
-                  emailField: "s7_assignedToEmail",
-                  nameField: "s7_assignedTo",
-                  icon: FileCheck,
-                  desc: "Post-Install",
-                },
-                {
-                  id: 11,
-                  label: "DISCOM (Post-Install)",
-                  emailField: "s8_assignedToEmail",
-                  nameField: "s8_assignedTo",
-                  icon: Zap,
-                  desc: "Utility Closure",
-                },
-                {
-                  id: 12,
-                  label: "LOAN OFFICER (Post)",
-                  emailField: "s9_assignedToEmail",
-                  nameField: "s9_assignedTo",
-                  icon: CreditCard,
-                  condition: lead.loanRequired === "Yes",
-                  desc: "Final Audit",
-                  requiredField: "loanRequired",
-                },
-                {
-                  id: 13,
-                  label: "SUBSIDY SECTION",
-                  emailField: "s11_assignedToEmail",
-                  nameField: "s11_assignedTo",
-                  icon: FileText,
-                  desc: "Incentives",
-                },
-              ]
-                .filter((step) => step.condition !== false)
-                .map((step, index) => {
-                  const isCompleted = (lead as any)[
-                    `isStep${step.id}Submitted`
-                  ];
-                  const assigneeName = (lead as any)[step.nameField] || "";
-                  const isRequired = step.requiredField
-                    ? (lead as any)[step.requiredField]
-                    : "Yes";
-                  const dueDateValue = lead.stepDueDates?.[step.id] || "";
-                  const remarkValue =
-                    (lead as any)[`step${step.id}Remark`] || "";
-
-                  const status =
-                    isRequired === "No"
-                      ? "Bypassed"
-                      : isCompleted
-                        ? "Completed"
-                        : assigneeName
-                          ? "Assigned"
-                          : "Unassigned";
-
-                  // Delay / timeline status logic
-                  const completedDateStr = lead.stepCompletionDates?.[step.id];
-                  const completedDateObj = completedDateStr
-                    ? new Date(completedDateStr)
-                    : null;
-                  const dueDateObj = dueDateValue
-                    ? new Date(dueDateValue)
-                    : null;
-
-                  let timelineStatus: string = "On Time";
-                  let delayDays = 0;
-
-                  if (isRequired === "No") {
-                    timelineStatus = "Bypassed";
-                  } else if (!assigneeName) {
-                    timelineStatus = "Unassigned";
-                  } else {
-                    timelineStatus = "On Time";
-                  }
-
-                  return (
-                    <motion.div
-                      key={step.id}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`bg-white rounded-[2rem] border ${isRequired === "No" ? "border-slate-100 bg-slate-50/50 opacity-70" : "border-slate-150"} shadow-md p-5 flex flex-col gap-4 relative overflow-hidden transition-all duration-300 hover:shadow-lg`}
+                {/* Custom Assign Step Modal Overlay */}
+                <AnimatePresence>
+                  {activeAssignStep && (
+                    <div
+                      id="assign-remark-overlay"
+                      className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-[1000] p-4"
                     >
-                      {/* Header bar */}
-                      <div className="flex items-start justify-between gap-2.5">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shrink-0 shadow-sm ${
-                              status === "Completed"
-                                ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-100"
-                                : status === "Assigned"
-                                  ? "bg-gradient-to-br from-amber-400 to-amber-500 text-amber-950"
-                                  : status === "Unassigned"
-                                    ? "bg-gradient-to-br from-rose-500 to-red-600 text-white animate-pulse"
-                                    : "bg-slate-100 text-slate-400"
-                            }`}
-                          >
-                            {String(index + 1).padStart(2, "0")}
-                          </div>
-                          <div>
-                            <h4 className="text-xs font-black text-slate-900 leading-tight block">
-                              {step.label}
-                            </h4>
-                            <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest">
-                              {step.desc}
-                            </span>
-                          </div>
-                        </div>
+                      <motion.div
+                        initial={{ scale: 0.9, opacity: 0, y: 15 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        exit={{ scale: 0.9, opacity: 0, y: 15 }}
+                        transition={{
+                          type: "spring",
+                          damping: 25,
+                          stiffness: 350,
+                        }}
+                        className="bg-white rounded-[2rem] w-full max-w-lg p-6 md:p-8 shadow-2xl border border-slate-100 flex flex-col gap-5 relative overflow-y-auto max-h-[90vh]"
+                      >
+                        {/* Header decorative accent */}
+                        <div className="absolute top-0 inset-x-0 h-1.5 bg-indigo-600" />
 
-                        {/* Requirement badge/button */}
-                        {step.requiredField ? (
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-inner">
+                              <Calendar className="w-5 h-5 animate-pulse" />
+                            </div>
+                            <div>
+                              <h4 className="text-lg font-black text-slate-900 tracking-tight leading-none mb-1">
+                                Set Due Date & Guidelines
+                              </h4>
+                              <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">
+                                {activeAssignStep.label}
+                              </p>
+                            </div>
+                          </div>
                           <button
-                            onClick={() =>
-                              handleUpdate({
-                                [step.requiredField as string]:
-                                  isRequired === "Yes" ? "No" : "Yes",
-                              })
-                            }
-                            disabled={
-                              isCompleted || (!isAdminUser && !isSteward)
-                            }
-                            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border transition-all ${
-                              isRequired === "Yes"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-100 shadow-xs"
-                                : "bg-rose-50 text-rose-700 border-rose-100/80 shadow-xs"
+                            onClick={() => setActiveAssignStep(null)}
+                            className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-xl transition-all"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+
+                        <div className="space-y-4">
+                          {/* Assigned Steward / Specialist Selector */}
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+                              Assigned Steward / Specialist
+                            </label>
+                            <div className="relative">
+                              <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                              <select
+                                value={assignSelectedUser}
+                                onChange={(e) =>
+                                  setAssignSelectedUser(e.target.value)
+                                }
+                                className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 transition-all cursor-pointer appearance-none shadow-sm"
+                              >
+                                <option value="">
+                                  Select Steward (Unassigned)
+                                </option>
+                                {users.map((u, idx) => (
+                                  <option
+                                    key={`${u.email}-${idx}`}
+                                    value={u.name}
+                                  >
+                                    {u.name} ({u.category || "Staff"})
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                            </div>
+                          </div>
+
+                          {/* Due Date field (Renamed to Assine Date and locked to today's date) */}
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+                              Assine Date
+                            </label>
+                            <div className="relative">
+                              <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                              <input
+                                type="date"
+                                value={new Date().toLocaleDateString("en-CA")}
+                                readOnly
+                                disabled
+                                className="w-full pl-10 pr-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-500 outline-none select-none pointer-events-none shadow-sm"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Remark text field */}
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+                              Instructional Directive / Remark Note
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={assignRemarkText}
+                              onChange={(e) =>
+                                setAssignRemarkText(e.target.value)
+                              }
+                              placeholder="Provide specific guidelines, operational parameters, or required handovers for this steward..."
+                              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl text-xs font-semibold text-slate-700 placeholder:text-slate-300 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 outline-none transition-all resize-none shadow-sm"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-55">
+                          <button
+                            onClick={() => setActiveAssignStep(null)}
+                            className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-all"
+                          >
+                            Cancel
+                          </button>
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={handleTaskSheetAssignment}
+                            disabled={isSaving}
+                            className="px-5 py-2.5 bg-indigo-600 text-white font-extrabold rounded-xl text-xs shadow-lg shadow-indigo-600/10 hover:bg-indigo-700 disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
+                          >
+                            <Save className="w-3.5 h-3.5" /> Save Guidelines
+                          </motion.button>
+                        </div>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {activeTab === "execution" && (
+              <div className="flex flex-col lg:flex-row gap-6 items-start">
+                {/* Execution Steps Sidebar */}
+                <div className="w-full lg:w-64 shrink-0 bg-white border border-slate-100 rounded-3xl p-4 shadow-xl shadow-slate-200/40 lg:sticky top-6 z-10 overflow-x-auto lg:overflow-visible">
+                  <div className="mb-4 pb-4 border-b border-slate-100 flex items-center justify-between min-w-max pr-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                        <Zap className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-900 leading-none">
+                          Operational Lifecycle
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 hide-scrollbar">
+                    {[
+                      {
+                        id: 14,
+                        label: "New Connection",
+                        condition: lead.newConnectionRequired === "Yes",
+                      },
+                      {
+                        id: 1,
+                        label: "Doc Correction",
+                        condition: lead.s_docCorr_required === "Yes",
+                      },
+                      {
+                        id: 2,
+                        label: "Load Extension",
+                        condition: lead.loadExtensionRequired === "Yes",
+                      },
+                      { id: 3, label: "Online Registration" },
+                      {
+                        id: 4,
+                        label: "Loan Processing",
+                        condition: lead.loanRequired === "Yes",
+                      },
+                      { id: 5, label: "Meter Dispatch" },
+                      { id: 6, label: "DISCOM (Pre-Install)" },
+                      { id: 7, label: "SITE INCHARGE" },
+                      { id: 8, label: "STORE INCHARGE" },
+                      { id: 9, label: "SITE TEAM" },
+                      { id: 10, label: "OFFICE EXEC (Post-Install)" },
+                      { id: 11, label: "DISCOM (Post-Install)" },
+                      {
+                        id: 12,
+                        label: "LOAN OFFICER (Post-Install)",
+                        condition: lead.loanRequired === "Yes",
+                      },
+                      { id: 13, label: "SUBSIDY SECTION" },
+                      { id: 15, label: "INSURANCE SECTION" },
+                    ]
+                      .filter((step) => step.condition !== false)
+                      .map((step, index) => {
+                        const isCompleted = (lead as any)[
+                          `isStep${step.id}Submitted`
+                        ];
+                        const isActive = currentExecutionStep === step.id;
+                        const isActionAssigned = shouldHighlightStep(step.id);
+
+                        return (
+                          <button
+                            key={step.id}
+                            onClick={() => setCurrentExecutionStep(step.id)}
+                            className={`flex lg:w-full items-center gap-2 p-2.5 rounded-xl transition-all border text-left group relative shrink-0 ${
+                              isActive
+                                ? "bg-emerald-500 border-emerald-500 text-slate-950 shadow-lg"
+                                : isCompleted
+                                  ? "bg-emerald-50 border-emerald-100 text-emerald-700 hover:bg-emerald-100/50"
+                                  : "bg-white border-slate-100 text-slate-500 hover:border-slate-300 hover:bg-slate-50"
                             }`}
                           >
-                            {isRequired === "Yes" ? "Required" : "Bypassed"}
-                          </button>
-                        ) : (
-                          <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-xs">
-                            Mandatory
-                          </span>
-                        )}
-                      </div>
-
-                      {isRequired === "Yes" && (
-                        <div className="grid grid-cols-2 gap-3.5 pt-3.5 border-t border-slate-100">
-                          {/* Steward assigned */}
-                          <div className="space-y-1">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none">
-                              Steward Assigned
-                            </span>
-                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-100/70 rounded-xl p-2 md:p-2.5 min-w-0">
-                              <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span className="text-[11px] font-bold text-slate-700 truncate block min-w-0 max-w-full">
-                                {assigneeName || "Unassigned"}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Due Date block */}
-                          <div className="space-y-1">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none">
-                              Assigned Date
-                            </span>
-                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-100/70 rounded-xl p-2 md:p-2.5 min-w-0">
-                              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span className="text-[11px] font-bold text-slate-700 truncate block min-w-0 max-w-full">
-                                {dueDateObj && !isNaN(dueDateObj.getTime())
-                                  ? format(dueDateObj, "dd MMM yyyy")
-                                  : "Pending"}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Deadline and Remark card details */}
-                      {isRequired === "Yes" && (
-                        <div className="space-y-2 bg-slate-50 rounded-2xl p-3 border border-slate-105/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                          <div className="shrink-0">
-                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">
-                              Timeline State
-                            </span>
-                            {timelineStatus === "Delay" ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[9px] font-black bg-rose-100 text-rose-700 uppercase">
-                                <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />{" "}
-                                Delay ({delayDays}d)
-                              </span>
-                            ) : timelineStatus === "Unassigned" ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[9px] font-black bg-rose-50 text-rose-500 uppercase">
-                                Pending Assign
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[9px] font-black bg-emerald-50 text-emerald-700 uppercase">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />{" "}
-                                On Time
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="sm:max-w-[65%] min-w-0">
-                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">
-                              Directive Remark
-                            </span>
-                            <p
-                              className="text-[11px] font-semibold text-slate-600 leading-tight italic truncate max-w-full"
-                              title={remarkValue}
-                            >
-                              {remarkValue || "No instructions set."}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Actions footer wrapper */}
-                      <div className="flex items-center justify-between gap-3 pt-3.5 border-t border-slate-100 mt-0.5">
-                        <div className="min-w-0">
-                          {isCompleted && completedDateObj && (
-                            <div className="text-[10px] font-black text-slate-450 flex items-center gap-1.5 truncate">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />{" "}
-                              Completed on{" "}
-                              {format(completedDateObj, "dd MMM yyyy")}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          {isCompleted ? (
-                            <motion.button
-                              disabled
-                              className="px-3.5 py-2 bg-emerald-600 text-white font-extrabold rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm shadow-emerald-600/10"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />{" "}
-                              Done
-                            </motion.button>
-                          ) : isRequired === "Yes" ? (
-                            <motion.button
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => {
-                                setActiveAssignStep({
-                                  id: step.id,
-                                  label: step.label,
-                                  nameField: step.nameField,
-                                  emailField: step.emailField || "",
-                                  currentAssigneeName: assigneeName,
-                                  currentDueDate: dueDateValue,
-                                  currentRemark: remarkValue,
-                                });
-                                setAssignSelectedUser(assigneeName);
-                                setAssignDueDate(dueDateValue);
-                                setAssignRemarkText(remarkValue);
-                              }}
-                              disabled={
-                                !canEditTab("project_incharge") ||
-                                !canUserAssignTasks
-                              }
-                              className={`px-3.5 py-2 text-white font-extrabold rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-sm ${
-                                assigneeName 
-                                  ? "bg-amber-500 hover:bg-amber-600 shadow-amber-500/10" 
-                                  : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/10"
+                            <div
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 font-bold text-[9px] transition-colors ${
+                                isActive
+                                  ? "bg-white/20"
+                                  : isCompleted
+                                    ? "bg-emerald-100"
+                                    : "bg-slate-100 group-hover:bg-slate-200"
                               }`}
                             >
-                              <Calendar className="w-3.5 h-3.5 shrink-0" />{" "}
-                              {assigneeName ? "Assigned" : "Assign"}
-                            </motion.button>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                handleUpdate({
-                                  [`isStep${step.id}Submitted`]: true,
-                                  [`step${step.id}Status`]: "Bypassed",
-                                  [`step${step.id}Remark`]:
-                                    "Marked as Not Required by In-charge",
-                                  updatedAt: new Date(),
-                                });
-                                showNotification(
-                                  `Bypassed phase: ${step.label}`,
-                                  "warning",
-                                );
-                              }}
-                              disabled={
-                                !canEditTab("project_incharge") ||
-                                !canUserAssignTasks
-                              }
-                              className="px-3 py-1.5 bg-slate-100 disabled:opacity-20 disabled:pointer-events-none text-slate-650 font-black text-[10px] uppercase tracking-wide rounded-xl hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-1 cursor-pointer"
-                            >
-                              <FileCheck className="w-3.5 h-3.5 shrink-0" />{" "}
-                              Force Complete
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-            </div>
-
-            {/* Custom Assign Step Modal Overlay */}
-            <AnimatePresence>
-              {activeAssignStep && (
-                <div
-                  id="assign-remark-overlay"
-                  className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-[1000] p-4"
-                >
-                  <motion.div
-                    initial={{ scale: 0.9, opacity: 0, y: 15 }}
-                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                    exit={{ scale: 0.9, opacity: 0, y: 15 }}
-                    transition={{ type: "spring", damping: 25, stiffness: 350 }}
-                    className="bg-white rounded-[2rem] w-full max-w-lg p-6 md:p-8 shadow-2xl border border-slate-100 flex flex-col gap-5 relative overflow-y-auto max-h-[90vh]"
-                  >
-                    {/* Header decorative accent */}
-                    <div className="absolute top-0 inset-x-0 h-1.5 bg-indigo-600" />
-
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-inner">
-                          <Calendar className="w-5 h-5 animate-pulse" />
-                        </div>
-                        <div>
-                          <h4 className="text-lg font-black text-slate-900 tracking-tight leading-none mb-1">
-                            Set Due Date & Guidelines
-                          </h4>
-                          <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">
-                            {activeAssignStep.label}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setActiveAssignStep(null)}
-                        className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-xl transition-all"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-
-                    <div className="space-y-4">
-                      {/* Assigned Steward / Specialist Selector */}
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block ml-1">
-                          Assigned Steward / Specialist
-                        </label>
-                        <div className="relative">
-                          <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                          <select
-                            value={assignSelectedUser}
-                            onChange={(e) =>
-                              setAssignSelectedUser(e.target.value)
-                            }
-                            className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 transition-all cursor-pointer appearance-none shadow-sm"
-                          >
-                            <option value="">
-                              Select Steward (Unassigned)
-                            </option>
-                            {users.map((u, idx) => (
-                              <option key={`${u.email}-${idx}`} value={u.name}>
-                                {u.name} ({u.category || "Staff"})
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                        </div>
-                      </div>
-
-                      {/* Due Date field (Renamed to Assine Date and locked to today's date) */}
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block ml-1">
-                          Assine Date
-                        </label>
-                        <div className="relative">
-                          <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                          <input
-                            type="date"
-                            value={new Date().toLocaleDateString('en-CA')}
-                            readOnly
-                            disabled
-                            className="w-full pl-10 pr-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-500 outline-none select-none pointer-events-none shadow-sm"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Remark text field */}
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block ml-1">
-                          Instructional Directive / Remark Note
-                        </label>
-                        <textarea
-                          rows={3}
-                          value={assignRemarkText}
-                          onChange={(e) => setAssignRemarkText(e.target.value)}
-                          placeholder="Provide specific guidelines, operational parameters, or required handovers for this steward..."
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl text-xs font-semibold text-slate-700 placeholder:text-slate-300 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 outline-none transition-all resize-none shadow-sm"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-55">
-                      <button
-                        onClick={() => setActiveAssignStep(null)}
-                        className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-all"
-                      >
-                        Cancel
-                      </button>
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={handleTaskSheetAssignment}
-                        disabled={isSaving}
-                        className="px-5 py-2.5 bg-indigo-600 text-white font-extrabold rounded-xl text-xs shadow-lg shadow-indigo-600/10 hover:bg-indigo-700 disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
-                      >
-                        <Save className="w-3.5 h-3.5" /> Save Guidelines
-                      </motion.button>
-                    </div>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-
-        {activeTab === "execution" && (
-          <div className="flex flex-col lg:flex-row gap-6 items-start">
-            {/* Execution Steps Sidebar */}
-            <div className="w-full lg:w-64 shrink-0 bg-white border border-slate-100 rounded-3xl p-4 shadow-xl shadow-slate-200/40 lg:sticky top-6 z-10 overflow-x-auto lg:overflow-visible">
-              <div className="mb-4 pb-4 border-b border-slate-100 flex items-center justify-between min-w-max pr-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                    <Zap className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-slate-900 leading-none">
-                      Operational Lifecycle
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 hide-scrollbar">
-                {[
-                  {
-                    id: 14,
-                    label: "New Connection",
-                    condition: lead.newConnectionRequired === "Yes",
-                  },
-                  {
-                    id: 1,
-                    label: "Doc Correction",
-                    condition: lead.s_docCorr_required === "Yes",
-                  },
-                  {
-                    id: 2,
-                    label: "Load Extension",
-                    condition: lead.loadExtensionRequired === "Yes",
-                  },
-                  { id: 3, label: "Online Registration" },
-                  {
-                    id: 4,
-                    label: "Loan Processing",
-                    condition: lead.loanRequired === "Yes",
-                  },
-                  { id: 5, label: "Meter Dispatch" },
-                  { id: 6, label: "DISCOM (Pre-Install)" },
-                  { id: 7, label: "SITE INCHARGE" },
-                  { id: 8, label: "STORE INCHARGE" },
-                  { id: 9, label: "SITE TEAM" },
-                  { id: 10, label: "OFFICE EXEC (Post-Install)" },
-                  { id: 11, label: "DISCOM (Post-Install)" },
-                  { id: 12, label: "LOAN OFFICER (Post-Install)", condition: lead.loanRequired === "Yes" },
-                  { id: 13, label: "SUBSIDY SECTION" },
-                ]
-                  .filter((step) => step.condition !== false)
-                  .map((step, index) => {
-                    const isCompleted = (lead as any)[
-                      `isStep${step.id}Submitted`
-                    ];
-                    const isActive = currentExecutionStep === step.id;
-                    const isActionAssigned = shouldHighlightStep(step.id);
-
-                    return (
-                      <button
-                        key={step.id}
-                        onClick={() => setCurrentExecutionStep(step.id)}
-                        className={`flex lg:w-full items-center gap-2 p-2.5 rounded-xl transition-all border text-left group relative shrink-0 ${
-                          isActive
-                            ? "bg-emerald-500 border-emerald-500 text-slate-950 shadow-lg"
-                            : isCompleted
-                              ? "bg-emerald-50 border-emerald-100 text-emerald-700 hover:bg-emerald-100/50"
-                              : "bg-white border-slate-100 text-slate-500 hover:border-slate-300 hover:bg-slate-50"
-                        }`}
-                      >
-                        <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 font-bold text-[9px] transition-colors ${
-                            isActive
-                              ? "bg-white/20"
-                              : isCompleted
-                                ? "bg-emerald-100"
-                                : "bg-slate-100 group-hover:bg-slate-200"
-                          }`}
-                        >
-                          {isCompleted ? (
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                          ) : (
-                            index + 1
-                          )}
-                        </div>
-                        <div className="min-w-0 pr-4">
-                          <p className="text-[11px] font-bold truncate leading-tight">
-                            {step.label}
-                          </p>
-                        </div>
-
-                        {isActive && (
-                          <motion.div
-                            layoutId="activeStepIndicator"
-                            className="absolute -left-1 w-1.5 h-6 bg-blue-500 rounded-full hidden lg:block"
-                          />
-                        )}
-
-                        {isActionAssigned && !isCompleted && (
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-
-            {/* Execution Workspace */}
-            <div className="flex-1 min-w-0">
-              <div className="space-y-4">
-                {currentExecutionStep === 1 &&
-                  lead.s_docCorr_required === "Yes" && (
-                    <motion.div
-                      id="execution-step-1"
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 p-4 md:p-6 lg:p-8 rounded-2xl md:rounded-[2rem] border-l-4 md:border-l-8 border-l-emerald-600 transition-all duration-700 ${shouldHighlightStep(1) ? "bg-emerald-50/20 ring-2 md:ring-4 ring-emerald-100" : "bg-white shadow-xl border border-slate-100"}`}
-                    >
-                      <div className="col-span-full pb-3 border-b border-slate-100 mb-2 flex items-center justify-between">
-                        <div>
-                          <h3 className="text-lg font-bold text-slate-900">
-                            Step 2: Doc Correction
-                          </h3>
-                          <p className="text-[11px] text-slate-400 font-medium">
-                            Verify and correct document discrepancies.
-                          </p>
-                        </div>
-                        <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-100 uppercase tracking-tight">
-                          Execution
-                        </span>
-                      </div>
-                      <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <InputField
-                          label="Correction Remark"
-                          value={lead.docCorrectionRemark}
-                          name="docCorrectionRemark"
-                          multiline
-                          rows={3}
-                          onUpdate={handleUpdate}
-                          disabled={!canEditStep(1)}
-                        />
-                        <div
-                          className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s_docCorr_docUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                        >
-                          {lead.s_docCorr_docUrl ? (
-                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                          ) : uploadingDoc === "Corrected Document" ? (
-                            <div className="relative">
-                              <Clock className="w-5 h-5 text-emerald-500 animate-spin" />
-                              <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-emerald-600 bg-emerald-50 px-1 rounded whitespace-nowrap">
-                                {uploadProgress > 0
-                                  ? `${Math.round(uploadProgress)}%`
-                                  : "Wait..."}
-                              </span>
-                            </div>
-                          ) : (
-                            <Upload className="w-5 h-5 text-slate-400" />
-                          )}
-                          <span className="text-[10px] font-bold text-slate-500 uppercase">
-                            Corrected Document
-                          </span>
-                          <div className="flex gap-2">
-                            <label
-                              htmlFor="input-doc-correction"
-                              className={`text-[10px] text-emerald-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Corrected Document" || !canEditStep(1) ? "opacity-50 pointer-events-none" : ""}`}
-                            >
-                              {lead.s_docCorr_docUrl
-                                ? "Replace"
-                                : "Upload File"}
-                              <input
-                                id="input-doc-correction"
-                                type="file"
-                                className="hidden"
-                                accept="application/pdf"
-                                onChange={(e) =>
-                                  handleFileUpload(
-                                    e,
-                                    "Corrected Document",
-                                    "s_docCorr_docUrl",
-                                  )
-                                }
-                                disabled={
-                                  uploadingDoc === "Corrected Document" ||
-                                  !canEditStep(1)
-                                }
-                              />
-                            </label>
-                            {lead.s_docCorr_docUrl && (
-                              <a
-                                href={lead.s_docCorr_docUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                              >
-                                View <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <StepActionButtons
-                        stepId={1}
-                        label="Step 2: Doc Correction"
-                        nameField="s_docCorr_assignedTo"
-                        emailField="s_docCorr_assignedToEmail"
-                        hideAssignment
-                      />
-                    </motion.div>
-                  )}
-
-                {currentExecutionStep === 2 &&
-                  lead.loadExtensionRequired === "Yes" && (
-                    <motion.div
-                      id="execution-step-2"
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-5 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-orange-600 transition-all duration-700 ${shouldHighlightStep(2) ? "bg-orange-50/20 ring-2 md:ring-4 ring-orange-100" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
-                    >
-                      <div className="col-span-full pb-3 md:pb-4 border-b border-slate-100 mb-2 md:mb-4 flex items-center justify-between">
-                        <div>
-                          <h3 className="text-lg md:text-xl font-bold text-slate-900 leading-tight">
-                            Step 3: Load Extension
-                          </h3>
-                          <p className="text-xs md:text-sm text-slate-400 font-medium">
-                            Process load extension tracking.
-                          </p>
-                        </div>
-                        <span className="bg-blue-50 text-blue-700 text-[10px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full border border-blue-100 uppercase tracking-widest shrink-0">
-                          Execution
-                        </span>
-                      </div>
-
-                      {/* Notice: Actual document upload is in Step 2! */}
-                      {lead.loadExtensionRequired === "Yes" && (
-                        <>
-                          <InputField
-                            label="Load Ext File Submitted Date"
-                            value={lead.s3_loadExtFileSubmittedDate}
-                            name="s3_loadExtFileSubmittedDate"
-                            type="date"
-                            onUpdate={handleUpdate}
-                            disabled={!canEditStep(2)}
-                          />
-                          <div
-                            className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s3_loadExtFileUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                          >
-                            {lead.s3_loadExtFileUrl ? (
-                              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                            ) : uploadingDoc === "Load Ext File" ? (
-                              <div className="relative">
-                                <Clock className="w-5 h-5 text-blue-500 animate-spin" />
-                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
-                                  {uploadProgress > 0
-                                    ? `${Math.round(uploadProgress)}%`
-                                    : "Wait..."}
-                                </span>
-                              </div>
-                            ) : (
-                              <Upload className="w-5 h-5 text-slate-400" />
-                            )}
-                            <span className="text-[10px] font-bold text-slate-500 uppercase">
-                              Load Ext File Submitted
-                            </span>
-                            <div className="flex gap-2">
-                              <label
-                                htmlFor="input-s3-load-ext"
-                                className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Load Ext File" || !canEditStep(2) ? "opacity-50 pointer-events-none" : ""}`}
-                              >
-                                {lead.s3_loadExtFileUrl
-                                  ? "Replace"
-                                  : "Upload File"}
-                                <input
-                                  id="input-s3-load-ext"
-                                  type="file"
-                                  className="hidden"
-                                  accept="application/pdf"
-                                  onChange={(e) =>
-                                    handleFileUpload(
-                                      e,
-                                      "Load Ext File",
-                                      "s3_loadExtFileUrl",
-                                    )
-                                  }
-                                  disabled={
-                                    uploadingDoc === "Load Ext File" ||
-                                    !canEditStep(2)
-                                  }
-                                />
-                              </label>
-                              {lead.s3_loadExtFileUrl && (
-                                <a
-                                  href={lead.s3_loadExtFileUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                                >
-                                  View <ExternalLink className="w-2.5 h-2.5" />
-                                </a>
+                              {isCompleted ? (
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              ) : (
+                                index + 1
                               )}
                             </div>
+                            <div className="min-w-0 pr-4">
+                              <p className="text-[11px] font-bold truncate leading-tight">
+                                {step.label}
+                              </p>
+                            </div>
+
+                            {isActive && (
+                              <motion.div
+                                layoutId="activeStepIndicator"
+                                className="absolute -left-1 w-1.5 h-6 bg-blue-500 rounded-full hidden lg:block"
+                              />
+                            )}
+
+                            {isActionAssigned && !isCompleted && (
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                {/* Execution Workspace */}
+                <div className="flex-1 min-w-0">
+                  <div className="space-y-4">
+                    {currentExecutionStep === 1 &&
+                      lead.s_docCorr_required === "Yes" && (
+                        <motion.div
+                          id="execution-step-1"
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 p-4 md:p-6 lg:p-8 rounded-2xl md:rounded-[2rem] border-l-4 md:border-l-8 border-l-emerald-600 transition-all duration-700 ${shouldHighlightStep(1) ? "bg-emerald-50/20 ring-2 md:ring-4 ring-emerald-100" : "bg-white shadow-xl border border-slate-100"}`}
+                        >
+                          <div className="col-span-full pb-3 border-b border-slate-100 mb-2 flex items-center justify-between">
+                            <div>
+                              <h3 className="text-lg font-bold text-slate-900">
+                                Step 2: Doc Correction
+                              </h3>
+                              <p className="text-[11px] text-slate-400 font-medium">
+                                Verify and correct document discrepancies.
+                              </p>
+                            </div>
+                            <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-100 uppercase tracking-tight">
+                              Execution
+                            </span>
                           </div>
-                          <InputField
-                            label="Demand Note Issued (Date)"
-                            value={lead.s3_demandNoteIssued}
-                            name="s3_demandNoteIssued"
-                            type="date"
-                            onUpdate={handleUpdate}
-                            disabled={!canEditStep(2)}
-                          />
-                          <InputField
-                            label="Demand Deposited (Date)"
-                            value={lead.s3_demandDeposited}
-                            name="s3_demandDeposited"
-                            type="date"
-                            onUpdate={handleUpdate}
-                            disabled={!canEditStep(2)}
-                          />
-                          <InputField
-                            label="Remark"
-                            value={lead.s3_discomRemark}
-                            name="s3_discomRemark"
-                            multiline
-                            rows={1}
-                            onUpdate={handleUpdate}
-                            disabled={!canEditStep(2)}
-                          />
-                        </>
-                      )}
-
-                      <StepActionButtons
-                        stepId={2}
-                        label="Step 3: Load Extension"
-                        nameField="execution_assignedTo"
-                        emailField="execution_assignedToEmail"
-                      />
-                    </motion.div>
-                  )}
-
-                {currentExecutionStep === 3 && (
-                  <motion.div
-                    id="execution-step-3"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 p-10 rounded-[3rem] border-l-8 border-l-blue-600 transition-all duration-700 ${shouldHighlightStep(3) ? "bg-blue-50/20 ring-4 ring-blue-100" : "bg-white shadow-2xl shadow-slate-200/50 border border-slate-100"}`}
-                  >
-                    {shouldHighlightStep(3) && (
-                      <div className="absolute -top-3 left-6 z-10 flex -ml-4">
-                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
-                          <AlertCircle className="w-3.5 h-3.5" /> ACTION
-                          ASSIGNED
-                        </span>
-                      </div>
-                    )}
-                    <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900">
-                          Step 4: Online Registration
-                        </h3>
-                        <p className="text-sm text-slate-400 font-medium">
-                          DISCOM registration and initial project setup.
-                        </p>
-                      </div>
-                      <span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-full border border-blue-100 uppercase tracking-wider">
-                        Execution
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
-                      <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
-                        <Activity className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                          Operational Doer
-                        </p>
-                        <p className="text-sm font-bold text-slate-900 leading-none">
-                          {lead.execution_assignedTo || "Unassigned"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="All the details are confirmed by customer"
-                      value={lead.s3_detailsConfirmedByCustomer}
-                      name="s3_detailsConfirmedByCustomer"
-                      options={["Yes", "No"]}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(3)}
-                    />
-                    <InputField
-                      label="AEN Office Name"
-                      value={lead.s3_aenOfficeName}
-                      name="s3_aenOfficeName"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(3)}
-                    />
-                    <InputField
-                      label="Bank & Branch Name"
-                      value={lead.s3_bankName}
-                      name="s3_bankName"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(3)}
-                    />
-                    <InputField
-                      label="Online Registration Done (Date)"
-                      value={lead.s3_onlineRegistrationDone}
-                      name="s3_onlineRegistrationDone"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(3)}
-                    />
-
-                    {lead.loanRequired === "Yes" && (
-                      <InputField
-                        label="Loan Applied (Date)"
-                        value={lead.s4_loanApplied}
-                        name="s4_loanApplied"
-                        type="date"
-                        onUpdate={handleUpdate}
-                        disabled={!canEditStep(3)}
-                      />
-                    )}
-
-                    <div
-                      className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s3_loanFileUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                    >
-                      {lead.s3_loanFileUrl ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      ) : uploadingDoc === "Loan File" ? (
-                        <div className="relative">
-                          <Clock className="w-5 h-5 text-blue-500 animate-spin" />
-                          <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
-                            {uploadProgress > 0
-                              ? `${Math.round(uploadProgress)}%`
-                              : "Wait..."}
-                          </span>
-                        </div>
-                      ) : (
-                        <Upload className="w-5 h-5 text-slate-400" />
-                      )}
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">
-                        Loan File Documents
-                      </span>
-                      <div className="flex gap-2">
-                        <label
-                          htmlFor="input-s3-loan-file"
-                          className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Loan File" || !canEditStep(3) ? "opacity-50 pointer-events-none" : ""}`}
-                        >
-                          {lead.s3_loanFileUrl ? "Replace" : "Upload File"}
-                          <input
-                            id="input-s3-loan-file"
-                            type="file"
-                            className="hidden"
-                            accept="application/pdf"
-                            onChange={(e) =>
-                              handleFileUpload(e, "Loan File", "s3_loanFileUrl")
-                            }
-                            disabled={
-                              uploadingDoc === "Loan File" || !canEditStep(3)
-                            }
-                          />
-                        </label>
-                        {lead.s3_loanFileUrl && (
-                          <a
-                            href={lead.s3_loanFileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            View <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    <div
-                      className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s3_discomFileUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                    >
-                      {lead.s3_discomFileUrl ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      ) : uploadingDoc === "Discom File" ? (
-                        <div className="relative">
-                          <Clock className="w-5 h-5 text-blue-500 animate-spin" />
-                          <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
-                            {uploadProgress > 0
-                              ? `${Math.round(uploadProgress)}%`
-                              : "Wait..."}
-                          </span>
-                        </div>
-                      ) : (
-                        <Upload className="w-5 h-5 text-slate-400" />
-                      )}
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">
-                        Discom File Documents
-                      </span>
-                      <div className="flex gap-2">
-                        <label
-                          htmlFor="input-s3-discom-file"
-                          className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Discom File" || !canEditStep(3) ? "opacity-50 pointer-events-none" : ""}`}
-                        >
-                          {lead.s3_discomFileUrl ? "Replace" : "Upload File"}
-                          <input
-                            id="input-s3-discom-file"
-                            type="file"
-                            className="hidden"
-                            accept="application/pdf"
-                            onChange={(e) =>
-                              handleFileUpload(
-                                e,
-                                "Discom File",
-                                "s3_discomFileUrl",
-                              )
-                            }
-                            disabled={
-                              uploadingDoc === "Discom File" || !canEditStep(3)
-                            }
-                          />
-                        </label>
-                        {lead.s3_discomFileUrl && (
-                          <a
-                            href={lead.s3_discomFileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            View <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    <StepActionButtons
-                      stepId={3}
-                      label="Online Registration"
-                      nameField="execution_assignedTo"
-                      emailField="execution_assignedToEmail"
-                    />
-                  </motion.div>
-                )}
-
-                {currentExecutionStep === 4 && lead.loanRequired === "Yes" && (
-                  <motion.div
-                    id="execution-step-4"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-purple-600 transition-all duration-700 ${shouldHighlightStep(4) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400 font-medium" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
-                  >
-                    {shouldHighlightStep(4) && (
-                      <div className="absolute -top-3 left-6 z-10 flex -ml-4">
-                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] md:text-[10px] font-black uppercase px-3 py-1 md:py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
-                          <AlertCircle className="w-3 md:w-3.5 h-3 md:h-3.5" />{" "}
-                          ACTION ASSIGNED
-                        </span>
-                      </div>
-                    )}
-                    <div className="col-span-full pb-3 md:pb-4 border-b border-slate-100 mb-2 md:mb-4 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg md:text-xl font-bold text-slate-900 leading-tight">
-                          Step 5: Loan Process
-                        </h3>
-                        <p className="text-xs md:text-sm text-slate-400 font-medium">
-                          Banking documentation and tracking.
-                        </p>
-                      </div>
-                      <span className="bg-purple-50 text-purple-700 text-[10px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full border border-purple-100 uppercase tracking-widest shrink-0">
-                        Loan
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl border border-slate-100 mb-2 md:mb-6 col-span-full">
-                      <div className="w-8 h-8 md:w-10 md:h-10 bg-purple-100 rounded-lg md:rounded-xl flex items-center justify-center text-purple-600 shadow-sm shrink-0">
-                        <Users className="w-4 h-4 md:w-5 md:h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                          Operational Doer
-                        </p>
-                        <p className="text-xs md:text-sm font-bold text-slate-900 leading-none truncate">
-                          {lead.s4_loanAssignedTo || "Unassigned"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="Physical File Submited to Bank(Date)"
-                      value={lead.s4_physicalFileToBankDate}
-                      name="s4_physicalFileToBankDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(4)}
-                    />
-                    <InputField
-                      label="Loan Process (Date)"
-                      value={lead.s4_loanProcessDate}
-                      name="s4_loanProcessDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(4)}
-                    />
-                    <InputField
-                      label="Customer Sign Done (Date)"
-                      value={lead.s4_customerSignDate}
-                      name="s4_customerSignDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(4)}
-                    />
-                    <InputField
-                      label="First Installment Received"
-                      value={lead.s4_firstInstallmentReceived}
-                      name="s4_firstInstallmentReceived"
-                      options={["Yes", "No"]}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(4)}
-                    />
-
-                    {lead.s4_firstInstallmentReceived === "Yes" && (
-                      <>
-                        <InputField
-                          label="Amount"
-                          value={lead.s4_firstInstallmentAmount}
-                          name="s4_firstInstallmentAmount"
-                          type="number"
-                          onUpdate={handleUpdate}
-                          disabled={!canEditStep(4)}
-                        />
-                        <InputField
-                          label="UTR No"
-                          value={lead.s4_firstInstallmentUtr}
-                          name="s4_firstInstallmentUtr"
-                          onUpdate={handleUpdate}
-                          disabled={!canEditStep(4)}
-                        />
-                        <InputField
-                          label="Date"
-                          value={lead.s4_firstInstallmentDate}
-                          name="s4_firstInstallmentDate"
-                          type="date"
-                          onUpdate={handleUpdate}
-                          disabled={!canEditStep(4)}
-                        />
-                      </>
-                    )}
-                    <InputField
-                      label="Remark"
-                      value={lead.s4_loanRemark}
-                      name="s4_loanRemark"
-                      multiline
-                      rows={1}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(4)}
-                    />
-
-                    <InputField
-                      label="Confirmation Assignee"
-                      value={lead.accAssignee}
-                      name="accAssignee"
-                      options={confirmationUsers.map((u) => u.name)}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(4)}
-                    />
-
-                    <StepActionButtons
-                      stepId={4}
-                      label="Loan Process"
-                      nameField="s4_loanAssignedTo"
-                      emailField="s4_loanAssignedToEmail"
-                    />
-                  </motion.div>
-                )}
-
-                {currentExecutionStep === 5 && (
-                  <motion.div
-                    id="execution-step-5"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-orange-500 transition-all duration-700 ${shouldHighlightStep(5) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
-                  >
-                    {shouldHighlightStep(5) && (
-                      <div className="absolute -top-3 left-6 z-10 flex -ml-4">
-                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
-                          <AlertCircle className="w-3.5 h-3.5" /> ACTION
-                          ASSIGNED
-                        </span>
-                      </div>
-                    )}
-                    <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900">
-                          Step 6: Meter Dispatch
-                        </h3>
-                        <p className="text-sm text-slate-400 font-medium">
-                          Tracking meter allocation and dispatch status.
-                        </p>
-                      </div>
-                      <span className="bg-orange-50 text-orange-700 text-xs font-bold px-3 py-1 rounded-full border border-orange-100 uppercase tracking-wider">
-                        Store
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
-                      <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600">
-                        <Users className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                          Operational Doer
-                        </p>
-                        <p className="text-sm font-bold text-slate-900 leading-none">
-                          {lead.s5_storeDispatchAssignedTo || "Unassigned"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="Meters"
-                      value={lead.s5_meters}
-                      name="s5_meters"
-                      options={["Ready to Dispatch", "Dispatched"]}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(5)}
-                    />
-                    <InputField
-                      label="Ready to Dispatch Date"
-                      value={lead.s5_readyToDispatchDate}
-                      name="s5_readyToDispatchDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(5)}
-                    />
-                    <InputField
-                      label="Dispatch Date"
-                      value={lead.s5_dispatchDate}
-                      name="s5_dispatchDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(5)}
-                    />
-
-                    <InputField
-                      label="Meter Details with serial numbers"
-                      value={lead.s5_meterDetails}
-                      name="s5_meterDetails"
-                      type="textarea"
-                      rows={2}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(5)}
-                    />
-
-                    <InputField
-                      label="Remark"
-                      value={lead.s5_meterDispatchRemark}
-                      name="s5_meterDispatchRemark"
-                      type="textarea"
-                      rows={2}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(5)}
-                    />
-
-                    <StepActionButtons
-                      stepId={5}
-                      label="Step 6: Meter Dispatch"
-                      nameField="s5_storeDispatchAssignedTo"
-                      emailField="s5_storeDispatchAssignedToEmail"
-                    />
-                  </motion.div>
-                )}
-
-                {currentExecutionStep === 6 && (
-                  <motion.div
-                    id="execution-step-6"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-sky-500 transition-all duration-700 ${shouldHighlightStep(6) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
-                  >
-                    {shouldHighlightStep(6) && (
-                      <div className="absolute -top-3 left-6 z-10 flex -ml-4">
-                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
-                          <AlertCircle className="w-3.5 h-3.5" /> ACTION
-                          ASSIGNED
-                        </span>
-                      </div>
-                    )}
-                    <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900">
-                          Step 7: DISCOM (Pre-Install)
-                        </h3>
-                        <p className="text-sm text-slate-400 font-medium">
-                          Meter submission and AEN office verification.
-                        </p>
-                      </div>
-                      <span className="bg-sky-50 text-sky-700 text-xs font-bold px-3 py-1 rounded-full border border-sky-100 uppercase tracking-wider">
-                        DISCOM
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
-                      <div className="w-10 h-10 bg-sky-100 rounded-xl flex items-center justify-center text-sky-600">
-                        <Users className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                          Operational Doer
-                        </p>
-                        <p className="text-sm font-bold text-slate-900 leading-none">
-                          {lead.s5_discomPreAssignedTo || "Unassigned"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="File+Meter Submitted to AEN Office (Date)"
-                      value={lead.s5_fileMeterToDiscomDate}
-                      name="s5_fileMeterToDiscomDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(6)}
-                    />
-
-                    <div
-                      className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s5_preInstallPhotoUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                    >
-                      {lead.s5_preInstallPhotoUrl ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      ) : uploadingDoc === "Pre-Install Photo" ? (
-                        <div className="relative">
-                          <Clock className="w-5 h-5 text-sky-500 animate-spin" />
-                          <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-sky-600 bg-sky-50 px-1 rounded whitespace-nowrap">
-                            {uploadProgress > 0
-                              ? `${Math.round(uploadProgress)}%`
-                              : "Sync..."}
-                          </span>
-                        </div>
-                      ) : (
-                        <Upload className="w-5 h-5 text-slate-400" />
-                      )}
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">
-                        File+Meter Submission Receipt Upload
-                      </span>
-                      <div className="flex gap-2">
-                        <label
-                          htmlFor="input-pre-install-photo"
-                          className={`text-[10px] text-sky-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Pre-Install Photo" || !canEditStep(6) ? "opacity-50 pointer-events-none" : ""}`}
-                        >
-                          {lead.s5_preInstallPhotoUrl
-                            ? "Replace"
-                            : "Upload PDF"}
-                          <input
-                            id="input-pre-install-photo"
-                            type="file"
-                            className="hidden"
-                            accept="application/pdf"
-                            onChange={(e) =>
-                              handleFileUpload(
-                                e,
-                                "Pre-Install Photo",
-                                "s5_preInstallPhotoUrl",
-                              )
-                            }
-                            disabled={
-                              uploadingDoc === "Pre-Install Photo" ||
-                              !canEditStep(6)
-                            }
-                          />
-                        </label>
-                        {lead.s5_preInstallPhotoUrl && (
-                          <a
-                            href={lead.s5_preInstallPhotoUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-sky-600 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            View <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="Meter Tested & Received in AEN Office (Optional)"
-                      value={lead.s5_meterTestedReceived}
-                      name="s5_meterTestedReceived"
-                      type="Date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(6)}
-                    />
-                    <InputField
-                      label="S3 Remarks"
-                      value={lead.s3_discomRemark}
-                      name="s3_discomRemark"
-                      multiline
-                      rows={1}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(6)}
-                    />
-
-                    <StepActionButtons
-                      stepId={6}
-                      label="Step 7: DISCOM (Pre-Install)"
-                      nameField="s5_discomPreAssignedTo"
-                      emailField="s5_discomPreAssignedToEmail"
-                    />
-                  </motion.div>
-                )}
-
-                {currentExecutionStep === 7 && (
-                  <motion.div
-                    id="execution-step-7"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-emerald-500 transition-all duration-700 ${shouldHighlightStep(7) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
-                  >
-                    {shouldHighlightStep(7) && (
-                      <div className="absolute -top-3 left-6 z-10 flex -ml-4">
-                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
-                          <AlertCircle className="w-3.5 h-3.5" /> ACTION
-                          ASSIGNED
-                        </span>
-                      </div>
-                    )}
-                    <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900">
-                          Step 8: SITE INCHARGE (For Site Measurment & Date)
-                        </h3>
-                        <p className="text-sm text-slate-400 font-medium">
-                          Site revisit, measurement and material planning.
-                        </p>
-                      </div>
-                      <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full border border-emerald-100 uppercase tracking-wider">
-                        Site
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
-                      <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
-                        <Users className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                          Operational Doer
-                        </p>
-                        <p className="text-sm font-bold text-slate-900 leading-none">
-                          {lead.s6_inchargeAssignedTo || "Unassigned"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="Expected Work Start (Date)"
-                      value={lead.s6_expectedStartDate}
-                      name="s6_expectedStartDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(7)}
-                    />
-                    <InputField
-                      label="Site Revisit & Measurement (Date)"
-                      value={lead.s6_siteRevisitDate}
-                      name="s6_siteRevisitDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(7)}
-                    />
-
-                    <div
-                      className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s6_materialListUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                    >
-                      {lead.s6_materialListUrl ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      ) : uploadingDoc === "Material List" ? (
-                        <div className="relative">
-                          <Clock className="w-5 h-5 text-blue-500 animate-spin" />
-                          <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
-                            {uploadProgress > 0
-                              ? `${Math.round(uploadProgress)}%`
-                              : "Sync..."}
-                          </span>
-                        </div>
-                      ) : (
-                        <Upload className="w-5 h-5 text-slate-400" />
-                      )}
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">
-                        Required Material List
-                      </span>
-                      <div className="flex gap-2">
-                        <label
-                          htmlFor="input-material-list"
-                          className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Material List" || !canEditStep(7) ? "opacity-50 pointer-events-none" : ""}`}
-                        >
-                          {lead.s6_materialListUrl ? "Replace" : "Upload File"}
-                          <input
-                            id="input-material-list"
-                            type="file"
-                            className="hidden"
-                            accept="application/pdf"
-                            onChange={(e) =>
-                              handleFileUpload(
-                                e,
-                                "Material List",
-                                "s6_materialListUrl",
-                              )
-                            }
-                            disabled={
-                              uploadingDoc === "Material List" ||
-                              !canEditStep(7)
-                            }
-                          />
-                        </label>
-                        {lead.s6_materialListUrl && (
-                          <a
-                            href={lead.s6_materialListUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            View <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    <div
-                      className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s6_siteDrawingUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                    >
-                      {lead.s6_siteDrawingUrl ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      ) : uploadingDoc === "Site Drawing" ? (
-                        <div className="relative">
-                          <Clock className="w-5 h-5 text-blue-500 animate-spin" />
-                          <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
-                            {uploadProgress > 0
-                              ? `${Math.round(uploadProgress)}%`
-                              : "Sync..."}
-                          </span>
-                        </div>
-                      ) : (
-                        <Upload className="w-5 h-5 text-slate-400" />
-                      )}
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">
-                        Site Drawing
-                      </span>
-                      <div className="flex gap-2">
-                        <label
-                          htmlFor="input-site-drawing"
-                          className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Site Drawing" || !canEditStep(7) ? "opacity-50 pointer-events-none" : ""}`}
-                        >
-                          {lead.s6_siteDrawingUrl ? "Replace" : "Upload File"}
-                          <input
-                            id="input-site-drawing"
-                            type="file"
-                            className="hidden"
-                            accept="application/pdf"
-                            onChange={(e) =>
-                              handleFileUpload(
-                                e,
-                                "Site Drawing",
-                                "s6_siteDrawingUrl",
-                              )
-                            }
-                            disabled={
-                              uploadingDoc === "Site Drawing" || !canEditStep(7)
-                            }
-                          />
-                        </label>
-                        {lead.s6_siteDrawingUrl && (
-                          <a
-                            href={lead.s6_siteDrawingUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            View <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="S4 Remarks"
-                      value={lead.s6_siteTeamRemark}
-                      name="s6_siteTeamRemark"
-                      multiline
-                      rows={1}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(7)}
-                    />
-
-                    <StepActionButtons
-                      stepId={7}
-                      label="Step 8: SITE INCHARGE (For Site Measurment & Date)"
-                      nameField="s6_inchargeAssignedTo"
-                      emailField="s6_inchargeAssignedToEmail"
-                    />
-                  </motion.div>
-                )}
-
-                {currentExecutionStep === 8 && (
-                  <motion.div
-                    id="execution-step-8"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-indigo-500 transition-all duration-700 ${shouldHighlightStep(8) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
-                  >
-                    {shouldHighlightStep(8) && (
-                      <div className="absolute -top-3 left-6 z-10 flex -ml-4">
-                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
-                          <AlertCircle className="w-3.5 h-3.5" /> ACTION
-                          ASSIGNED
-                        </span>
-                      </div>
-                    )}
-                    <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900">
-                          Step 9: STORE INCHARGE
-                        </h3>
-                        <p className="text-sm text-slate-400 font-medium">
-                          Material readiness and dispatch tracking.
-                        </p>
-                      </div>
-                      <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full border border-indigo-100 uppercase tracking-wider">
-                        Store
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
-                      <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
-                        <Users className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                          Operational Doer
-                        </p>
-                        <p className="text-sm font-bold text-slate-900 leading-none">
-                          {lead.s5_storeInchargeAssignedTo || "Unassigned"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="Material Ready to Dispatch"
-                      value={lead.s5_materialReadyToDispatch}
-                      name="s5_materialReadyToDispatch"
-                      options={["Ready To Dispatch", "Dispatched"]}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(8)}
-                    />
-
-                    <InputField
-                      label="Ready to Dispatch Date"
-                      value={lead.s5_materialReadyToDispatchDate}
-                      name="s5_materialReadyToDispatchDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(8)}
-                    />
-
-                    <InputField
-                      label="Dispatch Date"
-                      value={lead.s5_storeDispatchDate}
-                      name="s5_storeDispatchDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(8)}
-                    />
-
-                    <div
-                      className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s5_materialListUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                    >
-                      {lead.s5_materialListUrl ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      ) : uploadingDoc === "Store Material List" ? (
-                        <div className="relative">
-                          <Clock className="w-5 h-5 text-blue-500 animate-spin" />
-                          <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
-                            {uploadProgress > 0
-                              ? `${Math.round(uploadProgress)}%`
-                              : "Sync..."}
-                          </span>
-                        </div>
-                      ) : (
-                        <Upload className="w-5 h-5 text-slate-400" />
-                      )}
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">
-                        Material List
-                      </span>
-                      <div className="flex gap-2">
-                        <label
-                          htmlFor="input-store-material-list"
-                          className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Store Material List" || !canEditStep(8) ? "opacity-50 pointer-events-none" : ""}`}
-                        >
-                          {lead.s5_materialListUrl ? "Replace" : "Upload File"}
-                          <input
-                            id="input-store-material-list"
-                            type="file"
-                            className="hidden"
-                            accept="application/pdf"
-                            onChange={(e) =>
-                              handleFileUpload(
-                                e,
-                                "Store Material List",
-                                "s5_materialListUrl",
-                              )
-                            }
-                            disabled={
-                              uploadingDoc === "Store Material List" ||
-                              !canEditStep(8)
-                            }
-                          />
-                        </label>
-                        {lead.s5_materialListUrl && (
-                          <a
-                            href={lead.s5_materialListUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            View <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="S5 Remarks"
-                      value={lead.s5_storeRemark}
-                      name="s5_storeRemark"
-                      multiline
-                      rows={1}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(8)}
-                    />
-
-                    <StepActionButtons
-                      stepId={8}
-                      label="Step 9: STORE INCHARGE"
-                      nameField="s5_storeInchargeAssignedTo"
-                      emailField="s5_storeInchargeAssignedToEmail"
-                    />
-                  </motion.div>
-                )}
-
-                {currentExecutionStep === 9 && (
-                  <motion.div
-                    id="execution-step-9"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-rose-500 transition-all duration-700 ${shouldHighlightStep(9) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
-                  >
-                    {shouldHighlightStep(9) && (
-                      <div className="absolute -top-3 left-6 z-10 flex -ml-4">
-                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
-                          <AlertCircle className="w-3.5 h-3.5" /> ACTION
-                          ASSIGNED
-                        </span>
-                      </div>
-                    )}
-                    <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900">
-                          Step 10: SITE TEAM
-                        </h3>
-                        <p className="text-sm text-slate-400 font-medium">
-                          Installation tracking and completion reporting.
-                        </p>
-                      </div>
-                      <span className="bg-rose-50 text-rose-700 text-xs font-bold px-3 py-1 rounded-full border border-rose-100 uppercase tracking-wider">
-                        Installation
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
-                      <div className="w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center text-rose-600">
-                        <Users className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                          Operational Doer
-                        </p>
-                        <p className="text-sm font-bold text-slate-900 leading-none">
-                          {lead.s6_assignedTo || "Unassigned"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="Material Received (Date)"
-                      value={lead.s6_materialReceivedDate}
-                      name="s6_materialReceivedDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(9)}
-                    />
-
-                    <div
-                      className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s6_receivedMaterialListUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                    >
-                      {lead.s6_receivedMaterialListUrl ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      ) : uploadingDoc === "Received Material List" ? (
-                        <div className="relative">
-                          <Clock className="w-5 h-5 text-blue-500 animate-spin" />
-                          <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
-                            {uploadProgress > 0
-                              ? `${Math.round(uploadProgress)}%`
-                              : "Sync..."}
-                          </span>
-                        </div>
-                      ) : (
-                        <Upload className="w-5 h-5 text-slate-400" />
-                      )}
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">
-                        Received Material List
-                      </span>
-                      <div className="flex gap-2">
-                        <label
-                          htmlFor="input-received-material-list"
-                          className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Received Material List" || !canEditStep(9) ? "opacity-50 pointer-events-none" : ""}`}
-                        >
-                          {lead.s6_receivedMaterialListUrl
-                             ? "Replace"
-                             : "Upload File"}
-                          <input
-                            id="input-received-material-list"
-                            type="file"
-                            className="hidden"
-                            accept="application/pdf"
-                            onChange={(e) =>
-                              handleFileUpload(
-                                e,
-                                "Received Material List",
-                                "s6_receivedMaterialListUrl",
-                              )
-                            }
-                            disabled={
-                              uploadingDoc === "Received Material List" ||
-                              !canEditStep(9)
-                            }
-                          />
-                        </label>
-                        {lead.s6_receivedMaterialListUrl && (
-                          <a
-                            href={lead.s6_receivedMaterialListUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            View <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="Work Start Date"
-                      value={lead.s6_workStartDate}
-                      name="s6_workStartDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(9)}
-                    />
-
-                    <InputField
-                      label="Work End Date"
-                      value={lead.s6_workEndDate}
-                      name="s6_workEndDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(9)}
-                    />
-
-                    <div
-                      className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s6_workCompletionReportUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                    >
-                      {lead.s6_workCompletionReportUrl ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      ) : uploadingDoc === "Completion Report" ? (
-                        <div className="relative">
-                          <Clock className="w-5 h-5 text-blue-500 animate-spin" />
-                          <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
-                            {uploadProgress > 0
-                              ? `${Math.round(uploadProgress)}%`
-                              : "Sync..."}
-                          </span>
-                        </div>
-                      ) : (
-                        <Upload className="w-5 h-5 text-slate-400" />
-                      )}
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">
-                        Work Completion Report
-                      </span>
-                      <div className="flex gap-2">
-                        <label
-                          htmlFor="input-completion-report"
-                          className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Completion Report" || !canEditStep(9) ? "opacity-50 pointer-events-none" : ""}`}
-                        >
-                          {lead.s6_workCompletionReportUrl
-                            ? "Replace"
-                            : "Upload File"}
-                          <input
-                            id="input-completion-report"
-                            type="file"
-                            className="hidden"
-                            accept="application/pdf"
-                            onChange={(e) =>
-                              handleFileUpload(
-                                e,
-                                "Completion Report",
-                                "s6_workCompletionReportUrl",
-                              )
-                            }
-                            disabled={
-                              uploadingDoc === "Completion Report" ||
-                              !canEditStep(9)
-                            }
-                          />
-                        </label>
-                        {lead.s6_workCompletionReportUrl && (
-                          <a
-                            href={lead.s6_workCompletionReportUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            View <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="col-span-full mt-4 space-y-4">
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
-                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                          Site Deviations
-                        </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <InputField
-                            label="Any deviation from Final Drawing / Material Requirement Sheet / Work Agreement"
-                            value={lead.s6_deviationFromFinal}
-                            name="s6_deviationFromFinal"
-                            options={["Yes", "No"]}
-                            onUpdate={handleUpdate}
-                            disabled={!canEditStep(9)}
-                          />
-                        </div>
-                        {lead.s6_deviationFromFinal === "Yes" && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                          <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-4">
                             <InputField
-                              label="Details"
-                              value={lead.s6_deviationDetails}
-                              name="s6_deviationDetails"
-                              type="textarea"
+                              label="Correction Remark"
+                              value={lead.docCorrectionRemark}
+                              name="docCorrectionRemark"
+                              multiline
+                              rows={3}
                               onUpdate={handleUpdate}
-                              disabled={!canEditStep(9)}
+                              disabled={!canEditStep(1)}
                             />
-                            <InputField
-                              label="Deviation Cost"
-                              value={lead.s6_deviationCost}
-                              name="s6_deviationCost"
-                              type="number"
-                              onUpdate={handleUpdate}
-                              disabled={!canEditStep(9)}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="col-span-full mt-4">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">
-                        Project Photos
-                      </h4>
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                        {[
-                          {
-                            label: "Project GPS Photos with Owner",
-                            name: "s6_photoGpsUrl",
-                          },
-                          { label: "Inverter", name: "s6_photoInverterUrl" },
-                          {
-                            label: "Structure (Before Panel)",
-                            name: "s6_photoStructureUrl",
-                          },
-                          {
-                            label: "Foundation",
-                            name: "s6_photoFoundationUrl",
-                          },
-                          { label: "Earthing", name: "s6_photoEarthingUrl" },
-                          { label: "Wiring", name: "s6_photoWiringUrl" },
-                          {
-                            label: "Inverter Sr No",
-                            name: "s6_photoInverterSrNoUrl",
-                          },
-                          {
-                            label: "Panel Sr No",
-                            name: "s6_photoPanelSrNoUrl",
-                          },
-                        ].map((photo, i) => {
-                          const url = (lead as any)[photo.name];
-                          const isUploading = uploadingDoc === photo.label;
-                          return (
                             <div
-                              key={i}
-                              className={`p-3 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center gap-2 ${url ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                              className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s_docCorr_docUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
                             >
-                              {url ? (
-                                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                              ) : isUploading ? (
+                              {lead.s_docCorr_docUrl ? (
+                                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                              ) : uploadingDoc === "Corrected Document" ? (
                                 <div className="relative">
-                                  <Clock className="w-4 h-4 text-blue-500 animate-spin" />
-                                  <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                  <Clock className="w-5 h-5 text-emerald-500 animate-spin" />
+                                  <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-emerald-600 bg-emerald-50 px-1 rounded whitespace-nowrap">
                                     {uploadProgress > 0
                                       ? `${Math.round(uploadProgress)}%`
-                                      : "Sync..."}
+                                      : "Wait..."}
                                   </span>
                                 </div>
                               ) : (
-                                <Upload className="w-4 h-4 text-slate-400" />
+                                <Upload className="w-5 h-5 text-slate-400" />
                               )}
-                              <span className="text-[10px] font-bold text-slate-500 text-center leading-tight min-h-[20px]">
-                                {photo.label}
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">
+                                Corrected Document
                               </span>
                               <div className="flex gap-2">
                                 <label
-                                  htmlFor={`input-photo-${photo.label.replace(/\s+/g, "-").toLowerCase()}`}
-                                  className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${isUploading || !canEditStep(9) ? "opacity-50 pointer-events-none" : ""}`}
+                                  htmlFor="input-doc-correction"
+                                  className={`text-[10px] text-emerald-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Corrected Document" || !canEditStep(1) ? "opacity-50 pointer-events-none" : ""}`}
                                 >
-                                  {url ? "Edit" : "Add"}
+                                  {lead.s_docCorr_docUrl
+                                    ? "Replace"
+                                    : "Upload File"}
                                   <input
-                                    id={`input-photo-${photo.label.replace(/\s+/g, "-").toLowerCase()}`}
+                                    id="input-doc-correction"
                                     type="file"
                                     className="hidden"
-                                    accept="image/*,application/pdf"
+                                    accept="application/pdf"
                                     onChange={(e) =>
                                       handleFileUpload(
                                         e,
-                                        photo.label,
-                                        photo.name as any,
+                                        "Corrected Document",
+                                        "s_docCorr_docUrl",
                                       )
                                     }
-                                    disabled={isUploading || !canEditStep(9)}
+                                    disabled={
+                                      uploadingDoc === "Corrected Document" ||
+                                      !canEditStep(1)
+                                    }
                                   />
                                 </label>
-                                {url && (
+                                {lead.s_docCorr_docUrl && (
                                   <a
-                                    href={url}
+                                    href={lead.s_docCorr_docUrl}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
@@ -7748,1615 +6593,3101 @@ export default function LeadDetail({
                                 )}
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="Expected End (Auto)"
-                      value={lead.s6_expectedEndDate}
-                      name="s6_expectedEndDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(9)}
-                    />
-
-                    <InputField
-                      label="S6 Remarks / Delay Reason"
-                      value={lead.s6_remarks}
-                      name="s6_remarks"
-                      multiline
-                      rows={1}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(9)}
-                    />
-
-                    <StepActionButtons
-                      stepId={9}
-                      label="Step 10: SITE TEAM"
-                      nameField="s6_assignedTo"
-                      emailField="s6_assignedToEmail"
-                    />
-                  </motion.div>
-                )}
-
-                {currentExecutionStep === 10 && (
-                  <motion.div
-                    id="execution-step-10"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-cyan-500 transition-all duration-700 ${shouldHighlightStep(10) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
-                  >
-                    {shouldHighlightStep(10) && (
-                      <div className="absolute -top-3 left-6 z-10 flex -ml-4">
-                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
-                          <AlertCircle className="w-3.5 h-3.5" /> ACTION
-                          ASSIGNED
-                        </span>
-                      </div>
-                    )}
-                    <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900">
-                          Step 11: OFFICE EXEC (Post-Install)
-                        </h3>
-                        <p className="text-sm text-slate-400 font-medium">
-                          Post-installation online submission and tracking.
-                        </p>
-                      </div>
-                      <span className="bg-cyan-50 text-cyan-700 text-xs font-bold px-3 py-1 rounded-full border border-cyan-100 uppercase tracking-wider">
-                        Office
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
-                      <div className="w-10 h-10 bg-cyan-100 rounded-xl flex items-center justify-center text-cyan-600">
-                        <Users className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                          Operational Doer
-                        </p>
-                        <p className="text-sm font-bold text-slate-900 leading-none">
-                          {lead.s7_assignedTo || "Unassigned"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="Installation Details submitted Online (Date)"
-                      value={lead.s7_onlineSubmissionDate}
-                      name="s7_onlineSubmissionDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(10)}
-                    />
-                    <InputField
-                      label="On Time / Delay"
-                      value={lead.s7_installationStatus as any}
-                      name="s7_installationStatus"
-                      options={["On Time", "Delay"]}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(10)}
-                    />
-
-                    <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div
-                        className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s7_dcrCertificateUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                      >
-                        {lead.s7_dcrCertificateUrl ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                        ) : uploadingDoc === "DCR Certificate" ? (
-                          <div className="relative">
-                            <Clock className="w-5 h-5 text-blue-500 animate-spin" />
-                            <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
-                              {uploadProgress > 0
-                                ? `${Math.round(uploadProgress)}%`
-                                : "Sync..."}
-                            </span>
                           </div>
-                        ) : (
-                          <Upload className="w-5 h-5 text-slate-400" />
-                        )}
-                        <span className="text-[10px] font-bold text-slate-500 uppercase">
-                          DCR Certificate
-                        </span>
-                        <div className="flex gap-2">
-                          <label
-                            htmlFor="input-dcr-cert"
-                            className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "DCR Certificate" || !canEditStep(10) ? "opacity-50 pointer-events-none" : ""}`}
-                          >
-                            {lead.s7_dcrCertificateUrl
-                              ? "Replace"
-                              : "Upload File"}
-                            <input
-                              id="input-dcr-cert"
-                              type="file"
-                              className="hidden"
-                              accept="application/pdf"
-                              onChange={(e) =>
-                                handleFileUpload(
-                                  e,
-                                  "DCR Certificate",
-                                  "s7_dcrCertificateUrl",
-                                )
-                              }
-                              disabled={
-                                uploadingDoc === "DCR Certificate" ||
-                                !canEditStep(10)
-                              }
-                            />
-                          </label>
-                          {lead.s7_dcrCertificateUrl && (
-                            <a
-                              href={lead.s7_dcrCertificateUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                            >
-                              View <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-
-                      <div
-                        className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s7_workCompletionCertificateUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                      >
-                        {lead.s7_workCompletionCertificateUrl ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                        ) : uploadingDoc === "Work Completion Certificate" ? (
-                          <div className="relative">
-                            <Clock className="w-5 h-5 text-blue-500 animate-spin" />
-                            <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
-                              {uploadProgress > 0
-                                ? `${Math.round(uploadProgress)}%`
-                                : "Sync..."}
-                            </span>
-                          </div>
-                        ) : (
-                          <Upload className="w-5 h-5 text-slate-400" />
-                        )}
-                        <span className="text-[10px] font-bold text-slate-500 uppercase text-center leading-tight">
-                          Work Completion Certificate
-                        </span>
-                        <div className="flex gap-2">
-                          <label
-                            htmlFor="input-work-completion-cert"
-                            className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Work Completion Certificate" || !canEditStep(10) ? "opacity-50 pointer-events-none" : ""}`}
-                          >
-                            {lead.s7_workCompletionCertificateUrl
-                              ? "Replace"
-                              : "Upload File"}
-                            <input
-                              id="input-work-completion-cert"
-                              type="file"
-                              className="hidden"
-                              accept="application/pdf"
-                              onChange={(e) =>
-                                handleFileUpload(
-                                  e,
-                                  "Work Completion Certificate",
-                                  "s7_workCompletionCertificateUrl",
-                                )
-                              }
-                              disabled={
-                                uploadingDoc ===
-                                  "Work Completion Certificate" ||
-                                !canEditStep(10)
-                              }
-                            />
-                          </label>
-                          {lead.s7_workCompletionCertificateUrl && (
-                            <a
-                              href={lead.s7_workCompletionCertificateUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                            >
-                              View <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-
-                      <div
-                        className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s7_invoiceAdvanceReceiptUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                      >
-                        {lead.s7_invoiceAdvanceReceiptUrl ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                        ) : uploadingDoc === "Invoice+Advance Receipt" ? (
-                          <div className="relative">
-                            <Clock className="w-5 h-5 text-blue-500 animate-spin" />
-                            <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
-                              {uploadProgress > 0
-                                ? `${Math.round(uploadProgress)}%`
-                                : "Sync..."}
-                            </span>
-                          </div>
-                        ) : (
-                          <Upload className="w-5 h-5 text-slate-400" />
-                        )}
-                        <span className="text-[10px] font-bold text-slate-500 uppercase text-center leading-tight">
-                          Invoice+Advance Receipt
-                        </span>
-                        <div className="flex gap-2">
-                          <label
-                            htmlFor="input-invoice-receipt"
-                            className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Invoice+Advance Receipt" || !canEditStep(10) ? "opacity-50 pointer-events-none" : ""}`}
-                          >
-                            {lead.s7_invoiceAdvanceReceiptUrl
-                              ? "Replace"
-                              : "Upload File"}
-                            <input
-                              id="input-invoice-receipt"
-                              type="file"
-                              className="hidden"
-                              accept="application/pdf"
-                              onChange={(e) =>
-                                handleFileUpload(
-                                  e,
-                                  "Invoice+Advance Receipt",
-                                  "s7_invoiceAdvanceReceiptUrl",
-                                )
-                              }
-                              disabled={
-                                uploadingDoc === "Invoice+Advance Receipt" ||
-                                !canEditStep(10)
-                              }
-                            />
-                          </label>
-                          {lead.s7_invoiceAdvanceReceiptUrl && (
-                            <a
-                              href={lead.s7_invoiceAdvanceReceiptUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                            >
-                              View <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="S7 Remarks"
-                      value={lead.s7_officeRemark}
-                      name="s7_officeRemark"
-                      multiline
-                      rows={1}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(10)}
-                    />
-
-                    <StepActionButtons
-                      stepId={10}
-                      label="Step 11: OFFICE EXEC (Post-Install)"
-                      nameField="s7_assignedTo"
-                      emailField="s7_assignedToEmail"
-                    />
-                  </motion.div>
-                )}
-
-                {currentExecutionStep === 11 && (
-                  <motion.div
-                    id="execution-step-11"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-amber-500 transition-all duration-700 ${shouldHighlightStep(11) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
-                  >
-                    {shouldHighlightStep(11) && (
-                      <div className="absolute -top-3 left-6 z-10 flex -ml-4">
-                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
-                          <AlertCircle className="w-3.5 h-3.5" /> ACTION
-                          ASSIGNED
-                        </span>
-                      </div>
-                    )}
-                    <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900">
-                          Step 12: DISCOM (Post-Install)
-                        </h3>
-                        <p className="text-sm text-slate-400 font-medium tracking-tight">
-                          DISCOM inspection, meter installation and site
-                          activation.
-                        </p>
-                      </div>
-                      <span className="bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1 rounded-full border border-amber-100 uppercase tracking-wider">
-                        DISCOM
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
-                      <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
-                        <Users className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                          Operational Doer
-                        </p>
-                        <p className="text-sm font-bold text-slate-900 leading-none">
-                          {lead.s8_assignedTo || "Unassigned"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="DISCOM Inspection (Date)"
-                      value={lead.s8_discomInspectionDate}
-                      name="s8_discomInspectionDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(11)}
-                    />
-                    <InputField
-                      label="Meter Installed (Date)"
-                      value={lead.s8_meterInstalledDate}
-                      name="s8_meterInstalledDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(11)}
-                    />
-
-                    <InputField
-                      label="Smart Meter converted to Net Meter"
-                      value={lead.s8_smartMeterConverted}
-                      name="s8_smartMeterConverted"
-                      options={["Yes", "No"]}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(11)}
-                    />
-
-                    <div
-                      className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s8_convertedPhotoUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                    >
-                      {lead.s8_convertedPhotoUrl ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      ) : uploadingDoc === "Converted Photo" ? (
-                        <div className="relative">
-                          <Clock className="w-5 h-5 text-blue-500 animate-spin" />
-                          <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
-                            {uploadProgress > 0
-                              ? `${Math.round(uploadProgress)}%`
-                              : "Sync..."}
-                          </span>
-                        </div>
-                      ) : (
-                        <Upload className="w-5 h-5 text-slate-400" />
-                      )}
-                      <span className="text-[10px] font-bold text-slate-500 uppercase text-center leading-tight min-h-[20px]">
-                        Upload Photo
-                      </span>
-                      <div className="flex gap-2">
-                        <label
-                          htmlFor="input-converted-photo"
-                          className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Converted Photo" || !canEditStep(11) ? "opacity-50 pointer-events-none" : ""}`}
-                        >
-                          {lead.s8_convertedPhotoUrl
-                            ? "Replace"
-                            : "Upload File"}
-                          <input
-                            id="input-converted-photo"
-                            type="file"
-                            className="hidden"
-                            accept="image/*,application/pdf"
-                            onChange={(e) =>
-                              handleFileUpload(
-                                e,
-                                "Converted Photo",
-                                "s8_convertedPhotoUrl",
-                              )
-                            }
-                            disabled={
-                              uploadingDoc === "Converted Photo" ||
-                              !canEditStep(11)
-                            }
+                          <StepActionButtons
+                            stepId={1}
+                            label="Step 2: Doc Correction"
+                            nameField="s_docCorr_assignedTo"
+                            emailField="s_docCorr_assignedToEmail"
+                            hideAssignment
                           />
-                        </label>
-                        {lead.s8_convertedPhotoUrl && (
-                          <a
-                            href={lead.s8_convertedPhotoUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            View <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="Site On Date"
-                      value={lead.s8_siteOnDate}
-                      name="s8_siteOnDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(11)}
-                    />
-
-                    <div
-                      className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s8_trainingCertUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
-                    >
-                      {lead.s8_trainingCertUrl ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      ) : uploadingDoc === "Training Certificate" ? (
-                        <div className="relative">
-                          <Clock className="w-5 h-5 text-blue-500 animate-spin" />
-                          <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
-                            {uploadProgress > 0
-                              ? `${Math.round(uploadProgress)}%`
-                              : "Sync..."}
-                          </span>
-                        </div>
-                      ) : (
-                        <Upload className="w-5 h-5 text-slate-400" />
+                        </motion.div>
                       )}
-                      <span className="text-[10px] font-bold text-slate-500 uppercase text-center leading-tight min-h-[20px]">
-                        Training Completion Certificate
-                      </span>
-                      <div className="flex gap-2">
-                        <label
-                          htmlFor="input-training-cert"
-                          className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Training Certificate" || !canEditStep(11) ? "opacity-50 pointer-events-none" : ""}`}
+
+                    {currentExecutionStep === 2 &&
+                      lead.loadExtensionRequired === "Yes" && (
+                        <motion.div
+                          id="execution-step-2"
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-5 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-orange-600 transition-all duration-700 ${shouldHighlightStep(2) ? "bg-orange-50/20 ring-2 md:ring-4 ring-orange-100" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
                         >
-                          {lead.s8_trainingCertUrl ? "Replace" : "Upload File"}
-                          <input
-                            id="input-training-cert"
-                            type="file"
-                            className="hidden"
-                            accept="application/pdf"
-                            onChange={(e) =>
-                              handleFileUpload(
-                                e,
-                                "Training Certificate",
-                                "s8_trainingCertUrl",
-                              )
-                            }
-                            disabled={
-                              uploadingDoc === "Training Certificate" ||
-                              !canEditStep(11)
-                            }
-                          />
-                        </label>
-                        {lead.s8_trainingCertUrl && (
-                          <a
-                            href={lead.s8_trainingCertUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
-                          >
-                            View <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
+                          <div className="col-span-full pb-3 md:pb-4 border-b border-slate-100 mb-2 md:mb-4 flex items-center justify-between">
+                            <div>
+                              <h3 className="text-lg md:text-xl font-bold text-slate-900 leading-tight">
+                                Step 3: Load Extension
+                              </h3>
+                              <p className="text-xs md:text-sm text-slate-400 font-medium">
+                                Process load extension tracking.
+                              </p>
+                            </div>
+                            <span className="bg-blue-50 text-blue-700 text-[10px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full border border-blue-100 uppercase tracking-widest shrink-0">
+                              Execution
+                            </span>
+                          </div>
 
-                    <InputField
-                      label="S8 Remarks"
-                      value={lead.s8_discomRemark}
-                      name="s8_discomRemark"
-                      multiline
-                      rows={1}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(11)}
-                    />
-
-                    <StepActionButtons
-                      stepId={11}
-                      label="DISCOM (Post-Install)"
-                      nameField="s8_assignedTo"
-                      emailField="s8_assignedToEmail"
-                    />
-                  </motion.div>
-                )}
-
-                {currentExecutionStep === 12 && (
-                  <motion.div
-                    id="execution-step-12"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-emerald-500 transition-all duration-700 ${shouldHighlightStep(12) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
-                  >
-                    {shouldHighlightStep(12) && (
-                      <div className="absolute -top-3 left-6 z-10 flex -ml-4">
-                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
-                          <AlertCircle className="w-3.5 h-3.5" /> ACTION
-                          ASSIGNED
-                        </span>
-                      </div>
-                    )}
-                    <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900">
-                          Step 13: LOAN OFFICER (Post-Install)
-                        </h3>
-                        <p className="text-sm text-slate-400 font-medium tracking-tight">
-                          Tracking the second installment of the loan.
-                        </p>
-                      </div>
-                      <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full border border-emerald-100 uppercase tracking-wider">
-                        Loan
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
-                      <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
-                        <Users className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                          Operational Doer
-                        </p>
-                        <p className="text-sm font-bold text-slate-900 leading-none">
-                          {lead.s9_assignedTo || "Unassigned"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="2nd Installment Received"
-                      value={lead.s9_secondInstallmentReceived}
-                      name="s9_secondInstallmentReceived"
-                      options={["Yes", "No"]}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(12)}
-                    />
-
-                    {lead.s9_secondInstallmentReceived === "Yes" && (
-                      <>
-                        <InputField
-                          label="Amount"
-                          value={lead.s9_secondInstallmentAmount}
-                          name="s9_secondInstallmentAmount"
-                          type="number"
-                          onUpdate={handleUpdate}
-                          disabled={!canEditStep(12)}
-                        />
-                        <InputField
-                          label="UTR No."
-                          value={lead.s9_secondInstallmentUtr}
-                          name="s9_secondInstallmentUtr"
-                          onUpdate={handleUpdate}
-                          disabled={!canEditStep(12)}
-                        />
-                        <InputField
-                          label="Date"
-                          value={lead.s9_secondInstallmentDate}
-                          name="s9_secondInstallmentDate"
-                          type="date"
-                          onUpdate={handleUpdate}
-                          disabled={!canEditStep(12)}
-                        />
-                      </>
-                    )}
-
-                    <InputField
-                      label="S9 Remarks"
-                      value={lead.s9_loanRemark}
-                      name="s9_loanRemark"
-                      multiline
-                      rows={1}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(12)}
-                    />
-
-                    <InputField
-                      label="Confirmation Assignee"
-                      value={lead.accAssignee}
-                      name="accAssignee"
-                      options={confirmationUsers.map((u) => u.name)}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(12)}
-                    />
-
-                    <StepActionButtons
-                      stepId={12}
-                      label="Step 13: LOAN OFFICER (Post-Install)"
-                      nameField="s9_assignedTo"
-                      emailField="s9_assignedToEmail"
-                    />
-                  </motion.div>
-                )}
-
-                {currentExecutionStep === 13 && (
-                  <motion.div
-                    id="execution-step-13"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-indigo-500 transition-all duration-700 ${shouldHighlightStep(13) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
-                  >
-                    {shouldHighlightStep(13) && (
-                      <div className="absolute -top-3 left-6 z-10 flex -ml-4">
-                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
-                          <AlertCircle className="w-3.5 h-3.5" /> ACTION
-                          ASSIGNED
-                        </span>
-                      </div>
-                    )}
-                    <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900">
-                          Step 1: SUBSIDY SECTION (OFFICE EXEC)
-                        </h3>
-                        <p className="text-sm text-slate-400 font-medium tracking-tight">
-                          Tracking government subsidy application and receipt.
-                        </p>
-                      </div>
-                      <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full border border-indigo-100 uppercase tracking-wider">
-                        Subsidy
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
-                      <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
-                        <Users className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                          Operational Doer
-                        </p>
-                        <p className="text-sm font-bold text-slate-900 leading-none">
-                          {lead.s11_assignedTo || "Unassigned"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <InputField
-                      label="Subsidy Applied (Date)"
-                      value={lead.s11_subsidyAppliedDate}
-                      name="s11_subsidyAppliedDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(13)}
-                    />
-                    <InputField
-                      label="Subsidy Amount (₹)"
-                      value={lead.s11_subsidyAmount}
-                      name="s11_subsidyAmount"
-                      type="number"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(13)}
-                    />
-                    <InputField
-                      label="Subsidy Received (Date)"
-                      value={lead.s11_subsidyReceivedDate}
-                      name="s11_subsidyReceivedDate"
-                      type="date"
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(13)}
-                    />
-                    <InputField
-                      label="S11 Remarks"
-                      value={lead.s11_remarks}
-                      name="s11_remarks"
-                      multiline
-                      rows={1}
-                      onUpdate={handleUpdate}
-                      disabled={!canEditStep(13)}
-                    />
-
-                    <StepActionButtons
-                      stepId={13}
-                      label="Step 1: SUBSIDY SECTION (OFFICE EXEC)"
-                      nameField="s11_assignedTo"
-                      emailField="s11_assignedToEmail"
-                    />
-                  </motion.div>
-                )}
-
-                {currentExecutionStep === 14 &&
-                  lead.newConnectionRequired === "Yes" && (
-                    <motion.div
-                      id="execution-step-14"
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-amber-500 transition-all duration-700 ${shouldHighlightStep(14) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
-                    >
-                      {shouldHighlightStep(14) && (
-                        <div className="absolute -top-3 left-6 z-10 flex -ml-4">
-                          <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
-                            <AlertCircle className="w-3.5 h-3.5" /> ACTION
-                            ASSIGNED
-                          </span>
-                        </div>
-                      )}
-                      <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
-                        <div>
-                          <h3 className="text-xl font-bold text-slate-900">
-                            Step 1: NEW CONNECTION SETUP
-                          </h3>
-                          <p className="text-sm text-slate-400 font-medium tracking-tight">
-                            Upload new connection photos and enter installation
-                            details.
-                          </p>
-                        </div>
-                        <span className="bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1 rounded-full border border-amber-100 uppercase tracking-wider">
-                          New Connection
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
-                        <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
-                          <Users className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                            Operational Doer
-                          </p>
-                          <p className="text-sm font-bold text-slate-900 leading-none">
-                            {lead.s_newConn_assignedTo || "Unassigned"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                        <InputField
-                          label="New Connection Applied Date"
-                          name="s_newConn_appliedDate"
-                          type="date"
-                          value={lead.s_newConn_appliedDate}
-                          onUpdate={handleUpdate}
-                          disabled={!canEditStep(14)}
-                        />
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                            Upload Photos
-                          </label>
-                          <div className={`flex items-center gap-3 border rounded-xl px-3 py-2.5 transition-all ${lead.s_newConn_uploadPhotosUrl ? "border-emerald-200 bg-emerald-50/40" : "bg-white border-slate-200"}`}>
-                            {lead.s_newConn_uploadPhotosUrl ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                            ) : (
-                              <Upload className="w-4 h-4 text-slate-400" />
-                            )}
-                            {uploadingDoc ===
-                            "Upload Photos (New Connection)" ? (
-                              <div className="flex-1 flex items-center gap-2">
-                                <div className="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                                    style={{ width: `${uploadProgress}%` }}
-                                  />
-                                </div>
-                                <span className="text-[10px] font-bold text-slate-500 w-8">
-                                  {uploadProgress > 0
-                                    ? `${Math.round(uploadProgress)}%`
-                                    : "Wait..."}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className={`flex-1 text-xs truncate font-semibold ${lead.s_newConn_uploadPhotosUrl ? "text-emerald-700" : "text-slate-700"}`}>
-                                {lead.s_newConn_uploadPhotosUrl
-                                  ? "Uploaded"
-                                  : "No file"}
-                              </div>
-                            )}
-                            <label
-                              htmlFor="input-s-newconn-upload-photos"
-                              className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Upload Photos (New Connection)" || !canEditStep(14) ? "opacity-50 pointer-events-none" : ""}`}
-                            >
-                              Choose File
-                            </label>
-                            <input
-                              id="input-s-newconn-upload-photos"
-                              type="file"
-                              accept="application/pdf"
-                              className="hidden"
-                              onChange={(e) =>
-                                handleFileUpload(
-                                  e,
-                                  "Upload Photos (New Connection)",
-                                  "s_newConn_uploadPhotosUrl",
-                                )
-                              }
-                              disabled={
-                                uploadingDoc ===
-                                  "Upload Photos (New Connection)" ||
-                                !canEditStep(14)
-                              }
-                            />
-                            {lead.s_newConn_uploadPhotosUrl && (
-                              <a
-                                href={lead.s_newConn_uploadPhotosUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-emerald-600 hover:text-emerald-700 font-bold hover:underline"
+                          {/* Notice: Actual document upload is in Step 2! */}
+                          {lead.loadExtensionRequired === "Yes" && (
+                            <>
+                              <InputField
+                                label="Load Ext File Submitted Date"
+                                value={lead.s3_loadExtFileSubmittedDate}
+                                name="s3_loadExtFileSubmittedDate"
+                                type="date"
+                                onUpdate={handleUpdate}
+                                disabled={!canEditStep(2)}
+                              />
+                              <div
+                                className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s3_loadExtFileUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
                               >
-                                <ExternalLink className="w-4 h-4" />
-                              </a>
-                            )}
+                                {lead.s3_loadExtFileUrl ? (
+                                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                ) : uploadingDoc === "Load Ext File" ? (
+                                  <div className="relative">
+                                    <Clock className="w-5 h-5 text-blue-500 animate-spin" />
+                                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                      {uploadProgress > 0
+                                        ? `${Math.round(uploadProgress)}%`
+                                        : "Wait..."}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <Upload className="w-5 h-5 text-slate-400" />
+                                )}
+                                <span className="text-[10px] font-bold text-slate-500 uppercase">
+                                  Load Ext File Submitted
+                                </span>
+                                <div className="flex gap-2">
+                                  <label
+                                    htmlFor="input-s3-load-ext"
+                                    className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Load Ext File" || !canEditStep(2) ? "opacity-50 pointer-events-none" : ""}`}
+                                  >
+                                    {lead.s3_loadExtFileUrl
+                                      ? "Replace"
+                                      : "Upload File"}
+                                    <input
+                                      id="input-s3-load-ext"
+                                      type="file"
+                                      className="hidden"
+                                      accept="application/pdf"
+                                      onChange={(e) =>
+                                        handleFileUpload(
+                                          e,
+                                          "Load Ext File",
+                                          "s3_loadExtFileUrl",
+                                        )
+                                      }
+                                      disabled={
+                                        uploadingDoc === "Load Ext File" ||
+                                        !canEditStep(2)
+                                      }
+                                    />
+                                  </label>
+                                  {lead.s3_loadExtFileUrl && (
+                                    <a
+                                      href={lead.s3_loadExtFileUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                                    >
+                                      View{" "}
+                                      <ExternalLink className="w-2.5 h-2.5" />
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                              <InputField
+                                label="Demand Note Issued (Date)"
+                                value={lead.s3_demandNoteIssued}
+                                name="s3_demandNoteIssued"
+                                type="date"
+                                onUpdate={handleUpdate}
+                                disabled={!canEditStep(2)}
+                              />
+                              <InputField
+                                label="Demand Deposited (Date)"
+                                value={lead.s3_demandDeposited}
+                                name="s3_demandDeposited"
+                                type="date"
+                                onUpdate={handleUpdate}
+                                disabled={!canEditStep(2)}
+                              />
+                              <InputField
+                                label="Remark"
+                                value={lead.s3_discomRemark}
+                                name="s3_discomRemark"
+                                multiline
+                                rows={1}
+                                onUpdate={handleUpdate}
+                                disabled={!canEditStep(2)}
+                              />
+                            </>
+                          )}
+
+                          <StepActionButtons
+                            stepId={2}
+                            label="Step 3: Load Extension"
+                            nameField="execution_assignedTo"
+                            emailField="execution_assignedToEmail"
+                          />
+                        </motion.div>
+                      )}
+
+                    {currentExecutionStep === 3 && (
+                      <motion.div
+                        id="execution-step-3"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 p-10 rounded-[3rem] border-l-8 border-l-blue-600 transition-all duration-700 ${shouldHighlightStep(3) ? "bg-blue-50/20 ring-4 ring-blue-100" : "bg-white shadow-2xl shadow-slate-200/50 border border-slate-100"}`}
+                      >
+                        {shouldHighlightStep(3) && (
+                          <div className="absolute -top-3 left-6 z-10 flex -ml-4">
+                            <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
+                              <AlertCircle className="w-3.5 h-3.5" /> ACTION
+                              ASSIGNED
+                            </span>
+                          </div>
+                        )}
+                        <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-xl font-bold text-slate-900">
+                              Step 4: Online Registration
+                            </h3>
+                            <p className="text-sm text-slate-400 font-medium">
+                              DISCOM registration and initial project setup.
+                            </p>
+                          </div>
+                          <span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-full border border-blue-100 uppercase tracking-wider">
+                            Execution
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
+                          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
+                            <Activity className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                              Operational Doer
+                            </p>
+                            <p className="text-sm font-bold text-slate-900 leading-none">
+                              {lead.execution_assignedTo || "Unassigned"}
+                            </p>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Photos Column */}
-                      <div className="flex flex-col gap-4">
-                        {/* Uploadable option */}
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                            New Connection Photos (Project Details)
-                          </label>
-                          <div className={`flex items-center gap-3 border rounded-2xl px-4 py-3 transition-all ${lead.executionNewConnectionPhotosUrl ? "border-emerald-200 bg-emerald-50" : "bg-slate-50 border-slate-200"}`}>
-                            {lead.executionNewConnectionPhotosUrl ? (
-                              <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-                            ) : (
-                              <Camera className="w-5 h-5 text-slate-400 flex-shrink-0" />
-                            )}
+                        <InputField
+                          label="All the details are confirmed by customer"
+                          value={lead.s3_detailsConfirmedByCustomer}
+                          name="s3_detailsConfirmedByCustomer"
+                          options={["Yes", "No"]}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(3)}
+                        />
+                        <InputField
+                          label="AEN Office Name"
+                          value={lead.s3_aenOfficeName}
+                          name="s3_aenOfficeName"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(3)}
+                        />
+                        <InputField
+                          label="Bank & Branch Name"
+                          value={lead.s3_bankName}
+                          name="s3_bankName"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(3)}
+                        />
+                        <InputField
+                          label="Online Registration Done (Date)"
+                          value={lead.s3_onlineRegistrationDone}
+                          name="s3_onlineRegistrationDone"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(3)}
+                        />
 
-                            {uploadingDoc ===
-                            "Execution New Connection Photos" ? (
-                              <div className="flex-1 flex items-center gap-2">
-                                <div className="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                                    style={{ width: `${uploadProgress}%` }}
-                                  />
-                                </div>
-                                <span className="text-[10px] font-bold text-slate-500 w-8">
-                                  {uploadProgress > 0
-                                    ? `${Math.round(uploadProgress)}%`
-                                    : "Wait..."}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className={`flex-1 text-sm truncate font-semibold ${lead.executionNewConnectionPhotosUrl ? "text-emerald-700" : "text-slate-700"}`}>
-                                {lead.executionNewConnectionPhotosUrl
-                                  ? "Execution Document Uploaded"
-                                  : "No file chosen"}
-                              </div>
-                            )}
+                        {lead.loanRequired === "Yes" && (
+                          <InputField
+                            label="Loan Applied (Date)"
+                            value={lead.s4_loanApplied}
+                            name="s4_loanApplied"
+                            type="date"
+                            onUpdate={handleUpdate}
+                            disabled={!canEditStep(3)}
+                          />
+                        )}
 
+                        <div
+                          className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s3_loanFileUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                        >
+                          {lead.s3_loanFileUrl ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          ) : uploadingDoc === "Loan File" ? (
+                            <div className="relative">
+                              <Clock className="w-5 h-5 text-blue-500 animate-spin" />
+                              <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                {uploadProgress > 0
+                                  ? `${Math.round(uploadProgress)}%`
+                                  : "Wait..."}
+                              </span>
+                            </div>
+                          ) : (
+                            <Upload className="w-5 h-5 text-slate-400" />
+                          )}
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">
+                            Loan File Documents
+                          </span>
+                          <div className="flex gap-2">
                             <label
-                              htmlFor="input-execution-conn-step-photos"
-                              className={`text-xs text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Execution New Connection Photos" || !canEditStep(14) ? "opacity-50 pointer-events-none" : ""}`}
+                              htmlFor="input-s3-loan-file"
+                              className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Loan File" || !canEditStep(3) ? "opacity-50 pointer-events-none" : ""}`}
                             >
-                              {lead.executionNewConnectionPhotosUrl
-                                ? "Replace"
-                                : "Upload File"}
+                              {lead.s3_loanFileUrl ? "Replace" : "Upload File"}
                               <input
-                                id="input-execution-conn-step-photos"
+                                id="input-s3-loan-file"
                                 type="file"
                                 className="hidden"
                                 accept="application/pdf"
                                 onChange={(e) =>
                                   handleFileUpload(
                                     e,
-                                    "Execution New Connection Photos",
-                                    "executionNewConnectionPhotosUrl",
+                                    "Loan File",
+                                    "s3_loanFileUrl",
                                   )
                                 }
                                 disabled={
-                                  uploadingDoc ===
-                                    "Execution New Connection Photos" ||
-                                  !canEditStep(14)
+                                  uploadingDoc === "Loan File" ||
+                                  !canEditStep(3)
                                 }
                               />
                             </label>
+                            {lead.s3_loanFileUrl && (
+                              <a
+                                href={lead.s3_loanFileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                View <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
                           </div>
-                          {lead.executionNewConnectionPhotosUrl && (
-                            <a
-                              href={lead.executionNewConnectionPhotosUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-1 mt-1 ml-1"
-                            >
-                              View Additional Photos{" "}
-                              <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
+                        </div>
+
+                        <div
+                          className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s3_discomFileUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                        >
+                          {lead.s3_discomFileUrl ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          ) : uploadingDoc === "Discom File" ? (
+                            <div className="relative">
+                              <Clock className="w-5 h-5 text-blue-500 animate-spin" />
+                              <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                {uploadProgress > 0
+                                  ? `${Math.round(uploadProgress)}%`
+                                  : "Wait..."}
+                              </span>
+                            </div>
+                          ) : (
+                            <Upload className="w-5 h-5 text-slate-400" />
                           )}
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">
+                            Discom File Documents
+                          </span>
+                          <div className="flex gap-2">
+                            <label
+                              htmlFor="input-s3-discom-file"
+                              className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Discom File" || !canEditStep(3) ? "opacity-50 pointer-events-none" : ""}`}
+                            >
+                              {lead.s3_discomFileUrl
+                                ? "Replace"
+                                : "Upload File"}
+                              <input
+                                id="input-s3-discom-file"
+                                type="file"
+                                className="hidden"
+                                accept="application/pdf"
+                                onChange={(e) =>
+                                  handleFileUpload(
+                                    e,
+                                    "Discom File",
+                                    "s3_discomFileUrl",
+                                  )
+                                }
+                                disabled={
+                                  uploadingDoc === "Discom File" ||
+                                  !canEditStep(3)
+                                }
+                              />
+                            </label>
+                            {lead.s3_discomFileUrl && (
+                              <a
+                                href={lead.s3_discomFileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                View <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      {/* Details Column */}
-                      <InputField
-                        label="New Connection Details"
-                        value={lead.newConnectionDetails}
-                        name="newConnectionDetails"
-                        multiline
-                        rows={3}
-                        onUpdate={handleUpdate}
-                        disabled={!canEditStep(14)}
-                        placeholder="Enter connection code, specific meter configuration or operational logs..."
-                      />
-
-                      <div className="col-span-full">
                         <StepActionButtons
-                          stepId={14}
-                          label="Step 1: NEW CONNECTION SETUP"
-                          nameField="s_newConn_assignedTo"
-                          emailField="s_newConn_assignedToEmail"
+                          stepId={3}
+                          label="Online Registration"
+                          nameField="execution_assignedTo"
+                          emailField="execution_assignedToEmail"
                         />
-                      </div>
-                    </motion.div>
-                  )}
+                      </motion.div>
+                    )}
 
-                {isExecutionFlowFinished && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-12 overflow-hidden bg-white border border-slate-200 shadow-2xl rounded-[3rem] relative"
-                  >
-                    <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-emerald-400 via-teal-500 to-indigo-600" />
+                    {currentExecutionStep === 4 &&
+                      lead.loanRequired === "Yes" && (
+                        <motion.div
+                          id="execution-step-4"
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-purple-600 transition-all duration-700 ${shouldHighlightStep(4) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400 font-medium" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
+                        >
+                          {shouldHighlightStep(4) && (
+                            <div className="absolute -top-3 left-6 z-10 flex -ml-4">
+                              <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] md:text-[10px] font-black uppercase px-3 py-1 md:py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
+                                <AlertCircle className="w-3 md:w-3.5 h-3 md:h-3.5" />{" "}
+                                ACTION ASSIGNED
+                              </span>
+                            </div>
+                          )}
+                          <div className="col-span-full pb-3 md:pb-4 border-b border-slate-100 mb-2 md:mb-4 flex items-center justify-between">
+                            <div>
+                              <h3 className="text-lg md:text-xl font-bold text-slate-900 leading-tight">
+                                Step 5: Loan Process
+                              </h3>
+                              <p className="text-xs md:text-sm text-slate-400 font-medium">
+                                Banking documentation and tracking.
+                              </p>
+                            </div>
+                            <span className="bg-purple-50 text-purple-700 text-[10px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full border border-purple-100 uppercase tracking-widest shrink-0">
+                              Loan
+                            </span>
+                          </div>
 
-                    <div className="p-8 md:p-12 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-8 bg-slate-50/50">
-                      <div className="space-y-4 max-w-2xl flex-1 text-left">
-                        <div className="flex items-center gap-2.5">
-                          <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase px-3 py-1 rounded-full tracking-wider">
-                            All Milestones Met
-                          </span>
-                          <span className="bg-indigo-100 text-indigo-800 text-[9px] font-black uppercase px-3 py-1 rounded-full tracking-wider">
-                            Lifecycle Section ID: 14
+                          <div className="flex items-center gap-3 p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl border border-slate-100 mb-2 md:mb-6 col-span-full">
+                            <div className="w-8 h-8 md:w-10 md:h-10 bg-purple-100 rounded-lg md:rounded-xl flex items-center justify-center text-purple-600 shadow-sm shrink-0">
+                              <Users className="w-4 h-4 md:w-5 md:h-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                                Operational Doer
+                              </p>
+                              <p className="text-xs md:text-sm font-bold text-slate-900 leading-none truncate">
+                                {lead.s4_loanAssignedTo || "Unassigned"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <InputField
+                            label="Physical File Submited to Bank(Date)"
+                            value={lead.s4_physicalFileToBankDate}
+                            name="s4_physicalFileToBankDate"
+                            type="date"
+                            onUpdate={handleUpdate}
+                            disabled={!canEditStep(4)}
+                          />
+                          <InputField
+                            label="Loan Process (Date)"
+                            value={lead.s4_loanProcessDate}
+                            name="s4_loanProcessDate"
+                            type="date"
+                            onUpdate={handleUpdate}
+                            disabled={!canEditStep(4)}
+                          />
+                          <InputField
+                            label="Customer Sign Done (Date)"
+                            value={lead.s4_customerSignDate}
+                            name="s4_customerSignDate"
+                            type="date"
+                            onUpdate={handleUpdate}
+                            disabled={!canEditStep(4)}
+                          />
+                          <InputField
+                            label="First Installment Received"
+                            value={lead.s4_firstInstallmentReceived}
+                            name="s4_firstInstallmentReceived"
+                            options={["Yes", "No"]}
+                            onUpdate={handleUpdate}
+                            disabled={!canEditStep(4)}
+                          />
+
+                          {lead.s4_firstInstallmentReceived === "Yes" && (
+                            <>
+                              <InputField
+                                label="Amount"
+                                value={lead.s4_firstInstallmentAmount}
+                                name="s4_firstInstallmentAmount"
+                                type="number"
+                                onUpdate={handleUpdate}
+                                disabled={!canEditStep(4)}
+                              />
+                              <InputField
+                                label="UTR No"
+                                value={lead.s4_firstInstallmentUtr}
+                                name="s4_firstInstallmentUtr"
+                                onUpdate={handleUpdate}
+                                disabled={!canEditStep(4)}
+                              />
+                              <InputField
+                                label="Date"
+                                value={lead.s4_firstInstallmentDate}
+                                name="s4_firstInstallmentDate"
+                                type="date"
+                                onUpdate={handleUpdate}
+                                disabled={!canEditStep(4)}
+                              />
+                            </>
+                          )}
+                          <InputField
+                            label="Remark"
+                            value={lead.s4_loanRemark}
+                            name="s4_loanRemark"
+                            multiline
+                            rows={1}
+                            onUpdate={handleUpdate}
+                            disabled={!canEditStep(4)}
+                          />
+
+                          <InputField
+                            label="Confirmation Assignee"
+                            value={lead.accAssignee}
+                            name="accAssignee"
+                            options={confirmationUsers.map((u) => u.name)}
+                            onUpdate={handleUpdate}
+                            disabled={!canEditStep(4)}
+                          />
+
+                          <StepActionButtons
+                            stepId={4}
+                            label="Loan Process"
+                            nameField="s4_loanAssignedTo"
+                            emailField="s4_loanAssignedToEmail"
+                          />
+                        </motion.div>
+                      )}
+
+                    {currentExecutionStep === 5 && (
+                      <motion.div
+                        id="execution-step-5"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-orange-500 transition-all duration-700 ${shouldHighlightStep(5) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
+                      >
+                        {shouldHighlightStep(5) && (
+                          <div className="absolute -top-3 left-6 z-10 flex -ml-4">
+                            <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
+                              <AlertCircle className="w-3.5 h-3.5" /> ACTION
+                              ASSIGNED
+                            </span>
+                          </div>
+                        )}
+                        <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-xl font-bold text-slate-900">
+                              Step 6: Meter Dispatch
+                            </h3>
+                            <p className="text-sm text-slate-400 font-medium">
+                              Tracking meter allocation and dispatch status.
+                            </p>
+                          </div>
+                          <span className="bg-orange-50 text-orange-700 text-xs font-bold px-3 py-1 rounded-full border border-orange-100 uppercase tracking-wider">
+                            Store
                           </span>
                         </div>
 
-                        <h3 className="text-xl md:text-3xl font-display font-black text-slate-900 tracking-tight">
-                          Final Execution Review & Approval
-                        </h3>
-
-                        <p className="text-slate-500 text-xs md:text-sm font-medium leading-relaxed">
-                          All{" "}
-                          {lead.newConnectionRequired === "Yes" ? "14" : "13"}{" "}
-                          project execution protocols and technical stages have
-                          been fully completed. The Project Incharge or System
-                          Admin must now verify the underlying payment
-                          confirmations, technical credentials, and finalize the
-                          project transition.
-                        </p>
-
-                        {/* Informative checks */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                          <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                            <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                              ✓
-                            </div>
-                            {lead.newConnectionRequired === "Yes" ? "14" : "13"}{" "}
-                            Execution Milestones Done
+                        <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
+                          <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600">
+                            <Users className="w-5 h-5" />
                           </div>
-                          <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                            <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                              ✓
-                            </div>
-                            Financial Audit Ready
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                              Operational Doer
+                            </p>
+                            <p className="text-sm font-bold text-slate-900 leading-none">
+                              {lead.s5_storeDispatchAssignedTo || "Unassigned"}
+                            </p>
                           </div>
                         </div>
 
-                        {/* Interactive Review & Verification Options */}
-                        <div className="pt-4 space-y-3">
-                          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Select Review & Verification Status:
+                        <InputField
+                          label="Meters"
+                          value={lead.s5_meters}
+                          name="s5_meters"
+                          options={["Ready to Dispatch", "Dispatched"]}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(5)}
+                        />
+                        <InputField
+                          label="Ready to Dispatch Date"
+                          value={lead.s5_readyToDispatchDate}
+                          name="s5_readyToDispatchDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(5)}
+                        />
+                        <InputField
+                          label="Dispatch Date"
+                          value={lead.s5_dispatchDate}
+                          name="s5_dispatchDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(5)}
+                        />
+
+                        <InputField
+                          label="Meter Details with serial numbers"
+                          value={lead.s5_meterDetails}
+                          name="s5_meterDetails"
+                          type="textarea"
+                          rows={2}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(5)}
+                        />
+
+                        <InputField
+                          label="Remark"
+                          value={lead.s5_meterDispatchRemark}
+                          name="s5_meterDispatchRemark"
+                          type="textarea"
+                          rows={2}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(5)}
+                        />
+
+                        <StepActionButtons
+                          stepId={5}
+                          label="Step 6: Meter Dispatch"
+                          nameField="s5_storeDispatchAssignedTo"
+                          emailField="s5_storeDispatchAssignedToEmail"
+                        />
+                      </motion.div>
+                    )}
+
+                    {currentExecutionStep === 6 && (
+                      <motion.div
+                        id="execution-step-6"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-sky-500 transition-all duration-700 ${shouldHighlightStep(6) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
+                      >
+                        {shouldHighlightStep(6) && (
+                          <div className="absolute -top-3 left-6 z-10 flex -ml-4">
+                            <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
+                              <AlertCircle className="w-3.5 h-3.5" /> ACTION
+                              ASSIGNED
+                            </span>
                           </div>
-                          <div className="flex flex-wrap gap-3">
+                        )}
+                        <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-xl font-bold text-slate-900">
+                              Step 7: DISCOM (Pre-Install)
+                            </h3>
+                            <p className="text-sm text-slate-400 font-medium">
+                              Meter submission and AEN office verification.
+                            </p>
+                          </div>
+                          <span className="bg-sky-50 text-sky-700 text-xs font-bold px-3 py-1 rounded-full border border-sky-100 uppercase tracking-wider">
+                            DISCOM
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
+                          <div className="w-10 h-10 bg-sky-100 rounded-xl flex items-center justify-center text-sky-600">
+                            <Users className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                              Operational Doer
+                            </p>
+                            <p className="text-sm font-bold text-slate-900 leading-none">
+                              {lead.s5_discomPreAssignedTo || "Unassigned"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="File+Meter Submitted to AEN Office (Date)"
+                          value={lead.s5_fileMeterToDiscomDate}
+                          name="s5_fileMeterToDiscomDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(6)}
+                        />
+
+                        <div
+                          className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s5_preInstallPhotoUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                        >
+                          {lead.s5_preInstallPhotoUrl ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          ) : uploadingDoc === "Pre-Install Photo" ? (
+                            <div className="relative">
+                              <Clock className="w-5 h-5 text-sky-500 animate-spin" />
+                              <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-sky-600 bg-sky-50 px-1 rounded whitespace-nowrap">
+                                {uploadProgress > 0
+                                  ? `${Math.round(uploadProgress)}%`
+                                  : "Sync..."}
+                              </span>
+                            </div>
+                          ) : (
+                            <Upload className="w-5 h-5 text-slate-400" />
+                          )}
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">
+                            File+Meter Submission Receipt Upload
+                          </span>
+                          <div className="flex gap-2">
+                            <label
+                              htmlFor="input-pre-install-photo"
+                              className={`text-[10px] text-sky-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Pre-Install Photo" || !canEditStep(6) ? "opacity-50 pointer-events-none" : ""}`}
+                            >
+                              {lead.s5_preInstallPhotoUrl
+                                ? "Replace"
+                                : "Upload PDF"}
+                              <input
+                                id="input-pre-install-photo"
+                                type="file"
+                                className="hidden"
+                                accept="application/pdf"
+                                onChange={(e) =>
+                                  handleFileUpload(
+                                    e,
+                                    "Pre-Install Photo",
+                                    "s5_preInstallPhotoUrl",
+                                  )
+                                }
+                                disabled={
+                                  uploadingDoc === "Pre-Install Photo" ||
+                                  !canEditStep(6)
+                                }
+                              />
+                            </label>
+                            {lead.s5_preInstallPhotoUrl && (
+                              <a
+                                href={lead.s5_preInstallPhotoUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-sky-600 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                View <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="Meter Tested & Received in AEN Office (Optional)"
+                          value={lead.s5_meterTestedReceived}
+                          name="s5_meterTestedReceived"
+                          type="Date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(6)}
+                        />
+                        <InputField
+                          label="S3 Remarks"
+                          value={lead.s3_discomRemark}
+                          name="s3_discomRemark"
+                          multiline
+                          rows={1}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(6)}
+                        />
+
+                        <StepActionButtons
+                          stepId={6}
+                          label="Step 7: DISCOM (Pre-Install)"
+                          nameField="s5_discomPreAssignedTo"
+                          emailField="s5_discomPreAssignedToEmail"
+                        />
+                      </motion.div>
+                    )}
+
+                    {currentExecutionStep === 7 && (
+                      <motion.div
+                        id="execution-step-7"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-emerald-500 transition-all duration-700 ${shouldHighlightStep(7) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
+                      >
+                        {shouldHighlightStep(7) && (
+                          <div className="absolute -top-3 left-6 z-10 flex -ml-4">
+                            <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
+                              <AlertCircle className="w-3.5 h-3.5" /> ACTION
+                              ASSIGNED
+                            </span>
+                          </div>
+                        )}
+                        <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-xl font-bold text-slate-900">
+                              Step 8: SITE INCHARGE (For Site Measurment & Date)
+                            </h3>
+                            <p className="text-sm text-slate-400 font-medium">
+                              Site revisit, measurement and material planning.
+                            </p>
+                          </div>
+                          <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full border border-emerald-100 uppercase tracking-wider">
+                            Site
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
+                          <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
+                            <Users className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                              Operational Doer
+                            </p>
+                            <p className="text-sm font-bold text-slate-900 leading-none">
+                              {lead.s6_inchargeAssignedTo || "Unassigned"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="Expected Work Start (Date)"
+                          value={lead.s6_expectedStartDate}
+                          name="s6_expectedStartDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(7)}
+                        />
+                        <InputField
+                          label="Site Revisit & Measurement (Date)"
+                          value={lead.s6_siteRevisitDate}
+                          name="s6_siteRevisitDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(7)}
+                        />
+
+                        <div
+                          className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s6_materialListUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                        >
+                          {lead.s6_materialListUrl ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          ) : uploadingDoc === "Material List" ? (
+                            <div className="relative">
+                              <Clock className="w-5 h-5 text-blue-500 animate-spin" />
+                              <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                {uploadProgress > 0
+                                  ? `${Math.round(uploadProgress)}%`
+                                  : "Sync..."}
+                              </span>
+                            </div>
+                          ) : (
+                            <Upload className="w-5 h-5 text-slate-400" />
+                          )}
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">
+                            Required Material List
+                          </span>
+                          <div className="flex gap-2">
+                            <label
+                              htmlFor="input-material-list"
+                              className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Material List" || !canEditStep(7) ? "opacity-50 pointer-events-none" : ""}`}
+                            >
+                              {lead.s6_materialListUrl
+                                ? "Replace"
+                                : "Upload File"}
+                              <input
+                                id="input-material-list"
+                                type="file"
+                                className="hidden"
+                                accept="application/pdf"
+                                onChange={(e) =>
+                                  handleFileUpload(
+                                    e,
+                                    "Material List",
+                                    "s6_materialListUrl",
+                                  )
+                                }
+                                disabled={
+                                  uploadingDoc === "Material List" ||
+                                  !canEditStep(7)
+                                }
+                              />
+                            </label>
+                            {lead.s6_materialListUrl && (
+                              <a
+                                href={lead.s6_materialListUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                View <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        <div
+                          className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s6_siteDrawingUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                        >
+                          {lead.s6_siteDrawingUrl ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          ) : uploadingDoc === "Site Drawing" ? (
+                            <div className="relative">
+                              <Clock className="w-5 h-5 text-blue-500 animate-spin" />
+                              <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                {uploadProgress > 0
+                                  ? `${Math.round(uploadProgress)}%`
+                                  : "Sync..."}
+                              </span>
+                            </div>
+                          ) : (
+                            <Upload className="w-5 h-5 text-slate-400" />
+                          )}
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">
+                            Site Drawing
+                          </span>
+                          <div className="flex gap-2">
+                            <label
+                              htmlFor="input-site-drawing"
+                              className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Site Drawing" || !canEditStep(7) ? "opacity-50 pointer-events-none" : ""}`}
+                            >
+                              {lead.s6_siteDrawingUrl
+                                ? "Replace"
+                                : "Upload File"}
+                              <input
+                                id="input-site-drawing"
+                                type="file"
+                                className="hidden"
+                                accept="application/pdf"
+                                onChange={(e) =>
+                                  handleFileUpload(
+                                    e,
+                                    "Site Drawing",
+                                    "s6_siteDrawingUrl",
+                                  )
+                                }
+                                disabled={
+                                  uploadingDoc === "Site Drawing" ||
+                                  !canEditStep(7)
+                                }
+                              />
+                            </label>
+                            {lead.s6_siteDrawingUrl && (
+                              <a
+                                href={lead.s6_siteDrawingUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                View <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="S4 Remarks"
+                          value={lead.s6_siteTeamRemark}
+                          name="s6_siteTeamRemark"
+                          multiline
+                          rows={1}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(7)}
+                        />
+
+                        <StepActionButtons
+                          stepId={7}
+                          label="Step 8: SITE INCHARGE (For Site Measurment & Date)"
+                          nameField="s6_inchargeAssignedTo"
+                          emailField="s6_inchargeAssignedToEmail"
+                        />
+                      </motion.div>
+                    )}
+
+                    {currentExecutionStep === 8 && (
+                      <motion.div
+                        id="execution-step-8"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-indigo-500 transition-all duration-700 ${shouldHighlightStep(8) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
+                      >
+                        {shouldHighlightStep(8) && (
+                          <div className="absolute -top-3 left-6 z-10 flex -ml-4">
+                            <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
+                              <AlertCircle className="w-3.5 h-3.5" /> ACTION
+                              ASSIGNED
+                            </span>
+                          </div>
+                        )}
+                        <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-xl font-bold text-slate-900">
+                              Step 9: STORE INCHARGE
+                            </h3>
+                            <p className="text-sm text-slate-400 font-medium">
+                              Material readiness and dispatch tracking.
+                            </p>
+                          </div>
+                          <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full border border-indigo-100 uppercase tracking-wider">
+                            Store
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
+                          <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
+                            <Users className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                              Operational Doer
+                            </p>
+                            <p className="text-sm font-bold text-slate-900 leading-none">
+                              {lead.s5_storeInchargeAssignedTo || "Unassigned"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="Material Ready to Dispatch"
+                          value={lead.s5_materialReadyToDispatch}
+                          name="s5_materialReadyToDispatch"
+                          options={["Ready To Dispatch", "Dispatched"]}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(8)}
+                        />
+
+                        <InputField
+                          label="Ready to Dispatch Date"
+                          value={lead.s5_materialReadyToDispatchDate}
+                          name="s5_materialReadyToDispatchDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(8)}
+                        />
+
+                        <InputField
+                          label="Dispatch Date"
+                          value={lead.s5_storeDispatchDate}
+                          name="s5_storeDispatchDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(8)}
+                        />
+
+                        <div
+                          className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s5_materialListUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                        >
+                          {lead.s5_materialListUrl ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          ) : uploadingDoc === "Store Material List" ? (
+                            <div className="relative">
+                              <Clock className="w-5 h-5 text-blue-500 animate-spin" />
+                              <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                {uploadProgress > 0
+                                  ? `${Math.round(uploadProgress)}%`
+                                  : "Sync..."}
+                              </span>
+                            </div>
+                          ) : (
+                            <Upload className="w-5 h-5 text-slate-400" />
+                          )}
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">
+                            Material List
+                          </span>
+                          <div className="flex gap-2">
+                            <label
+                              htmlFor="input-store-material-list"
+                              className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Store Material List" || !canEditStep(8) ? "opacity-50 pointer-events-none" : ""}`}
+                            >
+                              {lead.s5_materialListUrl
+                                ? "Replace"
+                                : "Upload File"}
+                              <input
+                                id="input-store-material-list"
+                                type="file"
+                                className="hidden"
+                                accept="application/pdf"
+                                onChange={(e) =>
+                                  handleFileUpload(
+                                    e,
+                                    "Store Material List",
+                                    "s5_materialListUrl",
+                                  )
+                                }
+                                disabled={
+                                  uploadingDoc === "Store Material List" ||
+                                  !canEditStep(8)
+                                }
+                              />
+                            </label>
+                            {lead.s5_materialListUrl && (
+                              <a
+                                href={lead.s5_materialListUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                View <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="S5 Remarks"
+                          value={lead.s5_storeRemark}
+                          name="s5_storeRemark"
+                          multiline
+                          rows={1}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(8)}
+                        />
+
+                        <StepActionButtons
+                          stepId={8}
+                          label="Step 9: STORE INCHARGE"
+                          nameField="s5_storeInchargeAssignedTo"
+                          emailField="s5_storeInchargeAssignedToEmail"
+                        />
+                      </motion.div>
+                    )}
+
+                    {currentExecutionStep === 9 && (
+                      <motion.div
+                        id="execution-step-9"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-rose-500 transition-all duration-700 ${shouldHighlightStep(9) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
+                      >
+                        {shouldHighlightStep(9) && (
+                          <div className="absolute -top-3 left-6 z-10 flex -ml-4">
+                            <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
+                              <AlertCircle className="w-3.5 h-3.5" /> ACTION
+                              ASSIGNED
+                            </span>
+                          </div>
+                        )}
+                        <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-xl font-bold text-slate-900">
+                              Step 10: SITE TEAM
+                            </h3>
+                            <p className="text-sm text-slate-400 font-medium">
+                              Installation tracking and completion reporting.
+                            </p>
+                          </div>
+                          <span className="bg-rose-50 text-rose-700 text-xs font-bold px-3 py-1 rounded-full border border-rose-100 uppercase tracking-wider">
+                            Installation
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
+                          <div className="w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center text-rose-600">
+                            <Users className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                              Operational Doer
+                            </p>
+                            <p className="text-sm font-bold text-slate-900 leading-none">
+                              {lead.s6_assignedTo || "Unassigned"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="Material Received (Date)"
+                          value={lead.s6_materialReceivedDate}
+                          name="s6_materialReceivedDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(9)}
+                        />
+
+                        <div
+                          className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s6_receivedMaterialListUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                        >
+                          {lead.s6_receivedMaterialListUrl ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          ) : uploadingDoc === "Received Material List" ? (
+                            <div className="relative">
+                              <Clock className="w-5 h-5 text-blue-500 animate-spin" />
+                              <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                {uploadProgress > 0
+                                  ? `${Math.round(uploadProgress)}%`
+                                  : "Sync..."}
+                              </span>
+                            </div>
+                          ) : (
+                            <Upload className="w-5 h-5 text-slate-400" />
+                          )}
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">
+                            Received Material List
+                          </span>
+                          <div className="flex gap-2">
+                            <label
+                              htmlFor="input-received-material-list"
+                              className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Received Material List" || !canEditStep(9) ? "opacity-50 pointer-events-none" : ""}`}
+                            >
+                              {lead.s6_receivedMaterialListUrl
+                                ? "Replace"
+                                : "Upload File"}
+                              <input
+                                id="input-received-material-list"
+                                type="file"
+                                className="hidden"
+                                accept="application/pdf"
+                                onChange={(e) =>
+                                  handleFileUpload(
+                                    e,
+                                    "Received Material List",
+                                    "s6_receivedMaterialListUrl",
+                                  )
+                                }
+                                disabled={
+                                  uploadingDoc === "Received Material List" ||
+                                  !canEditStep(9)
+                                }
+                              />
+                            </label>
+                            {lead.s6_receivedMaterialListUrl && (
+                              <a
+                                href={lead.s6_receivedMaterialListUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                View <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="Work Start Date"
+                          value={lead.s6_workStartDate}
+                          name="s6_workStartDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(9)}
+                        />
+
+                        <InputField
+                          label="Work End Date"
+                          value={lead.s6_workEndDate}
+                          name="s6_workEndDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(9)}
+                        />
+
+                        <div
+                          className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s6_workCompletionReportUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                        >
+                          {lead.s6_workCompletionReportUrl ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          ) : uploadingDoc === "Completion Report" ? (
+                            <div className="relative">
+                              <Clock className="w-5 h-5 text-blue-500 animate-spin" />
+                              <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                {uploadProgress > 0
+                                  ? `${Math.round(uploadProgress)}%`
+                                  : "Sync..."}
+                              </span>
+                            </div>
+                          ) : (
+                            <Upload className="w-5 h-5 text-slate-400" />
+                          )}
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">
+                            Work Completion Report
+                          </span>
+                          <div className="flex gap-2">
+                            <label
+                              htmlFor="input-completion-report"
+                              className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Completion Report" || !canEditStep(9) ? "opacity-50 pointer-events-none" : ""}`}
+                            >
+                              {lead.s6_workCompletionReportUrl
+                                ? "Replace"
+                                : "Upload File"}
+                              <input
+                                id="input-completion-report"
+                                type="file"
+                                className="hidden"
+                                accept="application/pdf"
+                                onChange={(e) =>
+                                  handleFileUpload(
+                                    e,
+                                    "Completion Report",
+                                    "s6_workCompletionReportUrl",
+                                  )
+                                }
+                                disabled={
+                                  uploadingDoc === "Completion Report" ||
+                                  !canEditStep(9)
+                                }
+                              />
+                            </label>
+                            {lead.s6_workCompletionReportUrl && (
+                              <a
+                                href={lead.s6_workCompletionReportUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                View <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="col-span-full mt-4 space-y-4">
+                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                              Site Deviations
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <InputField
+                                label="Any deviation from Final Drawing / Material Requirement Sheet / Work Agreement"
+                                value={lead.s6_deviationFromFinal}
+                                name="s6_deviationFromFinal"
+                                options={["Yes", "No"]}
+                                onUpdate={handleUpdate}
+                                disabled={!canEditStep(9)}
+                              />
+                            </div>
+                            {lead.s6_deviationFromFinal === "Yes" && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                                <InputField
+                                  label="Details"
+                                  value={lead.s6_deviationDetails}
+                                  name="s6_deviationDetails"
+                                  type="textarea"
+                                  onUpdate={handleUpdate}
+                                  disabled={!canEditStep(9)}
+                                />
+                                <InputField
+                                  label="Deviation Cost"
+                                  value={lead.s6_deviationCost}
+                                  name="s6_deviationCost"
+                                  type="number"
+                                  onUpdate={handleUpdate}
+                                  disabled={!canEditStep(9)}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="col-span-full mt-4">
+                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">
+                            Project Photos
+                          </h4>
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                             {[
                               {
-                                value: "Pending",
-                                label: "Pending",
-                                desc: "Awaiting review",
-                                color:
-                                  "border-slate-200 text-slate-700 bg-slate-50",
-                                activeColor:
-                                  "bg-slate-100 border-slate-400 text-slate-900 ring-1 ring-slate-400",
-                                icon: Clock,
+                                label: "Project GPS Photos with Owner",
+                                name: "s6_photoGpsUrl",
                               },
                               {
-                                value: "Under Review",
-                                label: "Under Review",
-                                desc: "Audit in progress",
-                                color:
-                                  "border-amber-100 text-amber-700 bg-amber-50/50",
-                                activeColor:
-                                  "bg-amber-100 border-amber-400 text-amber-900 ring-1 ring-amber-400",
-                                icon: FileText,
+                                label: "Inverter",
+                                name: "s6_photoInverterUrl",
                               },
                               {
-                                value: "Done",
-                                label: "Done",
-                                desc: "Approved for completion",
-                                color:
-                                  "border-emerald-100 text-emerald-700 bg-emerald-50/50",
-                                activeColor:
-                                  "bg-emerald-5 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20",
-                                icon: CheckCircle2,
+                                label: "Structure (Before Panel)",
+                                name: "s6_photoStructureUrl",
                               },
-                            ].map((opt) => {
-                              const isSelected =
-                                (lead.finalExecutionStatus || "Pending") ===
-                                opt.value;
-                              const isCompleted =
-                                lead.isExecutionSubmitted ||
-                                lead.status === "Completed";
-                              // Admins & Stewards can ALWAYS edit / change the status
-                              const canEdit = isAdminUser || isSteward;
-                              const IconComp = opt.icon;
-
+                              {
+                                label: "Foundation",
+                                name: "s6_photoFoundationUrl",
+                              },
+                              {
+                                label: "Earthing",
+                                name: "s6_photoEarthingUrl",
+                              },
+                              { label: "Wiring", name: "s6_photoWiringUrl" },
+                              {
+                                label: "Inverter Sr No",
+                                name: "s6_photoInverterSrNoUrl",
+                              },
+                              {
+                                label: "Panel Sr No",
+                                name: "s6_photoPanelSrNoUrl",
+                              },
+                            ].map((photo, i) => {
+                              const url = (lead as any)[photo.name];
+                              const isUploading = uploadingDoc === photo.label;
                               return (
-                                <button
-                                  key={opt.value}
-                                  type="button"
-                                  disabled={!canEdit}
-                                  onClick={() => {
-                                    if (opt.value === "Done") {
-                                      const isFullPayment =
-                                        lead.payment_status === "Full" ||
-                                        dueAmount <= 0;
-                                      if (!isFullPayment) {
-                                        showNotification(
-                                          `Payment Pending! Outstanding balance of ₹${dueAmount.toLocaleString()} is remaining. Full payment must be received to mark execution as Done.`,
-                                          "warning",
-                                        );
-                                        return;
-                                      }
-                                    }
-                                    const updates: any = {
-                                      finalExecutionStatus: opt.value as any,
-                                    };
-                                    // Reopen project if moving back from Completed to Pending or Under Review
-                                    if (
-                                      isCompleted &&
-                                      (opt.value === "Pending" ||
-                                        opt.value === "Under Review")
-                                    ) {
-                                      updates.isExecutionSubmitted = false;
-                                      updates.status = "Won";
-                                    }
-                                    handleUpdate(updates, false);
-                                  }}
-                                  className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all duration-300 flex-1 min-w-[140px] ${
-                                    isSelected
-                                      ? opt.activeColor
-                                      : isCompleted
-                                        ? "opacity-40 border-slate-200 bg-slate-50 text-slate-400"
-                                        : "border-slate-200 bg-white hover:bg-slate-50/50 text-slate-600"
-                                  } ${canEdit ? "cursor-pointer active:scale-95 hover:shadow-sm" : "cursor-not-allowed"}`}
+                                <div
+                                  key={i}
+                                  className={`p-3 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center gap-2 ${url ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
                                 >
-                                  <div
-                                    className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? "bg-white shadow-xs" : "bg-slate-100"}`}
-                                  >
-                                    <IconComp className="w-3.5 h-3.5" />
+                                  {url ? (
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                  ) : isUploading ? (
+                                    <div className="relative">
+                                      <Clock className="w-4 h-4 text-blue-500 animate-spin" />
+                                      <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                        {uploadProgress > 0
+                                          ? `${Math.round(uploadProgress)}%`
+                                          : "Sync..."}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <Upload className="w-4 h-4 text-slate-400" />
+                                  )}
+                                  <span className="text-[10px] font-bold text-slate-500 text-center leading-tight min-h-[20px]">
+                                    {photo.label}
+                                  </span>
+                                  <div className="flex gap-2">
+                                    <label
+                                      htmlFor={`input-photo-${photo.label.replace(/\s+/g, "-").toLowerCase()}`}
+                                      className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${isUploading || !canEditStep(9) ? "opacity-50 pointer-events-none" : ""}`}
+                                    >
+                                      {url ? "Edit" : "Add"}
+                                      <input
+                                        id={`input-photo-${photo.label.replace(/\s+/g, "-").toLowerCase()}`}
+                                        type="file"
+                                        className="hidden"
+                                        accept="image/*,application/pdf"
+                                        onChange={(e) =>
+                                          handleFileUpload(
+                                            e,
+                                            photo.label,
+                                            photo.name as any,
+                                          )
+                                        }
+                                        disabled={
+                                          isUploading || !canEditStep(9)
+                                        }
+                                      />
+                                    </label>
+                                    {url && (
+                                      <a
+                                        href={url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                                      >
+                                        View{" "}
+                                        <ExternalLink className="w-2.5 h-2.5" />
+                                      </a>
+                                    )}
                                   </div>
-                                  <div>
-                                    <p className="text-xs font-black uppercase tracking-tight">
-                                      {opt.label}
-                                    </p>
-                                    <p className="text-[9px] text-slate-400 font-medium leading-none mt-0.5">
-                                      {opt.desc}
-                                    </p>
-                                  </div>
-                                </button>
+                                </div>
                               );
                             })}
                           </div>
                         </div>
-                      </div>
 
-                      <div className="w-full lg:w-auto self-end lg:self-center">
-                        {lead.isExecutionSubmitted ||
-                        lead.status === "Completed" ? (
-                          <div className="px-8 py-5 bg-emerald-50 border border-emerald-100 rounded-3xl flex flex-col items-center justify-center text-center gap-2">
-                            <div className="w-12 h-12 bg-emerald-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                              <CheckCircle2 className="w-6 h-6" />
+                        <InputField
+                          label="Expected End (Auto)"
+                          value={lead.s6_expectedEndDate}
+                          name="s6_expectedEndDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(9)}
+                        />
+
+                        <InputField
+                          label="S6 Remarks / Delay Reason"
+                          value={lead.s6_remarks}
+                          name="s6_remarks"
+                          multiline
+                          rows={1}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(9)}
+                        />
+
+                        <StepActionButtons
+                          stepId={9}
+                          label="Step 10: SITE TEAM"
+                          nameField="s6_assignedTo"
+                          emailField="s6_assignedToEmail"
+                        />
+                      </motion.div>
+                    )}
+
+                    {currentExecutionStep === 10 && (
+                      <motion.div
+                        id="execution-step-10"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-cyan-500 transition-all duration-700 ${shouldHighlightStep(10) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
+                      >
+                        {shouldHighlightStep(10) && (
+                          <div className="absolute -top-3 left-6 z-10 flex -ml-4">
+                            <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
+                              <AlertCircle className="w-3.5 h-3.5" /> ACTION
+                              ASSIGNED
+                            </span>
+                          </div>
+                        )}
+                        <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-xl font-bold text-slate-900">
+                              Step 11: OFFICE EXEC (Post-Install)
+                            </h3>
+                            <p className="text-sm text-slate-400 font-medium">
+                              Post-installation online submission and tracking.
+                            </p>
+                          </div>
+                          <span className="bg-cyan-50 text-cyan-700 text-xs font-bold px-3 py-1 rounded-full border border-cyan-100 uppercase tracking-wider">
+                            Office
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
+                          <div className="w-10 h-10 bg-cyan-100 rounded-xl flex items-center justify-center text-cyan-600">
+                            <Users className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                              Operational Doer
+                            </p>
+                            <p className="text-sm font-bold text-slate-900 leading-none">
+                              {lead.s7_assignedTo || "Unassigned"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="Installation Details submitted Online (Date)"
+                          value={lead.s7_onlineSubmissionDate}
+                          name="s7_onlineSubmissionDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(10)}
+                        />
+                        <InputField
+                          label="On Time / Delay"
+                          value={lead.s7_installationStatus as any}
+                          name="s7_installationStatus"
+                          options={["On Time", "Delay"]}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(10)}
+                        />
+
+                        <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div
+                            className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s7_dcrCertificateUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                          >
+                            {lead.s7_dcrCertificateUrl ? (
+                              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                            ) : uploadingDoc === "DCR Certificate" ? (
+                              <div className="relative">
+                                <Clock className="w-5 h-5 text-blue-500 animate-spin" />
+                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                  {uploadProgress > 0
+                                    ? `${Math.round(uploadProgress)}%`
+                                    : "Sync..."}
+                                </span>
+                              </div>
+                            ) : (
+                              <Upload className="w-5 h-5 text-slate-400" />
+                            )}
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">
+                              DCR Certificate
+                            </span>
+                            <div className="flex gap-2">
+                              <label
+                                htmlFor="input-dcr-cert"
+                                className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "DCR Certificate" || !canEditStep(10) ? "opacity-50 pointer-events-none" : ""}`}
+                              >
+                                {lead.s7_dcrCertificateUrl
+                                  ? "Replace"
+                                  : "Upload File"}
+                                <input
+                                  id="input-dcr-cert"
+                                  type="file"
+                                  className="hidden"
+                                  accept="application/pdf"
+                                  onChange={(e) =>
+                                    handleFileUpload(
+                                      e,
+                                      "DCR Certificate",
+                                      "s7_dcrCertificateUrl",
+                                    )
+                                  }
+                                  disabled={
+                                    uploadingDoc === "DCR Certificate" ||
+                                    !canEditStep(10)
+                                  }
+                                />
+                              </label>
+                              {lead.s7_dcrCertificateUrl && (
+                                <a
+                                  href={lead.s7_dcrCertificateUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                                >
+                                  View <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+
+                          <div
+                            className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s7_workCompletionCertificateUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                          >
+                            {lead.s7_workCompletionCertificateUrl ? (
+                              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                            ) : uploadingDoc ===
+                              "Work Completion Certificate" ? (
+                              <div className="relative">
+                                <Clock className="w-5 h-5 text-blue-500 animate-spin" />
+                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                  {uploadProgress > 0
+                                    ? `${Math.round(uploadProgress)}%`
+                                    : "Sync..."}
+                                </span>
+                              </div>
+                            ) : (
+                              <Upload className="w-5 h-5 text-slate-400" />
+                            )}
+                            <span className="text-[10px] font-bold text-slate-500 uppercase text-center leading-tight">
+                              Work Completion Certificate
+                            </span>
+                            <div className="flex gap-2">
+                              <label
+                                htmlFor="input-work-completion-cert"
+                                className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Work Completion Certificate" || !canEditStep(10) ? "opacity-50 pointer-events-none" : ""}`}
+                              >
+                                {lead.s7_workCompletionCertificateUrl
+                                  ? "Replace"
+                                  : "Upload File"}
+                                <input
+                                  id="input-work-completion-cert"
+                                  type="file"
+                                  className="hidden"
+                                  accept="application/pdf"
+                                  onChange={(e) =>
+                                    handleFileUpload(
+                                      e,
+                                      "Work Completion Certificate",
+                                      "s7_workCompletionCertificateUrl",
+                                    )
+                                  }
+                                  disabled={
+                                    uploadingDoc ===
+                                      "Work Completion Certificate" ||
+                                    !canEditStep(10)
+                                  }
+                                />
+                              </label>
+                              {lead.s7_workCompletionCertificateUrl && (
+                                <a
+                                  href={lead.s7_workCompletionCertificateUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                                >
+                                  View <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+
+                          <div
+                            className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s7_invoiceAdvanceReceiptUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                          >
+                            {lead.s7_invoiceAdvanceReceiptUrl ? (
+                              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                            ) : uploadingDoc === "Invoice+Advance Receipt" ? (
+                              <div className="relative">
+                                <Clock className="w-5 h-5 text-blue-500 animate-spin" />
+                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                  {uploadProgress > 0
+                                    ? `${Math.round(uploadProgress)}%`
+                                    : "Sync..."}
+                                </span>
+                              </div>
+                            ) : (
+                              <Upload className="w-5 h-5 text-slate-400" />
+                            )}
+                            <span className="text-[10px] font-bold text-slate-500 uppercase text-center leading-tight">
+                              Invoice+Advance Receipt
+                            </span>
+                            <div className="flex gap-2">
+                              <label
+                                htmlFor="input-invoice-receipt"
+                                className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Invoice+Advance Receipt" || !canEditStep(10) ? "opacity-50 pointer-events-none" : ""}`}
+                              >
+                                {lead.s7_invoiceAdvanceReceiptUrl
+                                  ? "Replace"
+                                  : "Upload File"}
+                                <input
+                                  id="input-invoice-receipt"
+                                  type="file"
+                                  className="hidden"
+                                  accept="application/pdf"
+                                  onChange={(e) =>
+                                    handleFileUpload(
+                                      e,
+                                      "Invoice+Advance Receipt",
+                                      "s7_invoiceAdvanceReceiptUrl",
+                                    )
+                                  }
+                                  disabled={
+                                    uploadingDoc ===
+                                      "Invoice+Advance Receipt" ||
+                                    !canEditStep(10)
+                                  }
+                                />
+                              </label>
+                              {lead.s7_invoiceAdvanceReceiptUrl && (
+                                <a
+                                  href={lead.s7_invoiceAdvanceReceiptUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                                >
+                                  View <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="S7 Remarks"
+                          value={lead.s7_officeRemark}
+                          name="s7_officeRemark"
+                          multiline
+                          rows={1}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(10)}
+                        />
+
+                        <StepActionButtons
+                          stepId={10}
+                          label="Step 11: OFFICE EXEC (Post-Install)"
+                          nameField="s7_assignedTo"
+                          emailField="s7_assignedToEmail"
+                        />
+                      </motion.div>
+                    )}
+
+                    {currentExecutionStep === 11 && (
+                      <motion.div
+                        id="execution-step-11"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-amber-500 transition-all duration-700 ${shouldHighlightStep(11) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
+                      >
+                        {shouldHighlightStep(11) && (
+                          <div className="absolute -top-3 left-6 z-10 flex -ml-4">
+                            <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
+                              <AlertCircle className="w-3.5 h-3.5" /> ACTION
+                              ASSIGNED
+                            </span>
+                          </div>
+                        )}
+                        <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-xl font-bold text-slate-900">
+                              Step 12: DISCOM (Post-Install)
+                            </h3>
+                            <p className="text-sm text-slate-400 font-medium tracking-tight">
+                              DISCOM inspection, meter installation and site
+                              activation.
+                            </p>
+                          </div>
+                          <span className="bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1 rounded-full border border-amber-100 uppercase tracking-wider">
+                            DISCOM
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
+                          <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
+                            <Users className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                              Operational Doer
+                            </p>
+                            <p className="text-sm font-bold text-slate-900 leading-none">
+                              {lead.s8_assignedTo || "Unassigned"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="DISCOM Inspection (Date)"
+                          value={lead.s8_discomInspectionDate}
+                          name="s8_discomInspectionDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(11)}
+                        />
+                        <InputField
+                          label="Meter Installed (Date)"
+                          value={lead.s8_meterInstalledDate}
+                          name="s8_meterInstalledDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(11)}
+                        />
+
+                        <InputField
+                          label="Smart Meter converted to Net Meter"
+                          value={lead.s8_smartMeterConverted}
+                          name="s8_smartMeterConverted"
+                          options={["Yes", "No"]}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(11)}
+                        />
+
+                        <div
+                          className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s8_convertedPhotoUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                        >
+                          {lead.s8_convertedPhotoUrl ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          ) : uploadingDoc === "Converted Photo" ? (
+                            <div className="relative">
+                              <Clock className="w-5 h-5 text-blue-500 animate-spin" />
+                              <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                {uploadProgress > 0
+                                  ? `${Math.round(uploadProgress)}%`
+                                  : "Sync..."}
+                              </span>
+                            </div>
+                          ) : (
+                            <Upload className="w-5 h-5 text-slate-400" />
+                          )}
+                          <span className="text-[10px] font-bold text-slate-500 uppercase text-center leading-tight min-h-[20px]">
+                            Upload Photo
+                          </span>
+                          <div className="flex gap-2">
+                            <label
+                              htmlFor="input-converted-photo"
+                              className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Converted Photo" || !canEditStep(11) ? "opacity-50 pointer-events-none" : ""}`}
+                            >
+                              {lead.s8_convertedPhotoUrl
+                                ? "Replace"
+                                : "Upload File"}
+                              <input
+                                id="input-converted-photo"
+                                type="file"
+                                className="hidden"
+                                accept="image/*,application/pdf"
+                                onChange={(e) =>
+                                  handleFileUpload(
+                                    e,
+                                    "Converted Photo",
+                                    "s8_convertedPhotoUrl",
+                                  )
+                                }
+                                disabled={
+                                  uploadingDoc === "Converted Photo" ||
+                                  !canEditStep(11)
+                                }
+                              />
+                            </label>
+                            {lead.s8_convertedPhotoUrl && (
+                              <a
+                                href={lead.s8_convertedPhotoUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                View <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="Site On Date"
+                          value={lead.s8_siteOnDate}
+                          name="s8_siteOnDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(11)}
+                        />
+
+                        <div
+                          className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${lead.s8_trainingCertUrl ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
+                        >
+                          {lead.s8_trainingCertUrl ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          ) : uploadingDoc === "Training Certificate" ? (
+                            <div className="relative">
+                              <Clock className="w-5 h-5 text-blue-500 animate-spin" />
+                              <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded whitespace-nowrap">
+                                {uploadProgress > 0
+                                  ? `${Math.round(uploadProgress)}%`
+                                  : "Sync..."}
+                              </span>
+                            </div>
+                          ) : (
+                            <Upload className="w-5 h-5 text-slate-400" />
+                          )}
+                          <span className="text-[10px] font-bold text-slate-500 uppercase text-center leading-tight min-h-[20px]">
+                            Training Completion Certificate
+                          </span>
+                          <div className="flex gap-2">
+                            <label
+                              htmlFor="input-training-cert"
+                              className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Training Certificate" || !canEditStep(11) ? "opacity-50 pointer-events-none" : ""}`}
+                            >
+                              {lead.s8_trainingCertUrl
+                                ? "Replace"
+                                : "Upload File"}
+                              <input
+                                id="input-training-cert"
+                                type="file"
+                                className="hidden"
+                                accept="application/pdf"
+                                onChange={(e) =>
+                                  handleFileUpload(
+                                    e,
+                                    "Training Certificate",
+                                    "s8_trainingCertUrl",
+                                  )
+                                }
+                                disabled={
+                                  uploadingDoc === "Training Certificate" ||
+                                  !canEditStep(11)
+                                }
+                              />
+                            </label>
+                            {lead.s8_trainingCertUrl && (
+                              <a
+                                href={lead.s8_trainingCertUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-0.5"
+                              >
+                                View <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="S8 Remarks"
+                          value={lead.s8_discomRemark}
+                          name="s8_discomRemark"
+                          multiline
+                          rows={1}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(11)}
+                        />
+
+                        <StepActionButtons
+                          stepId={11}
+                          label="DISCOM (Post-Install)"
+                          nameField="s8_assignedTo"
+                          emailField="s8_assignedToEmail"
+                        />
+                      </motion.div>
+                    )}
+
+                    {currentExecutionStep === 12 && (
+                      <motion.div
+                        id="execution-step-12"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-emerald-500 transition-all duration-700 ${shouldHighlightStep(12) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
+                      >
+                        {shouldHighlightStep(12) && (
+                          <div className="absolute -top-3 left-6 z-10 flex -ml-4">
+                            <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
+                              <AlertCircle className="w-3.5 h-3.5" /> ACTION
+                              ASSIGNED
+                            </span>
+                          </div>
+                        )}
+                        <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-xl font-bold text-slate-900">
+                              Step 13: LOAN OFFICER (Post-Install)
+                            </h3>
+                            <p className="text-sm text-slate-400 font-medium tracking-tight">
+                              Tracking the second installment of the loan.
+                            </p>
+                          </div>
+                          <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full border border-emerald-100 uppercase tracking-wider">
+                            Loan
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
+                          <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
+                            <Users className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                              Operational Doer
+                            </p>
+                            <p className="text-sm font-bold text-slate-900 leading-none">
+                              {lead.s9_assignedTo || "Unassigned"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="2nd Installment Received"
+                          value={lead.s9_secondInstallmentReceived}
+                          name="s9_secondInstallmentReceived"
+                          options={["Yes", "No"]}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(12)}
+                        />
+
+                        {lead.s9_secondInstallmentReceived === "Yes" && (
+                          <>
+                            <InputField
+                              label="Amount"
+                              value={lead.s9_secondInstallmentAmount}
+                              name="s9_secondInstallmentAmount"
+                              type="number"
+                              onUpdate={handleUpdate}
+                              disabled={!canEditStep(12)}
+                            />
+                            <InputField
+                              label="UTR No."
+                              value={lead.s9_secondInstallmentUtr}
+                              name="s9_secondInstallmentUtr"
+                              onUpdate={handleUpdate}
+                              disabled={!canEditStep(12)}
+                            />
+                            <InputField
+                              label="Date"
+                              value={lead.s9_secondInstallmentDate}
+                              name="s9_secondInstallmentDate"
+                              type="date"
+                              onUpdate={handleUpdate}
+                              disabled={!canEditStep(12)}
+                            />
+                          </>
+                        )}
+
+                        <InputField
+                          label="S9 Remarks"
+                          value={lead.s9_loanRemark}
+                          name="s9_loanRemark"
+                          multiline
+                          rows={1}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(12)}
+                        />
+
+                        <InputField
+                          label="Confirmation Assignee"
+                          value={lead.accAssignee}
+                          name="accAssignee"
+                          options={confirmationUsers.map((u) => u.name)}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(12)}
+                        />
+
+                        <StepActionButtons
+                          stepId={12}
+                          label="Step 13: LOAN OFFICER (Post-Install)"
+                          nameField="s9_assignedTo"
+                          emailField="s9_assignedToEmail"
+                        />
+                      </motion.div>
+                    )}
+
+                    {currentExecutionStep === 13 && (
+                      <motion.div
+                        id="execution-step-13"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-indigo-500 transition-all duration-700 ${shouldHighlightStep(13) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
+                      >
+                        {shouldHighlightStep(13) && (
+                          <div className="absolute -top-3 left-6 z-10 flex -ml-4">
+                            <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
+                              <AlertCircle className="w-3.5 h-3.5" /> ACTION
+                              ASSIGNED
+                            </span>
+                          </div>
+                        )}
+                        <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-xl font-bold text-slate-900">
+                              Step 1: SUBSIDY SECTION (OFFICE EXEC)
+                            </h3>
+                            <p className="text-sm text-slate-400 font-medium tracking-tight">
+                              Tracking government subsidy application and
+                              receipt.
+                            </p>
+                          </div>
+                          <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full border border-indigo-100 uppercase tracking-wider">
+                            Subsidy
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
+                          <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
+                            <Users className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                              Operational Doer
+                            </p>
+                            <p className="text-sm font-bold text-slate-900 leading-none">
+                              {lead.s11_assignedTo || "Unassigned"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <InputField
+                          label="Subsidy Applied (Date)"
+                          value={lead.s11_subsidyAppliedDate}
+                          name="s11_subsidyAppliedDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(13)}
+                        />
+                        <InputField
+                          label="Subsidy Amount (₹)"
+                          value={lead.s11_subsidyAmount}
+                          name="s11_subsidyAmount"
+                          type="number"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(13)}
+                        />
+                        <InputField
+                          label="Subsidy Received (Date)"
+                          value={lead.s11_subsidyReceivedDate}
+                          name="s11_subsidyReceivedDate"
+                          type="date"
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(13)}
+                        />
+                        <InputField
+                          label="S11 Remarks"
+                          value={lead.s11_remarks}
+                          name="s11_remarks"
+                          multiline
+                          rows={1}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(13)}
+                        />
+
+                        <StepActionButtons
+                          stepId={13}
+                          label="Step 1: SUBSIDY SECTION (OFFICE EXEC)"
+                          nameField="s11_assignedTo"
+                          emailField="s11_assignedToEmail"
+                        />
+                      </motion.div>
+                    )}
+
+                    {currentExecutionStep === 14 &&
+                      lead.newConnectionRequired === "Yes" && (
+                        <motion.div
+                          id="execution-step-14"
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-amber-500 transition-all duration-700 ${shouldHighlightStep(14) ? "bg-amber-50/20 ring-2 md:ring-4 ring-amber-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
+                        >
+                          {shouldHighlightStep(14) && (
+                            <div className="absolute -top-3 left-6 z-10 flex -ml-4">
+                              <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-orange-400">
+                                <AlertCircle className="w-3.5 h-3.5" /> ACTION
+                                ASSIGNED
+                              </span>
+                            </div>
+                          )}
+                          <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
+                            <div>
+                              <h3 className="text-xl font-bold text-slate-900">
+                                Step 1: NEW CONNECTION SETUP
+                              </h3>
+                              <p className="text-sm text-slate-400 font-medium tracking-tight">
+                                Upload new connection photos and enter
+                                installation details.
+                              </p>
+                            </div>
+                            <span className="bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1 rounded-full border border-amber-100 uppercase tracking-wider">
+                              New Connection
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6 col-span-full">
+                            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
+                              <Users className="w-5 h-5" />
                             </div>
                             <div>
-                              <p className="text-xs font-black text-emerald-800 uppercase tracking-widest">
-                                Project Completed
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                                Operational Doer
                               </p>
-                              <p className="text-[10px] text-emerald-500 font-bold mt-0.5">
-                                Execution finalized & approved
+                              <p className="text-sm font-bold text-slate-900 leading-none">
+                                {lead.s_newConn_assignedTo || "Unassigned"}
                               </p>
                             </div>
                           </div>
-                        ) : (
-                          <div className="flex flex-col gap-3">
-                            {isAdminUser || isSteward ? (
-                              <div className="space-y-3">
-                                <button
-                                  onClick={() => {
-                                    const isFullPayment =
-                                      lead.payment_status === "Full" ||
-                                      dueAmount <= 0;
-                                    if (!isFullPayment) {
-                                      showNotification(
-                                        `Payment Pending! Outstanding balance of ₹${dueAmount.toLocaleString()} is remaining. Cannot approve final execution.`,
-                                        "warning",
-                                      );
-                                      return;
-                                    }
-                                    handleUpdate(
-                                      {
-                                        isExecutionSubmitted: true,
-                                        status: "Completed",
-                                        finalExecutionStatus: "Done",
-                                        updatedAt: new Date() as any,
-                                      },
-                                      false,
-                                    );
-                                    setNotification({
-                                      type: "success",
-                                      message:
-                                        "Project finalized and moved to Completed filter.",
-                                    });
-                                  }}
-                                  disabled={
-                                    isSaving ||
-                                    (lead.finalExecutionStatus || "Pending") !==
-                                      "Done"
-                                  }
-                                  className="w-full lg:w-auto px-10 py-5 bg-slate-950 text-white hover:bg-emerald-700 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 transition-all duration-300 shadow-xl hover:shadow-emerald-500/20 active:scale-95 disabled:opacity-30 disabled:hover:bg-slate-950 disabled:cursor-not-allowed"
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            <InputField
+                              label="New Connection Applied Date"
+                              name="s_newConn_appliedDate"
+                              type="date"
+                              value={lead.s_newConn_appliedDate}
+                              onUpdate={handleUpdate}
+                              disabled={!canEditStep(14)}
+                            />
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                Upload Photos
+                              </label>
+                              <div
+                                className={`flex items-center gap-3 border rounded-xl px-3 py-2.5 transition-all ${lead.s_newConn_uploadPhotosUrl ? "border-emerald-200 bg-emerald-50/40" : "bg-white border-slate-200"}`}
+                              >
+                                {lead.s_newConn_uploadPhotosUrl ? (
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                ) : (
+                                  <Upload className="w-4 h-4 text-slate-400" />
+                                )}
+                                {uploadingDoc ===
+                                "Upload Photos (New Connection)" ? (
+                                  <div className="flex-1 flex items-center gap-2">
+                                    <div className="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                                        style={{ width: `${uploadProgress}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-[10px] font-bold text-slate-500 w-8">
+                                      {uploadProgress > 0
+                                        ? `${Math.round(uploadProgress)}%`
+                                        : "Wait..."}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div
+                                    className={`flex-1 text-xs truncate font-semibold ${lead.s_newConn_uploadPhotosUrl ? "text-emerald-700" : "text-slate-700"}`}
+                                  >
+                                    {lead.s_newConn_uploadPhotosUrl
+                                      ? "Uploaded"
+                                      : "No file"}
+                                  </div>
+                                )}
+                                <label
+                                  htmlFor="input-s-newconn-upload-photos"
+                                  className={`text-[10px] text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Upload Photos (New Connection)" || !canEditStep(14) ? "opacity-50 pointer-events-none" : ""}`}
                                 >
-                                  {isSaving ? (
-                                    <Clock className="w-4 h-4 animate-spin" />
-                                  ) : (
-                                    <CheckCircle2 className="w-4 h-4" />
-                                  )}
-                                  {(lead.finalExecutionStatus || "Pending") !==
-                                  "Done"
-                                    ? "Select 'Done' to approve"
-                                    : "Verify & Approve Final Execution"}
-                                </button>
-                                {(lead.finalExecutionStatus || "Pending") !==
-                                  "Done" && (
-                                  <p className="text-[10px] text-amber-600 font-semibold text-center">
-                                    ⚠️ Mark status as 'Done' above to unlock the
-                                    approval button.
-                                  </p>
+                                  Choose File
+                                </label>
+                                <input
+                                  id="input-s-newconn-upload-photos"
+                                  type="file"
+                                  accept="application/pdf"
+                                  className="hidden"
+                                  onChange={(e) =>
+                                    handleFileUpload(
+                                      e,
+                                      "Upload Photos (New Connection)",
+                                      "s_newConn_uploadPhotosUrl",
+                                    )
+                                  }
+                                  disabled={
+                                    uploadingDoc ===
+                                      "Upload Photos (New Connection)" ||
+                                    !canEditStep(14)
+                                  }
+                                />
+                                {lead.s_newConn_uploadPhotosUrl && (
+                                  <a
+                                    href={lead.s_newConn_uploadPhotosUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-emerald-600 hover:text-emerald-700 font-bold hover:underline"
+                                  >
+                                    <ExternalLink className="w-4 h-4" />
+                                  </a>
                                 )}
                               </div>
+                            </div>
+                          </div>
+
+                          {/* Photos Column */}
+                          <div className="flex flex-col gap-4">
+                            {/* Uploadable option */}
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                New Connection Photos (Project Details)
+                              </label>
+                              <div
+                                className={`flex items-center gap-3 border rounded-2xl px-4 py-3 transition-all ${lead.executionNewConnectionPhotosUrl ? "border-emerald-200 bg-emerald-50" : "bg-slate-50 border-slate-200"}`}
+                              >
+                                {lead.executionNewConnectionPhotosUrl ? (
+                                  <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                                ) : (
+                                  <Camera className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                                )}
+
+                                {uploadingDoc ===
+                                "Execution New Connection Photos" ? (
+                                  <div className="flex-1 flex items-center gap-2">
+                                    <div className="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                                        style={{ width: `${uploadProgress}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-[10px] font-bold text-slate-500 w-8">
+                                      {uploadProgress > 0
+                                        ? `${Math.round(uploadProgress)}%`
+                                        : "Wait..."}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div
+                                    className={`flex-1 text-sm truncate font-semibold ${lead.executionNewConnectionPhotosUrl ? "text-emerald-700" : "text-slate-700"}`}
+                                  >
+                                    {lead.executionNewConnectionPhotosUrl
+                                      ? "Execution Document Uploaded"
+                                      : "No file chosen"}
+                                  </div>
+                                )}
+
+                                <label
+                                  htmlFor="input-execution-conn-step-photos"
+                                  className={`text-xs text-blue-600 font-bold hover:underline cursor-pointer ${uploadingDoc === "Execution New Connection Photos" || !canEditStep(14) ? "opacity-50 pointer-events-none" : ""}`}
+                                >
+                                  {lead.executionNewConnectionPhotosUrl
+                                    ? "Replace"
+                                    : "Upload File"}
+                                  <input
+                                    id="input-execution-conn-step-photos"
+                                    type="file"
+                                    className="hidden"
+                                    accept="application/pdf"
+                                    onChange={(e) =>
+                                      handleFileUpload(
+                                        e,
+                                        "Execution New Connection Photos",
+                                        "executionNewConnectionPhotosUrl",
+                                      )
+                                    }
+                                    disabled={
+                                      uploadingDoc ===
+                                        "Execution New Connection Photos" ||
+                                      !canEditStep(14)
+                                    }
+                                  />
+                                </label>
+                              </div>
+                              {lead.executionNewConnectionPhotosUrl && (
+                                <a
+                                  href={lead.executionNewConnectionPhotosUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-1 mt-1 ml-1"
+                                >
+                                  View Additional Photos{" "}
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Details Column */}
+                          <InputField
+                            label="New Connection Details"
+                            value={lead.newConnectionDetails}
+                            name="newConnectionDetails"
+                            multiline
+                            rows={3}
+                            onUpdate={handleUpdate}
+                            disabled={!canEditStep(14)}
+                            placeholder="Enter connection code, specific meter configuration or operational logs..."
+                          />
+
+                          <div className="col-span-full">
+                            <StepActionButtons
+                              stepId={14}
+                              label="Step 1: NEW CONNECTION SETUP"
+                              nameField="s_newConn_assignedTo"
+                              emailField="s_newConn_assignedToEmail"
+                            />
+                          </div>
+                        </motion.div>
+                      )}
+
+                    {currentExecutionStep === 15 && (
+                      <motion.div
+                        id="execution-step-15"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 p-4 md:p-10 rounded-2xl md:rounded-[3rem] border-l-4 md:border-l-8 border-l-sky-500 transition-all duration-700 ${shouldHighlightStep(15) ? "bg-sky-50/20 ring-2 md:ring-4 ring-sky-400" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"}`}
+                      >
+                        {shouldHighlightStep(15) && (
+                          <div className="absolute -top-3 left-6 z-10 flex -ml-4">
+                            <span className="bg-gradient-to-r from-sky-500 to-blue-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg animate-pulse tracking-widest flex items-center justify-center gap-1.5 border border-sky-400">
+                              <AlertCircle className="w-3.5 h-3.5" /> ACTION
+                              ASSIGNED
+                            </span>
+                          </div>
+                        )}
+                        <div className="col-span-full pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-xl font-bold text-slate-900">
+                              Insurance Section
+                            </h3>
+                          </div>
+                          <span className="bg-sky-50 text-sky-700 text-xs font-bold px-3 py-1 rounded-full border border-sky-100 uppercase tracking-wider">
+                            Insurance
+                          </span>
+                        </div>
+
+                        <InputField
+                          label="Insurance Status"
+                          value={lead.s12_insuranceStatus}
+                          name="s12_insuranceStatus"
+                          options={["Done", "Pending"]}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(15)}
+                        />
+
+                        {lead.s12_insuranceStatus === "Done" && (
+                          <>
+                            <InputField
+                              label="Policy Details"
+                              value={lead.s12_policyDetails}
+                              name="s12_policyDetails"
+                              onUpdate={handleUpdate}
+                              disabled={!canEditStep(15)}
+                            />
+                            <InputField
+                              label="Policy Date"
+                              value={lead.s12_policyDate}
+                              name="s12_policyDate"
+                              type="date"
+                              onUpdate={handleUpdate}
+                              disabled={!canEditStep(15)}
+                            />
+                          </>
+                        )}
+
+                        <InputField
+                          label="S12 Remarks"
+                          value={lead.s12_remarks}
+                          name="s12_remarks"
+                          multiline
+                          rows={1}
+                          onUpdate={handleUpdate}
+                          disabled={!canEditStep(15)}
+                        />
+
+                        <StepActionButtons
+                          stepId={15}
+                          label="Insurance"
+                          nameField="s12_assignedTo"
+                          emailField="s12_assignedToEmail"
+                        />
+                      </motion.div>
+                    )}
+
+                    {isExecutionFlowFinished && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-12 overflow-hidden bg-white border border-slate-200 shadow-2xl rounded-[3rem] relative"
+                      >
+                        <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-emerald-400 via-teal-500 to-indigo-600" />
+
+                        <div className="p-8 md:p-12 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-8 bg-slate-50/50">
+                          <div className="space-y-4 max-w-2xl flex-1 text-left">
+                            <div className="flex items-center gap-2.5">
+                              <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase px-3 py-1 rounded-full tracking-wider">
+                                All Milestones Met
+                              </span>
+                              <span className="bg-indigo-100 text-indigo-800 text-[9px] font-black uppercase px-3 py-1 rounded-full tracking-wider">
+                                Lifecycle Section ID: 14
+                              </span>
+                            </div>
+
+                            <h3 className="text-xl md:text-3xl font-display font-black text-slate-900 tracking-tight">
+                              Final Execution Review & Approval
+                            </h3>
+
+                            <p className="text-slate-500 text-xs md:text-sm font-medium leading-relaxed">
+                              All{" "}
+                              {lead.newConnectionRequired === "Yes"
+                                ? "14"
+                                : "13"}{" "}
+                              project execution protocols and technical stages
+                              have been fully completed. The Project Incharge or
+                              System Admin must now verify the underlying
+                              payment confirmations, technical credentials, and
+                              finalize the project transition.
+                            </p>
+
+                            {/* Informative checks */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                              <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                                <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                  ✓
+                                </div>
+                                {lead.newConnectionRequired === "Yes"
+                                  ? "14"
+                                  : "13"}{" "}
+                                Execution Milestones Done
+                              </div>
+                              <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                                <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                  ✓
+                                </div>
+                                Financial Audit Ready
+                              </div>
+                            </div>
+
+                            {/* Interactive Review & Verification Options */}
+                            <div className="pt-4 space-y-3">
+                              <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Select Review & Verification Status:
+                              </div>
+                              <div className="flex flex-wrap gap-3">
+                                {[
+                                  {
+                                    value: "Pending",
+                                    label: "Pending",
+                                    desc: "Awaiting review",
+                                    color:
+                                      "border-slate-200 text-slate-700 bg-slate-50",
+                                    activeColor:
+                                      "bg-slate-100 border-slate-400 text-slate-900 ring-1 ring-slate-400",
+                                    icon: Clock,
+                                  },
+                                  {
+                                    value: "Under Review",
+                                    label: "Under Review",
+                                    desc: "Audit in progress",
+                                    color:
+                                      "border-amber-100 text-amber-700 bg-amber-50/50",
+                                    activeColor:
+                                      "bg-amber-100 border-amber-400 text-amber-900 ring-1 ring-amber-400",
+                                    icon: FileText,
+                                  },
+                                  {
+                                    value: "Done",
+                                    label: "Done",
+                                    desc: "Approved for completion",
+                                    color:
+                                      "border-emerald-100 text-emerald-700 bg-emerald-50/50",
+                                    activeColor:
+                                      "bg-emerald-5 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20",
+                                    icon: CheckCircle2,
+                                  },
+                                ].map((opt) => {
+                                  const isSelected =
+                                    (lead.finalExecutionStatus || "Pending") ===
+                                    opt.value;
+                                  const isCompleted =
+                                    lead.isExecutionSubmitted ||
+                                    lead.status === "Completed";
+                                  // Admins & Stewards can ALWAYS edit / change the status
+                                  const canEdit = isAdminUser || isSteward;
+                                  const IconComp = opt.icon;
+
+                                  return (
+                                    <button
+                                      key={opt.value}
+                                      type="button"
+                                      disabled={!canEdit}
+                                      onClick={() => {
+                                        if (opt.value === "Done") {
+                                          const isFullPayment =
+                                            lead.payment_status === "Full" ||
+                                            dueAmount <= 0;
+                                          if (!isFullPayment) {
+                                            showNotification(
+                                              `Payment Pending! Outstanding balance of ₹${dueAmount.toLocaleString()} is remaining. Full payment must be received to mark execution as Done.`,
+                                              "warning",
+                                            );
+                                            return;
+                                          }
+                                        }
+                                        const updates: any = {
+                                          finalExecutionStatus:
+                                            opt.value as any,
+                                        };
+                                        // Reopen project if moving back from Completed to Pending or Under Review
+                                        if (
+                                          isCompleted &&
+                                          (opt.value === "Pending" ||
+                                            opt.value === "Under Review")
+                                        ) {
+                                          updates.isExecutionSubmitted = false;
+                                          updates.status = "Won";
+                                        }
+                                        handleUpdate(updates, false);
+                                      }}
+                                      className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all duration-300 flex-1 min-w-[140px] ${
+                                        isSelected
+                                          ? opt.activeColor
+                                          : isCompleted
+                                            ? "opacity-40 border-slate-200 bg-slate-50 text-slate-400"
+                                            : "border-slate-200 bg-white hover:bg-slate-50/50 text-slate-600"
+                                      } ${canEdit ? "cursor-pointer active:scale-95 hover:shadow-sm" : "cursor-not-allowed"}`}
+                                    >
+                                      <div
+                                        className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? "bg-white shadow-xs" : "bg-slate-100"}`}
+                                      >
+                                        <IconComp className="w-3.5 h-3.5" />
+                                      </div>
+                                      <div>
+                                        <p className="text-xs font-black uppercase tracking-tight">
+                                          {opt.label}
+                                        </p>
+                                        <p className="text-[9px] text-slate-400 font-medium leading-none mt-0.5">
+                                          {opt.desc}
+                                        </p>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="w-full lg:w-auto self-end lg:self-center">
+                            {lead.isExecutionSubmitted ||
+                            lead.status === "Completed" ? (
+                              <div className="px-8 py-5 bg-emerald-50 border border-emerald-100 rounded-3xl flex flex-col items-center justify-center text-center gap-2">
+                                <div className="w-12 h-12 bg-emerald-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                                  <CheckCircle2 className="w-6 h-6" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-black text-emerald-800 uppercase tracking-widest">
+                                    Project Completed
+                                  </p>
+                                  <p className="text-[10px] text-emerald-500 font-bold mt-0.5">
+                                    Execution finalized & approved
+                                  </p>
+                                </div>
+                              </div>
                             ) : (
-                              <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl text-amber-800 text-[10px] font-bold max-w-xs leading-relaxed">
-                                ⚠️ Awaiting review and approval from the Project
-                                Incharge or Admin.
+                              <div className="flex flex-col gap-3">
+                                {isAdminUser || isSteward ? (
+                                  <div className="space-y-3">
+                                    <button
+                                      onClick={() => {
+                                        const isFullPayment =
+                                          lead.payment_status === "Full" ||
+                                          dueAmount <= 0;
+                                        if (!isFullPayment) {
+                                          showNotification(
+                                            `Payment Pending! Outstanding balance of ₹${dueAmount.toLocaleString()} is remaining. Cannot approve final execution.`,
+                                            "warning",
+                                          );
+                                          return;
+                                        }
+                                        handleUpdate(
+                                          {
+                                            isExecutionSubmitted: true,
+                                            status: "Completed",
+                                            finalExecutionStatus: "Done",
+                                            updatedAt: new Date() as any,
+                                          },
+                                          false,
+                                        );
+                                        setNotification({
+                                          type: "success",
+                                          message:
+                                            "Project finalized and moved to Completed filter.",
+                                        });
+                                      }}
+                                      disabled={
+                                        isSaving ||
+                                        (lead.finalExecutionStatus ||
+                                          "Pending") !== "Done"
+                                      }
+                                      className="w-full lg:w-auto px-10 py-5 bg-slate-950 text-white hover:bg-emerald-700 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 transition-all duration-300 shadow-xl hover:shadow-emerald-500/20 active:scale-95 disabled:opacity-30 disabled:hover:bg-slate-950 disabled:cursor-not-allowed"
+                                    >
+                                      {isSaving ? (
+                                        <Clock className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <CheckCircle2 className="w-4 h-4" />
+                                      )}
+                                      {(lead.finalExecutionStatus ||
+                                        "Pending") !== "Done"
+                                        ? "Select 'Done' to approve"
+                                        : "Verify & Approve Final Execution"}
+                                    </button>
+                                    {(lead.finalExecutionStatus ||
+                                      "Pending") !== "Done" && (
+                                      <p className="text-[10px] text-amber-600 font-semibold text-center">
+                                        ⚠️ Mark status as 'Done' above to unlock
+                                        the approval button.
+                                      </p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl text-amber-800 text-[10px] font-bold max-w-xs leading-relaxed">
+                                    ⚠️ Awaiting review and approval from the
+                                    Project Incharge or Admin.
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
-                        )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "timeline" && (
+              <div
+                ref={reportRef}
+                className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 print:space-y-4 print:p-0"
+              >
+                {/* Report Header (Visible on screen and print) */}
+                <div className="pb-6 border-b-2 border-slate-900 flex justify-between items-end print:pb-4">
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase">
+                      Lead Completion Report
+                    </h3>
+                    <p className="text-sm text-slate-500 font-medium">
+                      Detailed lifecycle summary for Solar Installation
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">
+                      Generated On
+                    </p>
+                    <p className="text-sm font-bold text-slate-900">
+                      {format(new Date(), "PPP")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-8 print:gap-6">
+                  {/* Section 1: Basic & Registration */}
+                  <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
+                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
+                      <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm">
+                        1
+                      </div>
+                      <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
+                        Basic Information & Capture
+                      </h4>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
+                      {[
+                        { label: "Customer Name", value: lead.customerName },
+                        { label: "Mobile Number", value: lead.mobileNumber },
+                        { label: "Email", value: lead.customerEmail },
+                        { label: "Punch Date", value: lead.punchDate },
+                        { label: "Address", value: lead.address },
+                        { label: "Reference", value: lead.reference },
+                        {
+                          label: "Required KW",
+                          value: lead.requiredKw
+                            ? `${lead.requiredKw} KW`
+                            : null,
+                        },
+                        { label: "Assigned To", value: lead.assignedInitial },
+                      ].map((item, i) => (
+                        <div
+                          key={i}
+                          className={
+                            item.label === "Address" ||
+                            item.label === "Reference"
+                              ? "col-span-2"
+                              : ""
+                          }
+                        >
+                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
+                            {item.label}
+                          </p>
+                          <p className="text-sm font-semibold text-slate-700">
+                            {item.value || "N/A"}
+                          </p>
+                        </div>
+                      ))}
+                      <div className="col-span-full">
+                        <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
+                          Initial Remark
+                        </p>
+                        <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                          {lead.remarkInitial || "No initial remarks recorded."}
+                        </p>
                       </div>
                     </div>
-                  </motion.div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "timeline" && (
-          <div
-            ref={reportRef}
-            className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 print:space-y-4 print:p-0"
-          >
-            {/* Report Header (Visible on screen and print) */}
-            <div className="pb-6 border-b-2 border-slate-900 flex justify-between items-end print:pb-4">
-              <div>
-                <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase">
-                  Lead Completion Report
-                </h3>
-                <p className="text-sm text-slate-500 font-medium">
-                  Detailed lifecycle summary for Solar Installation
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">
-                  Generated On
-                </p>
-                <p className="text-sm font-bold text-slate-900">
-                  {format(new Date(), "PPP")}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-8 print:gap-6">
-              {/* Section 1: Basic & Registration */}
-              <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
-                <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
-                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm">
-                    1
                   </div>
-                  <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
-                    Basic Information & Capture
-                  </h4>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
-                  {[
-                    { label: "Customer Name", value: lead.customerName },
-                    { label: "Mobile Number", value: lead.mobileNumber },
-                    { label: "Email", value: lead.customerEmail },
-                    { label: "Punch Date", value: lead.punchDate },
-                    { label: "Address", value: lead.address },
-                    { label: "Reference", value: lead.reference },
-                    {
-                      label: "Required KW",
-                      value: lead.requiredKw ? `${lead.requiredKw} KW` : null,
-                    },
-                    { label: "Assigned To", value: lead.assignedInitial },
-                  ].map((item, i) => (
-                    <div
-                      key={i}
-                      className={
-                        item.label === "Address" || item.label === "Reference"
-                          ? "col-span-2"
-                          : ""
-                      }
-                    >
-                      <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
-                        {item.label}
-                      </p>
-                      <p className="text-sm font-semibold text-slate-700">
-                        {item.value || "N/A"}
-                      </p>
+
+                  {/* Section 2: Technical Survey */}
+                  <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
+                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
+                      <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-sm">
+                        2
+                      </div>
+                      <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
+                        Site Survey & Technical Data
+                      </h4>
                     </div>
-                  ))}
-                  <div className="col-span-full">
-                    <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
-                      Initial Remark
-                    </p>
-                    <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                      {lead.remarkInitial || "No initial remarks recorded."}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 2: Technical Survey */}
-              <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
-                <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
-                  <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-sm">
-                    2
-                  </div>
-                  <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
-                    Site Survey & Technical Data
-                  </h4>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
-                  {[
-                    { label: "Visit Date", value: lead.siteVisitDate },
-                    { label: "Surveyor", value: lead.visitedBy },
-                    { label: "Roof Type", value: lead.roofType },
-                    { label: "Shadow Issue", value: lead.shadowIssue },
-                    { label: "Location", value: lead.locationType },
-                    { label: "System phase", value: lead.phase },
-                    { label: "Final KW", value: lead.finalKw },
-                    { label: "Connection", value: lead.connectionType },
-                    { label: "Panel Type", value: lead.dcrType },
-                    { label: "Package", value: lead.stdPackage },
-                  ].map((item, i) => (
-                    <div key={i}>
-                      <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
-                        {item.label}
-                      </p>
-                      <p className="text-sm font-semibold text-slate-700">
-                        {item.value || "Pending"}
-                      </p>
-                    </div>
-                  ))}
-                  <div className="col-span-full">
-                    <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
-                      Deviation Details
-                    </p>
-                    <div className="text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col gap-2">
-                      {lead.rateDeviationNotes === "Yes" && (
-                        <p>
-                          <strong>Initial:</strong> {lead.deviationDetails}{" "}
-                          (Extra Cost: ₹{lead.deviationCost})
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
+                      {[
+                        { label: "Visit Date", value: lead.siteVisitDate },
+                        { label: "Surveyor", value: lead.visitedBy },
+                        { label: "Roof Type", value: lead.roofType },
+                        { label: "Shadow Issue", value: lead.shadowIssue },
+                        { label: "Location", value: lead.locationType },
+                        { label: "System phase", value: lead.phase },
+                        { label: "Final KW", value: lead.finalKw },
+                        { label: "Connection", value: lead.connectionType },
+                        { label: "Panel Type", value: lead.dcrType },
+                        { label: "Package", value: lead.stdPackage },
+                      ].map((item, i) => (
+                        <div key={i}>
+                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
+                            {item.label}
+                          </p>
+                          <p className="text-sm font-semibold text-slate-700">
+                            {item.value || "Pending"}
+                          </p>
+                        </div>
+                      ))}
+                      <div className="col-span-full">
+                        <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
+                          Deviation Details
                         </p>
-                      )}
-                      {lead.s6_deviationFromFinal === "Yes" && (
-                        <p>
-                          <strong>Site execution:</strong>{" "}
-                          {lead.s6_deviationDetails} (Extra Cost: ₹
-                          {lead.s6_deviationCost})
+                        <div className="text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col gap-2">
+                          {lead.rateDeviationNotes === "Yes" && (
+                            <p>
+                              <strong>Initial:</strong> {lead.deviationDetails}{" "}
+                              (Extra Cost: ₹{lead.deviationCost})
+                            </p>
+                          )}
+                          {lead.s6_deviationFromFinal === "Yes" && (
+                            <p>
+                              <strong>Site execution:</strong>{" "}
+                              {lead.s6_deviationDetails} (Extra Cost: ₹
+                              {lead.s6_deviationCost})
+                            </p>
+                          )}
+                          {lead.rateDeviationNotes !== "Yes" &&
+                            lead.s6_deviationFromFinal !== "Yes" && (
+                              <p>No technical deviations recorded.</p>
+                            )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3: Proposal & Financials */}
+                  <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
+                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm">
+                        3
+                      </div>
+                      <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
+                        Proposal, Sales & Project Details
+                      </h4>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
+                      {[
+                        { label: "Current Status", value: lead.status },
+                        { label: "Sales Person", value: lead.assignedSales },
+                        { label: "Project Type", value: lead.projectType },
+                        {
+                          label: "Load Extension",
+                          value:
+                            lead.loadExtensionRequired === "Yes"
+                              ? `${lead.loadExtensionKw} KW`
+                              : "No",
+                        },
+                        { label: "Loan Required", value: lead.loanRequired },
+                        {
+                          label: "Base Rate",
+                          value: lead.originalRate
+                            ? `₹${lead.originalRate.toLocaleString()}`
+                            : null,
+                        },
+                        {
+                          label: "Total Deviation",
+                          value:
+                            (lead.deviationCost || 0) +
+                              (lead.s6_deviationCost || 0) >
+                            0
+                              ? `₹${((lead.deviationCost || 0) + (lead.s6_deviationCost || 0)).toLocaleString()}`
+                              : "₹0",
+                        },
+                        {
+                          label: "Discount Paid",
+                          value: lead.discount
+                            ? `₹${lead.discount.toLocaleString()}`
+                            : "₹0",
+                        },
+                      ].map((item, i) => (
+                        <div key={i}>
+                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
+                            {item.label}
+                          </p>
+                          <p className="text-sm font-semibold text-slate-700">
+                            {item.value || "N/A"}
+                          </p>
+                        </div>
+                      ))}
+                      <div className="col-span-2 bg-emerald-50 p-4 rounded-2xl border border-emerald-100 print:bg-white">
+                        <p className="text-[10px] uppercase font-bold text-emerald-600 mb-0.5">
+                          Final Proposal Value
                         </p>
-                      )}
-                      {lead.rateDeviationNotes !== "Yes" &&
-                        lead.s6_deviationFromFinal !== "Yes" && (
-                          <p>No technical deviations recorded.</p>
-                        )}
+                        <p className="text-2xl font-black text-emerald-700 print:text-black tracking-tight">
+                          ₹{lead.finalRate?.toLocaleString() || "0"}
+                        </p>
+                      </div>
+                      <div className="col-span-full">
+                        <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
+                          Sales Remark
+                        </p>
+                        <p className="text-sm text-slate-600 italic">
+                          "{lead.salesRemark || "No sales interactions noted."}"
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Section 3: Proposal & Financials */}
-              <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
-                <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
-                  <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm">
-                    3
-                  </div>
-                  <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
-                    Proposal, Sales & Project Details
-                  </h4>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
-                  {[
-                    { label: "Current Status", value: lead.status },
-                    { label: "Sales Person", value: lead.assignedSales },
-                    { label: "Project Type", value: lead.projectType },
-                    {
-                      label: "Load Extension",
-                      value:
-                        lead.loadExtensionRequired === "Yes"
-                          ? `${lead.loadExtensionKw} KW`
-                          : "No",
-                    },
-                    { label: "Loan Required", value: lead.loanRequired },
-                    {
-                      label: "Base Rate",
-                      value: lead.originalRate
-                        ? `₹${lead.originalRate.toLocaleString()}`
-                        : null,
-                    },
-                    {
-                      label: "Total Deviation",
-                      value:
-                        (lead.deviationCost || 0) +
-                          (lead.s6_deviationCost || 0) >
-                        0
-                          ? `₹${((lead.deviationCost || 0) + (lead.s6_deviationCost || 0)).toLocaleString()}`
-                          : "₹0",
-                    },
-                    {
-                      label: "Discount Paid",
-                      value: lead.discount
-                        ? `₹${lead.discount.toLocaleString()}`
-                        : "₹0",
-                    },
-                  ].map((item, i) => (
-                    <div key={i}>
-                      <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
-                        {item.label}
-                      </p>
-                      <p className="text-sm font-semibold text-slate-700">
-                        {item.value || "N/A"}
-                      </p>
+                  {/* Section 4: Advance & Execution */}
+                  <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
+                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
+                      <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-sm">
+                        4
+                      </div>
+                      <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
+                        Advance & Project Execution
+                      </h4>
                     </div>
-                  ))}
-                  <div className="col-span-2 bg-emerald-50 p-4 rounded-2xl border border-emerald-100 print:bg-white">
-                    <p className="text-[10px] uppercase font-bold text-emerald-600 mb-0.5">
-                      Final Proposal Value
-                    </p>
-                    <p className="text-2xl font-black text-emerald-700 print:text-black tracking-tight">
-                      ₹{lead.finalRate?.toLocaleString() || "0"}
-                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
+                      {[
+                        {
+                          label: "Advance Received",
+                          value: lead.advanceReceived,
+                        },
+                        {
+                          label: "Advance Amount",
+                          value: lead.advanceAmount
+                            ? `₹${lead.advanceAmount.toLocaleString()}`
+                            : null,
+                        },
+                        { label: "Advance Date", value: lead.advanceDate },
+                        { label: "Advance UTR", value: lead.advanceUrtNo },
+                        {
+                          label: "Project Manager",
+                          value: lead.projectAssignee,
+                        },
+                      ].map((item, i) => (
+                        <div key={i}>
+                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
+                            {item.label}
+                          </p>
+                          <p className="text-sm font-semibold text-slate-700">
+                            {item.value || "N/A"}
+                          </p>
+                        </div>
+                      ))}
+                      <div className="col-span-full">
+                        <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
+                          Project Remark
+                        </p>
+                        <p className="text-sm text-slate-600 italic">
+                          {lead.projectRemark ||
+                            "No project execution remarks."}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="col-span-full">
-                    <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
-                      Sales Remark
-                    </p>
-                    <p className="text-sm text-slate-600 italic">
-                      "{lead.salesRemark || "No sales interactions noted."}"
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-              {/* Section 4: Advance & Execution */}
-              <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
-                <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
-                  <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-sm">
-                    4
-                  </div>
-                  <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
-                    Advance & Project Execution
-                  </h4>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
-                  {[
-                    { label: "Advance Received", value: lead.advanceReceived },
-                    {
-                      label: "Advance Amount",
-                      value: lead.advanceAmount
-                        ? `₹${lead.advanceAmount.toLocaleString()}`
-                        : null,
-                    },
-                    { label: "Advance Date", value: lead.advanceDate },
-                    { label: "Advance UTR", value: lead.advanceUrtNo },
-                    { label: "Project Manager", value: lead.projectAssignee },
-                  ].map((item, i) => (
-                    <div key={i}>
-                      <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
-                        {item.label}
-                      </p>
-                      <p className="text-sm font-semibold text-slate-700">
-                        {item.value || "N/A"}
-                      </p>
+                  {/* Section 5: Accounts & Reconciliation */}
+                  <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
+                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
+                      <div className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center text-white font-bold text-sm">
+                        5
+                      </div>
+                      <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
+                        Account Confirmation
+                      </h4>
                     </div>
-                  ))}
-                  <div className="col-span-full">
-                    <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
-                      Project Remark
-                    </p>
-                    <p className="text-sm text-slate-600 italic">
-                      {lead.projectRemark || "No project execution remarks."}
-                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
+                      {[
+                        {
+                          label: "Final Confirmation",
+                          value: lead.accPaymentStatus,
+                        },
+                        {
+                          label: "Verified Amount",
+                          value: lead.accAmount
+                            ? `₹${lead.accAmount.toLocaleString()}`
+                            : null,
+                        },
+                        { label: "Verification UTR", value: lead.accUtrNo },
+                        { label: "Verified Date", value: lead.accDate },
+                        { label: "Accountant", value: lead.accAssignee },
+                      ].map((item, i) => (
+                        <div key={i}>
+                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
+                            {item.label}
+                          </p>
+                          <p className="text-sm font-semibold text-slate-700">
+                            {item.value || "Awaiting Verification"}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Section 5: Accounts & Reconciliation */}
-              <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
-                <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
-                  <div className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center text-white font-bold text-sm">
-                    5
-                  </div>
-                  <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
-                    Account Confirmation
-                  </h4>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
-                  {[
-                    {
-                      label: "Final Confirmation",
-                      value: lead.accPaymentStatus,
-                    },
-                    {
-                      label: "Verified Amount",
-                      value: lead.accAmount
-                        ? `₹${lead.accAmount.toLocaleString()}`
-                        : null,
-                    },
-                    { label: "Verification UTR", value: lead.accUtrNo },
-                    { label: "Verified Date", value: lead.accDate },
-                    { label: "Accountant", value: lead.accAssignee },
-                  ].map((item, i) => (
-                    <div key={i}>
-                      <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
-                        {item.label}
-                      </p>
-                      <p className="text-sm font-semibold text-slate-700">
-                        {item.value || "Awaiting Verification"}
-                      </p>
+                  {/* Section 6: Final Payment Summary */}
+                  <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
+                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm">
+                        6
+                      </div>
+                      <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
+                        Final Payment Reconciliation
+                      </h4>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Section 6: Final Payment Summary */}
-              <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
-                <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
-                  <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm">
-                    6
-                  </div>
-                  <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
-                    Final Payment Reconciliation
-                  </h4>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3 mb-6">
-                  {[
-                    {
-                      label: "Final Billing Rate",
-                      value: `₹${lead.finalRate?.toLocaleString() || "0"}`,
-                    },
-                    {
-                      label: "1st Installment (S4)",
-                      value: lead.s4_firstInstallmentAmount
-                        ? `₹${lead.s4_firstInstallmentAmount.toLocaleString()}`
-                        : "N/A",
-                    },
-                    {
-                      label: "2nd Installment (S9)",
-                      value: lead.s9_secondInstallmentAmount
-                        ? `₹${lead.s9_secondInstallmentAmount.toLocaleString()}`
-                        : "N/A",
-                    },
-                    {
-                      label: "Balance Received",
-                      value: lead.s10_balanceAmount
-                        ? `₹${lead.s10_balanceAmount.toLocaleString()}`
-                        : "N/A",
-                    },
-                  ].map((item, i) => (
-                    <div key={i}>
-                      <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
-                        {item.label}
-                      </p>
-                      <p className="text-sm font-semibold text-slate-700">
-                        {item.value}
-                      </p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3 mb-6">
+                      {[
+                        {
+                          label: "Final Billing Rate",
+                          value: `₹${lead.finalRate?.toLocaleString() || "0"}`,
+                        },
+                        {
+                          label: "1st Installment (S4)",
+                          value: lead.s4_firstInstallmentAmount
+                            ? `₹${lead.s4_firstInstallmentAmount.toLocaleString()}`
+                            : "N/A",
+                        },
+                        {
+                          label: "2nd Installment (S9)",
+                          value: lead.s9_secondInstallmentAmount
+                            ? `₹${lead.s9_secondInstallmentAmount.toLocaleString()}`
+                            : "N/A",
+                        },
+                        {
+                          label: "Balance Received",
+                          value: lead.s10_balanceAmount
+                            ? `₹${lead.s10_balanceAmount.toLocaleString()}`
+                            : "N/A",
+                        },
+                      ].map((item, i) => (
+                        <div key={i}>
+                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
+                            {item.label}
+                          </p>
+                          <p className="text-sm font-semibold text-slate-700">
+                            {item.value}
+                          </p>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] uppercase font-bold text-emerald-600 mb-0.5">
-                        Total Collected
-                      </p>
-                      <p className="text-2xl font-black text-emerald-700">
-                        ₹{totalReceived.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] uppercase font-bold text-emerald-600 mb-0.5">
-                        Payment Percentage
-                      </p>
-                      <p className="text-lg font-black text-emerald-700">
-                        {Math.round(
-                          (totalReceived / (lead.finalRate || 1)) * 100,
-                        )}
-                        %
-                      </p>
-                    </div>
-                  </div>
-                  <div
-                    className={`${dueAmount > 0 ? "bg-rose-50 border-rose-100" : "bg-blue-50 border-blue-100"} p-4 rounded-2xl border flex items-center justify-between`}
-                  >
-                    <div>
-                      <p
-                        className={`text-[10px] uppercase font-bold ${dueAmount > 0 ? "text-rose-600" : "text-blue-600"} mb-0.5`}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-emerald-600 mb-0.5">
+                            Total Collected
+                          </p>
+                          <p className="text-2xl font-black text-emerald-700">
+                            ₹{totalReceived.toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase font-bold text-emerald-600 mb-0.5">
+                            Payment Percentage
+                          </p>
+                          <p className="text-lg font-black text-emerald-700">
+                            {Math.round(
+                              (totalReceived / (lead.finalRate || 1)) * 100,
+                            )}
+                            %
+                          </p>
+                        </div>
+                      </div>
+                      <div
+                        className={`${dueAmount > 0 ? "bg-rose-50 border-rose-100" : "bg-blue-50 border-blue-100"} p-4 rounded-2xl border flex items-center justify-between`}
                       >
-                        Current Due
-                      </p>
-                      <p
-                        className={`text-2xl font-black ${dueAmount > 0 ? "text-rose-700" : "text-blue-700"}`}
-                      >
-                        ₹{dueAmount.toLocaleString()}
-                      </p>
-                    </div>
-                    <div
-                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter ${dueAmount > 0 ? "bg-rose-200 text-rose-700" : "bg-blue-200 text-blue-700"}`}
-                    >
-                      {dueAmount > 0 ? "Due Pending" : "Cleared"}
+                        <div>
+                          <p
+                            className={`text-[10px] uppercase font-bold ${dueAmount > 0 ? "text-rose-600" : "text-blue-600"} mb-0.5`}
+                          >
+                            Current Due
+                          </p>
+                          <p
+                            className={`text-2xl font-black ${dueAmount > 0 ? "text-rose-700" : "text-blue-700"}`}
+                          >
+                            ₹{dueAmount.toLocaleString()}
+                          </p>
+                        </div>
+                        <div
+                          className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter ${dueAmount > 0 ? "bg-rose-200 text-rose-700" : "bg-blue-200 text-blue-700"}`}
+                        >
+                          {dueAmount > 0 ? "Due Pending" : "Cleared"}
+                        </div>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Section 7: Subsidy Tracking */}
+                  <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
+                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
+                      <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-sm">
+                        7
+                      </div>
+                      <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
+                        Subsidy Status (S11)
+                      </h4>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
+                      {[
+                        {
+                          label: "Subsidy Applied",
+                          value: lead.s11_subsidyAppliedDate,
+                        },
+                        {
+                          label: "Approved Amount",
+                          value: lead.s11_subsidyAmount
+                            ? `₹${lead.s11_subsidyAmount.toLocaleString()}`
+                            : "Awaiting Approval",
+                        },
+                        {
+                          label: "Subsidy Received",
+                          value: lead.s11_subsidyReceivedDate || "Pending",
+                        },
+                      ].map((item, i) => (
+                        <div key={i}>
+                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
+                            {item.label}
+                          </p>
+                          <p className="text-sm font-semibold text-slate-700">
+                            {item.value || "N/A"}
+                          </p>
+                        </div>
+                      ))}
+                      <div className="col-span-full">
+                        <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
+                          Subsidy Remark
+                        </p>
+                        <p className="text-sm text-slate-600 italic">
+                          {lead.s11_remarks || "No subsidy remarks."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Print Footer */}
+                <div className="hidden print:block pt-12 border-t border-slate-100 text-center">
+                  <p className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.2em]">
+                    Sitvik Solar • Quality Assurance Report
+                  </p>
                 </div>
               </div>
-
-              {/* Section 7: Subsidy Tracking */}
-              <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
-                <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
-                  <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-sm">
-                    7
-                  </div>
-                  <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
-                    Subsidy Status (S11)
-                  </h4>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
-                  {[
-                    {
-                      label: "Subsidy Applied",
-                      value: lead.s11_subsidyAppliedDate,
-                    },
-                    {
-                      label: "Approved Amount",
-                      value: lead.s11_subsidyAmount
-                        ? `₹${lead.s11_subsidyAmount.toLocaleString()}`
-                        : "Awaiting Approval",
-                    },
-                    {
-                      label: "Subsidy Received",
-                      value: lead.s11_subsidyReceivedDate || "Pending",
-                    },
-                  ].map((item, i) => (
-                    <div key={i}>
-                      <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
-                        {item.label}
-                      </p>
-                      <p className="text-sm font-semibold text-slate-700">
-                        {item.value || "N/A"}
-                      </p>
-                    </div>
-                  ))}
-                  <div className="col-span-full">
-                    <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
-                      Subsidy Remark
-                    </p>
-                    <p className="text-sm text-slate-600 italic">
-                      {lead.s11_remarks || "No subsidy remarks."}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Print Footer */}
-            <div className="hidden print:block pt-12 border-t border-slate-100 text-center">
-              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.2em]">
-                Sitvik Solar • Quality Assurance Report
-              </p>
-            </div>
-          </div>
-        )}
+            )}
           </>
         )}
       </div>

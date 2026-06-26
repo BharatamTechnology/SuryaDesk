@@ -13,8 +13,7 @@ service cloud.firestore {
       return isSignedIn() && 
         request.auth.token != null && 
         request.auth.token.email != null && (
-          request.auth.token.email.lower() == 'hemant.tyagi@bharatamtechnology.com' ||
-          request.auth.token.email.lower() == 'hemanttyagi225@gmail.com'
+          request.auth.token.email.lower() == 'hemant.tyagi@bharatamtechnology.com'
         );
     }
 
@@ -29,18 +28,25 @@ service cloud.firestore {
       return isDeveloper() || (
         isSignedIn() && 
         request.auth.token != null && 
-        request.auth.token.email != null && 
-        exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) && 
-        get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'Admin'
+        request.auth.token.email != null && (
+          request.auth.token.email.lower() == 'sitvikrenew@gmail.com' || (
+            exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) && 
+            get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'Admin'
+          )
+        )
       );
     }
 
     function isExecutive() {
       return isSignedIn() && 
         request.auth.token != null && 
-        request.auth.token.email != null && 
-        exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) && 
-        get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'Executive';
+        request.auth.token.email != null && (
+          request.auth.token.email.lower() == 'sitvik24@gmail.com' || 
+          request.auth.token.email.lower() == 'hemanttyagi225@gmail.com' || (
+            exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) && 
+            get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'Executive'
+          )
+        );
     }
 
     function isPaymentProcessor() {
@@ -51,7 +57,7 @@ service cloud.firestore {
       return isAdmin() || 
         (email == 'sitvik24@gmail.com' || userName.indexOf('sitvik') >= 0 || userName.indexOf('satvik') >= 0) ||
         (email == 'anmolrathi20@gmail.com' || userName == 'anmol rathi') ||
-        (email == 'testuser@example.com' || email == 'hemanttyagi225@gmail.com' || userName == 'test user');
+        (email == 'testuser@example.com' || userName == 'test user');
     }
 
     function isPaymentAssignee(existingPayment) {
@@ -62,10 +68,10 @@ service cloud.firestore {
       
       return (assignee != '') && (
         (userName.lower() == assignee.lower()) ||
-        (assignee.lower() == 'admin' && (email == 'hemant.tyagi@bharatamtechnology.com' || email == 'hemanttyagi225@gmail.com')) ||
+        (assignee.lower() == 'admin' && (email == 'hemant.tyagi@bharatamtechnology.com')) ||
         ((assignee.lower() == 'sitvik' || assignee.lower() == 'sitvik (admin)' || assignee.lower() == 'satvik') && email == 'sitvik24@gmail.com') ||
         (assignee.lower() == 'anmol rathi' && email == 'anmolrathi20@gmail.com') ||
-        (assignee.lower() == 'test user' && (email == 'testuser@example.com' || email == 'hemant.tyagi@bharatamtechnology.com' || email == 'hemanttyagi225@gmail.com'))
+        (assignee.lower() == 'test user' && (email == 'testuser@example.com' || email == 'hemant.tyagi@bharatamtechnology.com'))
       );
     }
 
@@ -155,14 +161,16 @@ service cloud.firestore {
         || (data.get('s5_discomPreAssignedToEmail', '').lower() == email)
         || (data.get('s6_inchargeAssignedToEmail', '').lower() == email)
         || (data.get('s5_storeInchargeAssignedToEmail', '').lower() == email)
+        || (data.get('s6_assignedToEmail', '').lower() == email)
         || (data.get('s7_assignedToEmail', '').lower() == email)
         || (data.get('s8_assignedToEmail', '').lower() == email)
         || (data.get('s9_assignedToEmail', '').lower() == email)
         || (data.get('s10_assignedToEmail', '').lower() == email)
         || (data.get('s11_assignedToEmail', '').lower() == email)
+        || (data.get('s12_assignedToEmail', '').lower() == email)
+        || (data.get('s_newConn_assignedToEmail', '').lower() == email)
         || (data.get('s_docCorr_assignedToEmail', '').lower() == email)
         || (data.get('s_loadExt_assignedToEmail', '').lower() == email)
-        || (data.get('s6_assignedToEmail', '').lower() == email)
         || (data.get('projectInchargeEmail', '').lower() == email);
     }
 

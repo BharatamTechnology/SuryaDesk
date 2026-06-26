@@ -36,7 +36,7 @@ interface FirestoreErrorInfo {
   }
 }
 
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null, shouldThrow: boolean = true) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -54,7 +54,9 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  if (shouldThrow) {
+    throw new Error(JSON.stringify(errInfo));
+  }
 }
 
 const COLLECTION_NAME = 'users';
@@ -91,11 +93,18 @@ export const userService = {
 
   async getUserRole(email: string): Promise<AppUser['role'] | null> {
     try {
+      const lowerEmail = email.toLowerCase().trim();
+      if (lowerEmail === "sitvikrenew@gmail.com") {
+        return "Admin";
+      }
+      if (lowerEmail === "sitvik24@gmail.com" || lowerEmail === "hemanttyagi225@gmail.com") {
+        return "Executive";
+      }
       const userRef = doc(db, COLLECTION_NAME, email);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
         const role = (userSnap.data() as AppUser).role;
-        return email.toLowerCase() === "sitvik24@gmail.com" ? "Executive" : role;
+        return role;
       }
       return null;
     } catch (error) {
@@ -110,12 +119,28 @@ export const userService = {
       return snapshot.docs.map(doc => {
         const data = doc.data() || {};
         const email = doc.id;
+        const lowerEmail = email.toLowerCase().trim();
+        
+        let role = data.role || "Executive";
+        let category = data.category || "None";
+        
+        if (lowerEmail === "sitvikrenew@gmail.com") {
+          role = "Admin";
+          category = "None";
+        } else if (lowerEmail === "sitvik24@gmail.com") {
+          role = "Executive";
+          category = "Project Coordinator";
+        } else if (lowerEmail === "hemanttyagi225@gmail.com") {
+          role = "Executive";
+          category = "None";
+        }
+        
         return {
           ...data,
           email: email,
           name: data.name || email.split("@")[0] || "Blank Record",
-          role: email.toLowerCase() === "sitvik24@gmail.com" ? "Executive" : (data.role || "Executive"),
-          category: data.category || "None"
+          role: role,
+          category: category
         } as AppUser;
       });
     } catch (error) {
@@ -130,23 +155,40 @@ export const userService = {
       const data = snapshot.docs.map((doc: any) => {
         const d = doc.data() || {};
         const email = doc.id;
+        const lowerEmail = email.toLowerCase().trim();
+        
+        let role = d.role || "Executive";
+        let category = d.category || "None";
+        
+        if (lowerEmail === "sitvikrenew@gmail.com") {
+          role = "Admin";
+          category = "None";
+        } else if (lowerEmail === "sitvik24@gmail.com") {
+          role = "Executive";
+          category = "Project Coordinator";
+        } else if (lowerEmail === "hemanttyagi225@gmail.com") {
+          role = "Executive";
+          category = "None";
+        }
+        
         return {
           ...d,
           email: email,
           name: d.name || email.split("@")[0] || "Blank Record",
-          role: email.toLowerCase() === "sitvik24@gmail.com" ? "Executive" : (d.role || "Executive"),
-          category: d.category || "None"
+          role: role,
+          category: category
         } as AppUser;
       });
       callback(data);
     }, (error: any) => {
-      handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
+      handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME, false);
     });
   },
 
   async seedUsers() {
     const users: AppUser[] = [
-      { name: "Sitvik", role: "Executive", email: "sitvik24@gmail.com" },
+      { name: "Sitvik", role: "Executive", email: "sitvik24@gmail.com", category: "Project Coordinator" },
+      { name: "Sitvik (Admin)", role: "Admin", email: "sitvikrenew@gmail.com" },
       { name: "Kishan Lal Meena", role: "Admin", email: "kishanlalmeena.admin@gmail.com" }, 
       { name: "Pawan Kumar", role: "Executive", email: "pawanchaudharyaaaa051@gmail.com" },
       { name: "Rahul Nagarwal", role: "Executive", email: "rahulnagarwal366@gmail.com" },

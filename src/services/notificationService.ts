@@ -61,8 +61,7 @@ export const notificationService = {
   subscribeToNotifications(userId: string, callback: (notifications: AppNotification[]) => void) {
     const q = query(
       collection(db, COLLECTION_NAME),
-      where("userId", "==", userId.toLowerCase().trim()),
-      orderBy("timestamp", "desc")
+      where("userId", "==", userId.toLowerCase().trim())
     );
 
     return onSnapshot(q, (snapshot) => {
@@ -70,6 +69,14 @@ export const notificationService = {
         id: doc.id,
         ...doc.data()
       })) as AppNotification[];
+
+      // Sort in-memory to avoid requiring a composite index
+      notifications.sort((a, b) => {
+        const timeA = a.timestamp?.seconds || 0;
+        const timeB = b.timestamp?.seconds || 0;
+        return timeB - timeA;
+      });
+
       callback(notifications);
     }, (error) => {
       console.error("Error subscribing to notifications:", error);

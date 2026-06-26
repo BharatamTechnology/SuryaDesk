@@ -32,6 +32,7 @@ export const ServiceManagement: React.FC<ServiceManagementProps> = ({ user }) =>
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
@@ -107,6 +108,11 @@ export const ServiceManagement: React.FC<ServiceManagementProps> = ({ user }) =>
     setIsUpdateModalOpen(true);
   };
 
+  const handleOpenDetailsModal = (req: ServiceRequest) => {
+    setSelectedRequest(req);
+    setIsDetailsModalOpen(true);
+  };
+
   useEffect(() => {
     const unsubscribeRequests = serviceRequestService.subscribeToRequests(user.email, isAdminUser, setRequests);
     const unsubscribeUsers = userService.subscribeToUsers(setUsers);
@@ -161,11 +167,6 @@ export const ServiceManagement: React.FC<ServiceManagementProps> = ({ user }) =>
     }
     if (!formData.issue.trim()) {
       setSubmitError("Please write a description of the issue.");
-      return;
-    }
-
-    if (!formData.issuePhotoUrl) {
-      setSubmitError("Please upload an issue photo / document.");
       return;
     }
 
@@ -641,6 +642,13 @@ export const ServiceManagement: React.FC<ServiceManagementProps> = ({ user }) =>
                   {/* Final Actions */}
                   <td className="pl-4 pr-8 py-6 align-top text-right">
                     <div className="flex items-center justify-end gap-2.5">
+                      <button 
+                        onClick={() => handleOpenDetailsModal(req)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-100"
+                      >
+                        Details
+                      </button>
+
                       {canChangeStatus(req) ? (
                         <button 
                           onClick={() => handleOpenUpdateModal(req)}
@@ -1096,6 +1104,251 @@ export const ServiceManagement: React.FC<ServiceManagementProps> = ({ user }) =>
                 {uploadingPhoto ? 'Uploading photo...' : isUpdating ? 'Processing...' : 'Apply Status Update'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Details Modal */}
+      {isDetailsModalOpen && selectedRequest && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsDetailsModalOpen(false)} />
+          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl relative overflow-hidden flex flex-col slide-up overflow-y-auto max-h-[90vh]">
+            {/* Header */}
+            <div className="px-8 pt-8 pb-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 sticky top-0 z-10 backdrop-blur-md">
+              <div>
+                <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                  Service Request Details
+                </span>
+                <h3 className="text-xl font-bold text-slate-900 mt-1.5 flex items-center gap-2">
+                  <Wrench className="w-5 h-5 text-zinc-700" />
+                  Ticket #{selectedRequest.id.substring(0, 8)}
+                </h3>
+              </div>
+              <button 
+                onClick={() => setIsDetailsModalOpen(false)}
+                className="p-3 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-all active:scale-95 bg-white border border-slate-100 shadow-sm"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-8 space-y-6">
+              {/* Customer Section */}
+              <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-4">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer Details</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-xs text-slate-400 block font-semibold">Customer Name</span>
+                    <span className="text-sm font-bold text-slate-800 flex items-center gap-1.5 mt-0.5">
+                      {selectedRequest.customerName}
+                      {selectedRequest.isNewCustomer && (
+                        <span className="text-[8px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded uppercase">New</span>
+                      )}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-400 block font-semibold">Mobile Number</span>
+                    <a href={`tel:${selectedRequest.mobileNumber}`} className="text-sm font-bold text-blue-600 hover:underline flex items-center gap-1 mt-0.5">
+                      <Phone className="w-3.5 h-3.5" />
+                      {selectedRequest.mobileNumber}
+                    </a>
+                  </div>
+                  <div className="col-span-full">
+                    <span className="text-xs text-slate-400 block font-semibold">Site Address</span>
+                    <span className="text-sm font-semibold text-slate-700 flex items-start gap-1.5 mt-0.5 italic">
+                      <MapPin className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                      {selectedRequest.address}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Issue Description */}
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Issue Reported</h4>
+                <div className="p-5 bg-stone-50 rounded-2xl border border-stone-100">
+                  <span className="text-[9px] font-black text-blue-600 uppercase tracking-wider mb-2 bg-blue-100/50 w-fit px-2 py-0.5 rounded block">
+                    {selectedRequest.issueType}
+                  </span>
+                  <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">
+                    {selectedRequest.issue}
+                  </p>
+                  <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap justify-between gap-2 text-[10px] text-slate-400 font-semibold font-mono">
+                    <span>Reported By: {selectedRequest.createdBy || 'Unknown'}</span>
+                    <span>
+                      Date: {new Date(selectedRequest.createdAt?.toDate?.() || Date.now()).toLocaleString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Issue Photo Proof */}
+                {selectedRequest.issuePhotoUrl && (
+                  <div>
+                    <span className="text-xs text-slate-400 block font-semibold mb-2">Initial Attachment (Visual Proof)</span>
+                    <a 
+                      href={selectedRequest.issuePhotoUrl} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 p-3 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-slate-100 transition-all text-blue-600"
+                    >
+                      {selectedRequest.issuePhotoUrl.match(/\.(pdf)$/i) || selectedRequest.issuePhotoUrl.includes('pdf') ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600 font-black text-xs">PDF</div>
+                          <div className="text-left">
+                            <span className="text-xs font-bold text-slate-700 block">issue_document.pdf</span>
+                            <span className="text-[10px] text-blue-500 font-semibold flex items-center gap-1">
+                              View PDF <ExternalLink className="w-3 h-3" />
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <img src={selectedRequest.issuePhotoUrl} alt="Initial Issue" className="w-12 h-12 object-cover rounded-xl border border-slate-200" />
+                          <div className="text-left">
+                            <span className="text-xs font-bold text-slate-700 block">issue_image.jpg</span>
+                            <span className="text-[10px] text-blue-500 font-semibold flex items-center gap-1">
+                              View Image <ExternalLink className="w-3 h-3" />
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Technician & Assignment */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                <div className="space-y-2">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigned Technician</h4>
+                  {selectedRequest.assignedToEmail ? (
+                    <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 border border-white shadow-sm flex-shrink-0">
+                        <User className="w-5 h-5" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-sm font-bold text-slate-800 truncate leading-tight">{selectedRequest.assignedTo}</span>
+                        <span className="text-xs text-slate-400 font-medium truncate">{selectedRequest.assignedToEmail}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 p-4 bg-rose-50/50 rounded-2xl border border-rose-100 text-rose-600">
+                      <Users className="w-5 h-5" />
+                      <span className="text-xs font-bold uppercase tracking-wider">No Technician Assigned yet</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status / Last Active</h4>
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col justify-between h-[max-content] min-h-[72px]">
+                    <div className="flex items-center justify-between">
+                      <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-wider ${getStatusColor(selectedRequest.status)}`}>
+                        <span className="flex-shrink-0">{getStatusIcon(selectedRequest.status)}</span>
+                        {selectedRequest.status}
+                      </div>
+                    </div>
+                    {selectedRequest.updatedAt && (
+                      <span className="text-[9px] font-bold text-slate-400 mt-2 block font-mono flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        Updated: {new Date(selectedRequest.updatedAt?.toDate?.() || Date.now()).toLocaleString('en-IN', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* What assignee did / Work done */}
+              <div className="border-t border-slate-100 pt-6 space-y-4">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Work Done / Resolution details</h4>
+                
+                {selectedRequest.resolutionRemark ? (
+                  <div className="p-5 bg-emerald-50/40 border border-emerald-100/50 rounded-3xl space-y-3">
+                    <div className="flex items-center gap-2 text-emerald-800">
+                      <CheckCircle2 className="w-4 h-4 mt-0.5" />
+                      <span className="text-xs font-black uppercase tracking-wider">Technician Remark</span>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-700 leading-relaxed italic whitespace-pre-wrap">
+                      "{selectedRequest.resolutionRemark}"
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-5 bg-slate-50 border border-slate-100/50 rounded-2xl text-center">
+                    <span className="text-xs font-semibold text-slate-400 italic">No work done / resolution remark submitted yet.</span>
+                  </div>
+                )}
+
+                {/* Resolution proof documents */}
+                {(selectedRequest.resolvedPhotoUrl || selectedRequest.completionCertificateUrl) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Resolved Photo */}
+                    {selectedRequest.resolvedPhotoUrl && (
+                      <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col justify-between">
+                        <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-widest mb-2">Resolution Proof (Photo)</span>
+                        <a 
+                          href={selectedRequest.resolvedPhotoUrl} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="flex items-center gap-3 text-blue-600 hover:underline"
+                        >
+                          <img src={selectedRequest.resolvedPhotoUrl} alt="Resolved Issue" className="w-12 h-12 object-cover rounded-xl border border-slate-200 shadow-sm" />
+                          <div className="text-left">
+                            <span className="text-xs font-bold text-slate-700 block font-mono text-[10px]">resolved_photo.jpg</span>
+                            <span className="text-[10px] text-blue-500 font-semibold flex items-center gap-1">
+                              View Photo <ExternalLink className="w-3.5 h-3.5" />
+                            </span>
+                          </div>
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Completion Certificate */}
+                    {selectedRequest.completionCertificateUrl && (
+                      <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col justify-between">
+                        <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-widest mb-2">Completion Document</span>
+                        <a 
+                          href={selectedRequest.completionCertificateUrl} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="flex items-center gap-3 text-blue-600 hover:underline"
+                        >
+                          <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 font-black text-[10px]">DOC</div>
+                          <div className="text-left">
+                            <span className="text-xs font-bold text-slate-700 block font-mono text-[10px]">completion_doc</span>
+                            <span className="text-[10px] text-blue-500 font-semibold flex items-center gap-1">
+                              View File <ExternalLink className="w-3.5 h-3.5" />
+                            </span>
+                          </div>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-8 py-6 border-t border-slate-100 flex justify-end bg-slate-50/50 sticky bottom-0 z-10 backdrop-blur-md">
+              <button 
+                onClick={() => setIsDetailsModalOpen(false)}
+                className="px-6 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-slate-200"
+              >
+                Close Window
+              </button>
+            </div>
           </div>
         </div>
       )}

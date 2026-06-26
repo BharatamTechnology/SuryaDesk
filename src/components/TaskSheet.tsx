@@ -265,6 +265,14 @@ export default function TaskSheet({
       stepId: 13,
     },
     {
+      emailField: "s12_assignedToEmail",
+      nameField: "s12_assignedTo",
+      submitField: "isStep15Submitted",
+      label: "Step 15: Insurance",
+      tab: "execution",
+      stepId: 15,
+    },
+    {
       emailField: "projectInchargeEmail",
       nameField: "projectInchargeName",
       submitField: "isExecutionSubmitted",
@@ -687,7 +695,7 @@ export default function TaskSheet({
         l.isStep4Submitted || l.isStep5Submitted || l.isStep6Submitted ||
         l.isStep7Submitted || l.isStep8Submitted || l.isStep9Submitted ||
         l.isStep10Submitted || l.isStep11Submitted || l.isStep12Submitted ||
-        l.isStep13Submitted
+        l.isStep13Submitted || l.isStep15Submitted
       );
     };
 

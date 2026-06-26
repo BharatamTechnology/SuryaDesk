@@ -9,7 +9,7 @@ if (fs.existsSync(configPath)) {
 }
 
 const projectId = config.projectId || "ai-studio-applet-webapp-2b467";
-const databaseId = config.firestoreDatabaseId || "ai-studio-d6591e66-7485-47a0-9bed-be94141d90ae";
+const databaseId = config.firestoreDatabaseId || "(default)";
 const storageBucket = config.storageBucket || "ai-studio-applet-webapp-2b467.firebasestorage.app";
 
 console.log('==================================================');
@@ -27,7 +27,7 @@ admin.initializeApp({
 });
 
 // Resolve the custom multi-database Firestore instance
-const db = admin.firestore(databaseId);
+const db = databaseId && databaseId !== "(default)" ? admin.firestore(databaseId) : admin.firestore();
 const bucket = admin.storage().bucket();
 
 async function runCleanup() {

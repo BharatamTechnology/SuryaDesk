@@ -246,6 +246,15 @@ export interface Lead {
   s11_subsidyReceivedDate?: string;
   s11_remarks?: string;
   s11_finalSettlement?: 'Yes' | 'No';
+
+  // S12 — INSURANCE SECTION
+  s12_insuranceStatus?: 'Done' | 'Pending';
+  s12_policyDetails?: string;
+  s12_policyDate?: string;
+  s12_remarks?: string;
+  s12_assignedTo?: string;
+  s12_assignedToEmail?: string;
+
   execution_assignedTo?: string;
   execution_assignedToEmail?: string;
   s_docCorr_assignedTo?: string;
@@ -314,6 +323,7 @@ export interface Lead {
   isStep12Submitted?: boolean;
   isStep13Submitted?: boolean;
   isStep14Submitted?: boolean;
+  isStep15Submitted?: boolean;
   step1Status?: 'Pending' | 'Completed' | 'Assigned-Back';
   step2Status?: 'Pending' | 'Completed' | 'Assigned-Back';
   step3Status?: 'Pending' | 'Completed' | 'Assigned-Back';
@@ -328,6 +338,7 @@ export interface Lead {
   step12Status?: 'Pending' | 'Completed' | 'Assigned-Back';
   step13Status?: 'Pending' | 'Completed' | 'Assigned-Back';
   step14Status?: 'Pending' | 'Completed' | 'Assigned-Back';
+  step15Status?: 'Pending' | 'Completed' | 'Assigned-Back';
   step1Remark?: string;
   step2Remark?: string;
   step3Remark?: string;
@@ -342,6 +353,7 @@ export interface Lead {
   step12Remark?: string;
   step13Remark?: string;
   step14Remark?: string;
+  step15Remark?: string;
   step1Date?: string;
   step2Date?: string;
   s_loadExt_required?: string;
@@ -401,14 +413,26 @@ export interface GlobalSettings {
 export interface CommissionRecord {
   id: string;
   leadId?: string;
-  category: 'Sales Partner' | 'Sales Person';
-  name: string;
-  kw: string;
-  mrp: number;
-  soldAt: number;
-  commissionAmount: number;
-  companyShare: number;
-  remark: string;
+  leadName?: string;
+  leadIdString?: string;
+  recipientName?: string;
+  recipientEmail?: string;
+  roleType?: 'Lead Creator' | 'Sales Person' | 'Sales Partner';
+  totalProjectValue?: number;
+  paymentReceived?: number;
+  paymentDue?: number;
+  percentage?: number;
+  totalCommission?: number;
+  commissionPaid?: number;
+  commissionDue?: number;
+  category?: 'Sales Partner' | 'Sales Person';
+  name?: string;
+  kw?: string;
+  mrp?: number;
+  soldAt?: number;
+  commissionAmount?: number;
+  companyShare?: number;
+  remark?: string;
   date: any;
   createdBy: string;
 }

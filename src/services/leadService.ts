@@ -49,6 +49,7 @@ const getFieldLabel = (field: string) => {
     case 's9_assignedToEmail': return 'Loan Officer Step';
     case 's10_assignedToEmail': return 'Step 10 (Post-Install Phase)';
     case 's11_assignedToEmail': return 'Subsidy Section Step';
+    case 's12_assignedToEmail': return 'Insurance Section Step';
     default: return 'Task';
   }
 };
@@ -75,41 +76,23 @@ export const leadService = {
       if (role === 'Admin' || normalizedEmail === 'hemant.tyagi@bharatamtechnology.com') {
         q = query(collection(db, COLLECTION_NAME), orderBy('updatedAt', 'desc'));
       } else if (normalizedEmail) {
-        // Query leads where the user is a member OR creator OR assigned specifically
-        const searchEmails = [normalizedEmail];
-        
+        // Query leads where the user is a member OR creator
         q = query(
           collection(db, COLLECTION_NAME), 
           or(
-            where('members', 'array-contains-any', searchEmails),
-            where('createdBy', '==', normalizedEmail),
-            where('assignedPreSales', '==', normalizedEmail),
-            where('assignedTo', '==', normalizedEmail),
-            where('assignedToEmail', '==', normalizedEmail),
-            where('visitedByEmail', '==', normalizedEmail),
-            where('assignedSalesEmail', '==', normalizedEmail),
-            where('projectAssigneeEmail', '==', normalizedEmail),
-            where('accAssigneeEmail', '==', normalizedEmail),
-            where('projectInchargeEmail', '==', normalizedEmail),
-            where('s_docCorr_assignedToEmail', '==', normalizedEmail),
-            where('s_loadExt_assignedToEmail', '==', normalizedEmail),
-            where('execution_assignedToEmail', '==', normalizedEmail),
-            where('s4_loanAssignedToEmail', '==', normalizedEmail),
-            where('s5_storeDispatchAssignedToEmail', '==', normalizedEmail),
-            where('s5_discomPreAssignedToEmail', '==', normalizedEmail),
-            where('s6_inchargeAssignedToEmail', '==', normalizedEmail),
-            where('s5_storeInchargeAssignedToEmail', '==', normalizedEmail),
-            where('s6_assignedToEmail', '==', normalizedEmail),
-            where('s7_assignedToEmail', '==', normalizedEmail),
-            where('s8_assignedToEmail', '==', normalizedEmail),
-            where('s9_assignedToEmail', '==', normalizedEmail),
-            where('s10_assignedToEmail', '==', normalizedEmail),
-            where('s11_assignedToEmail', '==', normalizedEmail)
-          ),
-          orderBy('updatedAt', 'desc')
+            where('members', 'array-contains-any', [normalizedEmail]),
+            where('createdBy', '==', normalizedEmail)
+          )
         );
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+        const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+        // Local sort to avoid composite index requirement
+        results.sort((a, b) => {
+          const tA = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : 0;
+          const tB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : 0;
+          return tB - tA;
+        });
+        return results;
       } else {
         return [];
       }
@@ -121,44 +104,19 @@ export const leadService = {
     }
   },
 
-  subscribeToLeads(role: string | null | undefined, email: string | null | undefined, callback: (leads: any[]) => void) {
+  subscribeToLeads(role: string | null | undefined, email: string | null | undefined, callback: (leads: any[]) => void, onError?: (error: any) => void) {
     const normalizedEmail = normalizeEmail(email);
     console.log(`Subscribing to leads for role: ${role}, email: ${normalizedEmail}`);
     let q;
     if (role === 'Admin' || normalizedEmail === 'hemant.tyagi@bharatamtechnology.com') {
       q = query(collection(db, COLLECTION_NAME), orderBy('updatedAt', 'desc'));
     } else if (normalizedEmail) {
-      const searchEmails = [normalizedEmail];
-      
       q = query(
         collection(db, COLLECTION_NAME), 
         or(
-          where('members', 'array-contains-any', searchEmails),
-          where('createdBy', '==', normalizedEmail),
-          where('assignedPreSales', '==', normalizedEmail),
-          where('assignedTo', '==', normalizedEmail),
-          where('assignedToEmail', '==', normalizedEmail),
-          where('visitedByEmail', '==', normalizedEmail),
-          where('assignedSalesEmail', '==', normalizedEmail),
-          where('projectAssigneeEmail', '==', normalizedEmail),
-          where('accAssigneeEmail', '==', normalizedEmail),
-          where('projectInchargeEmail', '==', normalizedEmail),
-          where('s_docCorr_assignedToEmail', '==', normalizedEmail),
-          where('s_loadExt_assignedToEmail', '==', normalizedEmail),
-          where('execution_assignedToEmail', '==', normalizedEmail),
-          where('s4_loanAssignedToEmail', '==', normalizedEmail),
-          where('s5_storeDispatchAssignedToEmail', '==', normalizedEmail),
-          where('s5_discomPreAssignedToEmail', '==', normalizedEmail),
-          where('s6_inchargeAssignedToEmail', '==', normalizedEmail),
-          where('s5_storeInchargeAssignedToEmail', '==', normalizedEmail),
-          where('s6_assignedToEmail', '==', normalizedEmail),
-          where('s7_assignedToEmail', '==', normalizedEmail),
-          where('s8_assignedToEmail', '==', normalizedEmail),
-          where('s9_assignedToEmail', '==', normalizedEmail),
-          where('s10_assignedToEmail', '==', normalizedEmail),
-          where('s11_assignedToEmail', '==', normalizedEmail)
-        ),
-        orderBy('updatedAt', 'desc')
+          where('members', 'array-contains-any', [normalizedEmail]),
+          where('createdBy', '==', normalizedEmail)
+        )
       );
     } else {
       callback([]);
@@ -167,9 +125,19 @@ export const leadService = {
     
     return onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+      // Local sort to avoid composite index requirement
+      data.sort((a, b) => {
+        const tA = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : 0;
+        const tB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : 0;
+        return tB - tA;
+      });
       callback(data);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
+      if (onError) {
+        onError(error);
+      } else {
+        handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
+      }
     });
   },
 
@@ -240,7 +208,9 @@ export const leadService = {
           's8_assignedToEmail',
           's9_assignedToEmail',
           's10_assignedToEmail',
-          's11_assignedToEmail'
+          's11_assignedToEmail',
+          's12_assignedToEmail',
+          's_newConn_assignedToEmail'
         ];
 
         const members = [creatorEmail];
@@ -307,7 +277,8 @@ export const leadService = {
         's8_assignedToEmail',
         's9_assignedToEmail',
         's10_assignedToEmail',
-        's11_assignedToEmail'
+        's11_assignedToEmail',
+        's12_assignedToEmail'
       ];
 
       const docSnap = await getDoc(docRef);

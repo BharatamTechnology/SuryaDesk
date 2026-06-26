@@ -16,5 +16,6 @@ export const STEPS = [
   { id: 10, title: 'OFFICE EXEC (Post-Install)' },
   { id: 11, title: 'DISCOM (Post-Install)' },
   { id: 12, title: 'LOAN OFFICER (Post-Install)' },
-  { id: 13, title: 'SUBSIDY SECTION' }
+  { id: 13, title: 'SUBSIDY SECTION' },
+  { id: 15, title: 'INSURANCE SECTION' }
 ];

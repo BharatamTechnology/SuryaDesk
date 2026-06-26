@@ -172,6 +172,7 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
     { emailField: 's8_assignedToEmail', nameField: 's8_assignedTo', submitField: 'isStep11Submitted', label: 'Step 12: Discom Post-Install', tab: 'execution', stepId: 11, key: '11' },
     { emailField: 's9_assignedToEmail', nameField: 's9_assignedTo', submitField: 'isStep12Submitted', condition: (l: any) => l.loanRequired === 'Yes', label: 'Step 13: Loan Final', tab: 'execution', stepId: 12, key: '12' },
     { emailField: 's11_assignedToEmail', nameField: 's11_assignedTo', submitField: 'isStep13Submitted', label: 'Step 14: Subsidy', tab: 'execution', stepId: 13, key: '13' },
+    { emailField: 's12_assignedToEmail', nameField: 's12_assignedTo', submitField: 'isStep15Submitted', label: 'Step 15: Insurance', tab: 'execution', stepId: 15, key: '15' },
     { emailField: 'projectInchargeEmail', nameField: 'projectInchargeName', submitField: 'isExecutionSubmitted', label: 'Final Execution Review', tab: 'project_incharge', key: 'execution_start' }
   ];
 

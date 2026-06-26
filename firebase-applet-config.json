@@ -1,10 +1,8 @@
 {
-  "projectId": "ai-studio-applet-webapp-2b467",
-  "appId": "1:834330506319:web:09f70562f7d3291aef663a",
-  "apiKey": "AIzaSyCtY4Y0y2MK7Y95tAn97agPVDGHlDkLDOI",
-  "authDomain": "ai-studio-applet-webapp-2b467.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-d6591e66-7485-47a0-9bed-be94141d90ae",
-  "storageBucket": "ai-studio-applet-webapp-2b467.firebasestorage.app",
-  "messagingSenderId": "834330506319",
-  "measurementId": ""
+  "apiKey": "AIzaSyDIquynmdCNBx8Rbxkp17KBt_VYUI-VN6I",
+  "authDomain": "sitvik-suryadesk.firebaseapp.com",
+  "projectId": "sitvik-suryadesk",
+  "storageBucket": "sitvik-suryadesk.firebasestorage.app",
+  "messagingSenderId": "756612216052",
+  "appId": "1:756612216052:web:f6e240fd061d0574a21aa1"
 }

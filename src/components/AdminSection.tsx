@@ -10,7 +10,8 @@ import {
   ChevronRight,
   ShieldAlert,
   Sliders,
-  HelpCircle
+  HelpCircle,
+  Database
 } from 'lucide-react';
 import UserManagement from './UserManagement';
 import StepDeadlineManager from './StepDeadlineManager';
@@ -76,7 +77,7 @@ export default function AdminSection() {
               <>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-slate-900 capitalize font-black">
-                  {currentView === 'users' ? 'User Accounts' : currentView === 'deadlines' ? 'Step SLAs' : 'Tariff Rates'}
+                  {currentView === 'users' ? 'User Accounts' : currentView === 'deadlines' ? 'Step SLAs' : currentView === 'rates' ? 'Tariff Rates' : 'Database Migration'}
                 </span>
               </>
             )}

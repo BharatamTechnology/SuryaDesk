@@ -39,7 +39,8 @@ import {
   BarChart3,
   Maximize,
   Minimize,
-  Download
+  Download,
+  Database
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import Dashboard from "./components/Dashboard";
@@ -74,6 +75,7 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -185,10 +187,18 @@ export default function App() {
 
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
+    setLoginError(null);
     try {
       await signInWithPopup(auth, provider);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login failed:", error);
+      if (error?.code === 'auth/unauthorized-domain' || error?.message?.includes('unauthorized-domain')) {
+        setLoginError('unauthorized-domain');
+      } else if (error?.code === 'auth/operation-not-allowed' || error?.message?.includes('operation-not-allowed')) {
+        setLoginError('operation-not-allowed');
+      } else {
+        setLoginError(error?.message || String(error));
+      }
     }
   };
 
@@ -200,6 +210,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!user) return;
     const unsubRates = settingsService.subscribeToRates((customTable) => {
       if (customTable && Object.keys(customTable).length > 0) {
         for (const k in RATE_TABLE) {
@@ -209,7 +220,7 @@ export default function App() {
       }
     });
     return () => unsubRates();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -310,11 +321,13 @@ export default function App() {
     };
 
     parseUrlParams();
+    window.addEventListener('popstate', parseUrlParams);
 
     return () => {
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.removeEventListener('message', handleSWMessage);
       }
+      window.removeEventListener('popstate', parseUrlParams);
     };
   }, []);
 
@@ -345,6 +358,55 @@ export default function App() {
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Sitvik Solar</h1>
           <p className="text-slate-500 mb-8">Manage your solar installation pipeline from survey to project completion.</p>
           
+          {loginError && (
+            <div className="mb-6 p-5 bg-amber-50 text-amber-900 rounded-2xl text-xs text-left border border-amber-200/80 space-y-3">
+              <div className="flex items-center gap-2 text-amber-800 font-bold">
+                <Database className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>{loginError === 'unauthorized-domain' ? 'Authorized Domain Needed' : loginError === 'operation-not-allowed' ? 'Enable Google Sign-In' : 'Firebase Login Error'}</span>
+              </div>
+              {loginError === 'unauthorized-domain' ? (
+                <div className="space-y-2 leading-relaxed">
+                  <p>
+                    Your running app's domain is not authorized in the new <strong>sitvik-suryadesk</strong> Firebase project.
+                  </p>
+                  <p className="font-semibold text-[11px]">
+                    To fix this immediately:
+                  </p>
+                  <ol className="list-decimal pl-4 space-y-1 font-semibold text-[10px]">
+                    <li>Go to the <strong>Firebase Console</strong> for your project.</li>
+                    <li>Navigate to <strong>Authentication</strong> &gt; <strong>Settings</strong> &gt; <strong>Authorized domains</strong>.</li>
+                    <li>Click <strong>Add domain</strong> and add these domains:
+                      <ul className="list-disc pl-4 mt-1 space-y-0.5 font-mono text-[9px] bg-amber-100/60 p-1.5 rounded border border-amber-200">
+                        <li>{window.location.hostname}</li>
+                        <li>ais-dev-mbfnwfxifwkbq3djeuk66p-376257800013.asia-east1.run.app</li>
+                        <li>ais-pre-mbfnwfxifwkbq3djeuk66p-376257800013.asia-east1.run.app</li>
+                      </ul>
+                    </li>
+                  </ol>
+                </div>
+              ) : loginError === 'operation-not-allowed' ? (
+                <div className="space-y-2 leading-relaxed">
+                  <p>
+                    Google Sign-In has not been enabled in the Firebase project <strong>sitvik-suryadesk</strong>.
+                  </p>
+                  <p className="font-semibold text-[11px]">
+                    To enable Google Sign-In immediately:
+                  </p>
+                  <ol className="list-decimal pl-4 space-y-1 font-semibold text-[10px]">
+                    <li>Go to the <strong>Firebase Console</strong>.</li>
+                    <li>Navigate to <strong>Build &gt; Authentication &gt; Sign-in method</strong>.</li>
+                    <li>Click <strong>Add new provider</strong> (or edit if it exists) and select <strong>Google</strong>.</li>
+                    <li>Toggle the <strong>Enable</strong> switch, configure your project support email, and click <strong>Save</strong>.</li>
+                  </ol>
+                </div>
+              ) : (
+                <p className="font-semibold leading-relaxed break-all">
+                  Firebase Login Error: {loginError}
+                </p>
+              )}
+            </div>
+          )}
+
           {user && !isAuthorized ? (
             <div className="space-y-4">
               <div className="p-4 bg-red-50 text-red-700 rounded-xl text-sm border border-red-100">
@@ -411,7 +473,7 @@ export default function App() {
 
         <nav className="px-4 space-y-1">
           <button
-            onClick={() => { setActiveTab("dashboard"); setIsMobileMenuOpen(false); }}
+            onClick={() => { setActiveTab("dashboard"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "dashboard" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
           >
             <LayoutDashboard className="w-5 h-5" />
@@ -424,14 +486,14 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => { setActiveTab("tasks"); setIsMobileMenuOpen(false); }}
+            onClick={() => { setActiveTab("tasks"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "tasks" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
           >
             <ClipboardList className="w-5 h-5" />
             Task Sheet
           </button>
           <button
-            onClick={() => { setActiveTab("services"); setIsMobileMenuOpen(false); }}
+            onClick={() => { setActiveTab("services"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "services" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
           >
             <Wrench className="w-5 h-5" />
@@ -439,7 +501,7 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => { setActiveTab("payments"); setIsMobileMenuOpen(false); }}
+            onClick={() => { setActiveTab("payments"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "payments" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
           >
             <CreditCard className="w-5 h-5" />
@@ -448,7 +510,7 @@ export default function App() {
           
           {(role === 'Admin' || user?.email === 'hemant.tyagi@bharatamtechnology.com') && (
             <button
-              onClick={() => { setActiveTab("commission"); setIsMobileMenuOpen(false); }}
+              onClick={() => { setActiveTab("commission"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "commission" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
             >
               <Calculator className="w-5 h-5" />
@@ -457,7 +519,7 @@ export default function App() {
           )}
 
           <button
-            onClick={() => { setActiveTab("mis"); setIsMobileMenuOpen(false); }}
+            onClick={() => { setActiveTab("mis"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "mis" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
           >
             <BarChart3 className="w-5 h-5" />
@@ -466,7 +528,7 @@ export default function App() {
           
           {(role === 'Admin' || user?.email === 'hemant.tyagi@bharatamtechnology.com') && (
             <button
-              onClick={() => { setActiveTab("admin"); setIsMobileMenuOpen(false); }}
+              onClick={() => { setActiveTab("admin"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "admin" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
             >
               <Settings className="w-5 h-5" />

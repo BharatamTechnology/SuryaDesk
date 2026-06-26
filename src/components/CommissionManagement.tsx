@@ -6,19 +6,23 @@ import {
   Trash2, 
   Plus, 
   DollarSign, 
-  PieChart, 
-  ArrowRight,
-  TrendingUp,
-  Info,
-  Pencil,
-  X,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  Eye,
-  ChevronRight,
-  TrendingDown,
-  History
+  CheckCircle2, 
+  AlertCircle, 
+  Pencil, 
+  X, 
+  History, 
+  ChevronDown, 
+  PlusCircle, 
+  MinusCircle, 
+  Save, 
+  Undo2, 
+  Eye, 
+  Check, 
+  TrendingUp, 
+  TrendingDown, 
+  HelpCircle,
+  FolderOpen,
+  Users2
 } from 'lucide-react';
 import { commissionService } from '../services/commissionService';
 import { leadService } from '../services/leadService';
@@ -35,21 +39,59 @@ export const CommissionManagement: React.FC<CommissionManagementProps> = ({ user
   const [commissions, setCommissions] = useState<CommissionRecord[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
-  const [category, setCategory] = useState<'Sales Partner' | 'Sales Person'>('Sales Partner');
   
-  // Form State
-  const [name, setName] = useState('');
-  const [kw, setKw] = useState('3.1 kW');
-  const [mrp, setMrp] = useState(190000);
-  const [soldAt, setSoldAt] = useState(190000);
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
-  const [showCalculator, setShowCalculator] = useState(false);
-  const [viewingRecord, setViewingRecord] = useState<CommissionRecord | null>(null);
-  
-  // Real-time calculation state
-  const [calcResult, setCalcResult] = useState<{ salesman: number; company: number; remark: string }>({ salesman: 0, company: 0, remark: '' });
-  const [editingId, setEditingId] = useState<string | null>(null);
+  // Active Tab: 'Sales Person' | 'Sales Partner'
+  const [activeTab, setActiveTab] = useState<'Sales Person' | 'Sales Partner'>('Sales Person');
 
+  // Step 1: Project Type / Scheme Filter (Project selection stage)
+  const [projectSchemeFilter, setProjectSchemeFilter] = useState<'All' | 'PM Surya Ghar' | 'SSO' | 'Surya Ghar + SSO'>('All');
+  
+  // Step 2: Selected Lead State (reset when tab changes)
+  const [selectedLeadId, setSelectedLeadId] = useState<string>('');
+
+  // Editable Lead Financial Overrides
+  const [totalValue, setTotalValue] = useState<number>(0);
+  const [paymentReceived, setPaymentReceived] = useState<number>(0);
+  const [paymentDue, setPaymentDue] = useState<number>(0);
+
+  // ----------------------------------------------------
+  // Sales Person Tab Recipient States
+  // ----------------------------------------------------
+  const [selectedSalesEmail, setSelectedSalesEmail] = useState<string>('');
+  const [salesPercent, setSalesPercent] = useState<number>(5);
+  
+  // Optional Sales Creator row
+  const [isCreatorActiveSales, setIsCreatorActiveSales] = useState<boolean>(false);
+  const [selectedCreatorEmailSales, setSelectedCreatorEmailSales] = useState<string>('');
+  const [creatorPercentSales, setCreatorPercentSales] = useState<number>(2);
+
+  const [salesCalculated, setSalesCalculated] = useState<boolean>(false);
+  const [calculatedSalesAmt, setCalculatedSalesAmt] = useState<number>(0);
+  const [calculatedCreatorAmtSales, setCalculatedCreatorAmtSales] = useState<number>(0);
+
+  // ----------------------------------------------------
+  // Sales Partner Tab Recipient States
+  // ----------------------------------------------------
+  const [selectedPartnerEmail, setSelectedPartnerEmail] = useState<string>('');
+  const [partnerPercent, setPartnerPercent] = useState<number>(5);
+  
+  // Optional Partner Creator row
+  const [isCreatorActivePartner, setIsCreatorActivePartner] = useState<boolean>(false);
+  const [selectedCreatorEmailPartner, setSelectedCreatorEmailPartner] = useState<string>('');
+  const [creatorPercentPartner, setCreatorPercentPartner] = useState<number>(2);
+
+  const [partnerCalculated, setPartnerCalculated] = useState<boolean>(false);
+  const [calculatedPartnerAmt, setCalculatedPartnerAmt] = useState<number>(0);
+  const [calculatedCreatorAmtPartner, setCalculatedCreatorAmtPartner] = useState<number>(0);
+
+  // ----------------------------------------------------
+  // Management, Edit Payout, & Details States
+  // ----------------------------------------------------
+  const [editingRecord, setEditingRecord] = useState<CommissionRecord | null>(null);
+  const [editPaidAmount, setEditPaidAmount] = useState<number>(0);
+  const [viewingRecord, setViewingRecord] = useState<CommissionRecord | null>(null);
+
+  // Real-time subscribers
   useEffect(() => {
     const unsubCommissions = commissionService.subscribeToCommissions(setCommissions);
     const unsubLeads = leadService.subscribeToLeads(isAdmin ? 'Admin' : 'Executive', userEmail, setLeads);
@@ -62,690 +104,1432 @@ export const CommissionManagement: React.FC<CommissionManagementProps> = ({ user
     };
   }, [isAdmin, userEmail]);
 
-  // Find leads that are marked as Completed and don't yet have a commission record
-  // Also filter by the currently selected category
-  const pendingLeads = useMemo(() => {
-    return leads.filter(lead => {
-      const isCompleted = lead.status === 'Completed';
-      if (!isCompleted) return false;
-      
-      // Check if there is already a commission record for this lead
-      const hasRecord = commissions.some(c => c.leadId === lead.id);
-      if (hasRecord) return false;
-
-      // Filter by current active category
-      const surveyEmail = (lead.visitedByEmail || '').toLowerCase().trim();
-      const salesEmail = (lead.assignedSalesEmail || '').toLowerCase().trim();
-      const targetEmail = surveyEmail || salesEmail;
-
-      if (targetEmail) {
-        const targetUser = users.find(u => u.email.toLowerCase().trim() === targetEmail);
-        return targetUser?.category === category;
-      }
-      
-      return false;
-    });
-  }, [leads, commissions, users, category]);
-
-  const handleLoadLead = (lead: Lead) => {
-    if (lead.status !== 'Completed') {
-      alert(`Commission calculation/entry is only allowed after the lead is marked as 'Completed'. (Current status: ${lead.status || 'N/A'})`);
-      return;
-    }
-    setSelectedLeadId(lead.id);
-    setName(lead.customerName);
-    setKw(lead.finalKw || lead.requiredKw || 'N/A');
-    setSoldAt(lead.finalRate || 0);
-    setMrp(lead.originalRate || 0);
-    
-    // Determine the person who should get commission
-    // 1. Check who did the survey first (as per user request "check side survey done by sales partner or sales person")
-    // 2. Fallback to assigned sales email
-    const surveyEmail = (lead.visitedByEmail || '').toLowerCase().trim();
-    const salesEmail = (lead.assignedSalesEmail || '').toLowerCase().trim();
-    
-    const targetEmail = surveyEmail || salesEmail;
-
-    if (targetEmail) {
-      const targetUser = users.find(u => u.email.toLowerCase().trim() === targetEmail);
-      if (targetUser?.category === 'Sales Person' || targetUser?.category === 'Sales Partner') {
-        setCategory(targetUser.category);
-        // Set the name to the user's name for calculation
-        setName(targetUser.name);
-        
-        // Add customer info to remark if not already there
-        const customerInfo = `Customer: ${lead.customerName} (${lead.leadId})`;
-        if (!calcResult.remark.includes(customerInfo)) {
-          setCalcResult(prev => ({
-            ...prev,
-            remark: `${prev.remark} | ${customerInfo}`
-          }));
-        }
-      } else {
-        // If not found in users list OR category not set, keep defaults but try to warn or just use targetEmail
-        console.log("Recipient category not defined for:", targetEmail);
-      }
-    }
-    
-    setShowCalculator(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
+  // Reset Lead selection when switching categories
   useEffect(() => {
-    if (category === 'Sales Partner') {
-      const salesman = soldAt * 0.05;
-      const company = soldAt - salesman;
-      setCalcResult({ 
-        salesman, 
-        company, 
-        remark: 'Flat 5% Commission for Sales Partner' 
-      });
+    setSelectedLeadId('');
+    setSalesCalculated(false);
+    setPartnerCalculated(false);
+    setIsCreatorActiveSales(false);
+    setIsCreatorActivePartner(false);
+  }, [activeTab]);
+
+  // ----------------------------------------------------
+  // Lead Filters for each Tab based on User Roles
+  // ----------------------------------------------------
+  
+  // 1. Leads filtered for Sales Person Tab (only leads where assigned user is a Sales Person)
+  const salesPersonLeads = useMemo(() => {
+    return leads.filter(lead => {
+      // Check project scheme filter first
+      if (projectSchemeFilter !== 'All' && lead.projectType !== projectSchemeFilter) {
+        return false;
+      }
+
+      const salesEmail = lead.assignedSalesEmail?.toLowerCase().trim();
+      const preSalesEmail = lead.assignedPreSales?.toLowerCase().trim();
+      
+      if (!salesEmail && !preSalesEmail) return false;
+
+      const matchedSalesUser = users.find(u => u.email.toLowerCase().trim() === salesEmail);
+      const matchedPreSalesUser = users.find(u => u.email.toLowerCase().trim() === preSalesEmail);
+
+      // Verify role or fallback if not explicitly found in Team list
+      const isSalesPerson = 
+        (matchedSalesUser && matchedSalesUser.category === 'Sales Person') ||
+        (matchedPreSalesUser && matchedPreSalesUser.category === 'Sales Person') ||
+        (!matchedSalesUser && !!salesEmail) ||
+        (!matchedPreSalesUser && !!preSalesEmail);
+
+      return isSalesPerson;
+    });
+  }, [leads, users, projectSchemeFilter]);
+
+  // 2. Leads filtered for Sales Partner Tab (only leads where assigned user is a Sales Partner)
+  const salesPartnerLeads = useMemo(() => {
+    return leads.filter(lead => {
+      // Check project scheme filter first
+      if (projectSchemeFilter !== 'All' && lead.projectType !== projectSchemeFilter) {
+        return false;
+      }
+
+      const partnerEmail = lead.visitedByEmail?.toLowerCase().trim();
+      if (!partnerEmail) return false;
+
+      const matchedPartnerUser = users.find(u => u.email.toLowerCase().trim() === partnerEmail);
+
+      const isSalesPartner = 
+        (matchedPartnerUser && matchedPartnerUser.category === 'Sales Partner') ||
+        (!matchedPartnerUser && !!partnerEmail);
+
+      return isSalesPartner;
+    });
+  }, [leads, users, projectSchemeFilter]);
+
+  // Find currently selected Lead based on active tab and selected ID
+  const selectedLead = useMemo(() => {
+    const activeLeadsList = activeTab === 'Sales Person' ? salesPersonLeads : salesPartnerLeads;
+    return activeLeadsList.find(l => l.id === selectedLeadId);
+  }, [selectedLeadId, activeTab, salesPersonLeads, salesPartnerLeads]);
+
+  // Synchronize financial metrics when selected lead changes
+  useEffect(() => {
+    if (selectedLead) {
+      const val = Number(selectedLead.payment_totalAmount || selectedLead.finalRate || selectedLead.originalRate || 0);
+      const rec = Number(selectedLead.payment_receivedAmount || 0);
+      const due = Math.max(0, val - rec);
+
+      setTotalValue(val);
+      setPaymentReceived(rec);
+      setPaymentDue(due);
+
+      setSalesCalculated(false);
+      setPartnerCalculated(false);
     } else {
-      const floorPrice = mrp * 0.96;
-      const price97 = mrp * 0.97;
-      
-      let salesman = 0;
-      let remark = '';
-      
-      if (soldAt <= floorPrice) {
-        salesman = 0;
-        remark = "Floor — No incentive";
-      } else if (soldAt <= price97) {
-        salesman = soldAt - floorPrice;
-        remark = "100% surplus to salesman (96% to 97% bracket)";
-      } else {
-        const fixedSurplusAt97 = price97 - floorPrice;
-        const incrementalSurplus = soldAt - price97;
-        const salesmanIncremental = incrementalSurplus * 0.30;
-        salesman = fixedSurplusAt97 + salesmanIncremental;
-        remark = `₹${fixedSurplusAt97.toLocaleString()} fixed + 30% of incremental surplus above 97%`;
-      }
-      
-      setCalcResult({ 
-        salesman, 
-        company: soldAt - salesman, 
-        remark 
-      });
+      setTotalValue(0);
+      setPaymentReceived(0);
+      setPaymentDue(0);
     }
-  }, [category, mrp, soldAt]);
+  }, [selectedLead]);
 
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (selectedLeadId) {
-        const targetLead = leads.find(l => l.id === selectedLeadId);
-        if (!targetLead) {
-          alert("The associated lead could not be found.");
-          return;
-        }
-        if (targetLead.status !== 'Completed') {
-          alert(`Commission entry or calculation is not allowed. The associated lead is not marked as 'Completed' (current status: ${targetLead.status}).`);
-          return;
-        }
-      }
-      if (editingId) {
-        await commissionService.updateCommissionRecord(editingId, {
-          category,
-          name,
-          kw,
-          mrp: category === 'Sales Person' ? mrp : 0,
-          soldAt,
-          commissionAmount: calcResult.salesman,
-          companyShare: calcResult.company,
-          remark: calcResult.remark,
-          leadId: selectedLeadId || undefined
-        });
-        setEditingId(null);
-      } else {
-        await commissionService.addCommissionRecord({
-          category,
-          name,
-          kw,
-          mrp: category === 'Sales Person' ? mrp : 0,
-          soldAt,
-          commissionAmount: calcResult.salesman,
-          companyShare: calcResult.company,
-          remark: calcResult.remark,
-          leadId: selectedLeadId || undefined
-        });
-      }
-      setName('');
-      setSelectedLeadId(null);
-      setShowCalculator(false);
-      // Keep other defaults
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  // ----------------------------------------------------
+  // Dropdown Recipient Option Derivations (Smart Stage Logic)
+  // ----------------------------------------------------
 
-  const handleEdit = (rec: CommissionRecord) => {
-    if (rec.leadId) {
-      const targetLead = leads.find(l => l.id === rec.leadId);
-      if (targetLead && targetLead.status !== 'Completed') {
-        alert(`Calculations or editing is restricted because the linked lead is not marked as 'Completed' (current status: ${targetLead.status}).`);
+  // This hook computes the list of users who worked on the 4 stages of the selected lead:
+  // - Basic Info, Pre-Sales, Site Survey, Sales & Status
+  const activeStageUsers = useMemo(() => {
+    if (!selectedLead) return [];
+
+    const list: { user: AppUser; stage: string }[] = [];
+    const emailsSeen = new Set<string>();
+
+    const addCandidate = (email: string | undefined, name: string | undefined, defaultCategory: AppUser['category'], stageLabel: string) => {
+      if (!email) return;
+      const cleanEmail = email.toLowerCase().trim();
+      
+      const existing = list.find(item => item.user.email.toLowerCase().trim() === cleanEmail);
+      if (existing) {
+        if (!existing.stage.includes(stageLabel)) {
+          existing.stage = `${existing.stage}, ${stageLabel}`;
+        }
         return;
       }
+
+      emailsSeen.add(cleanEmail);
+
+      const found = users.find(u => u.email.toLowerCase().trim() === cleanEmail);
+      if (found) {
+        list.push({
+          user: found,
+          stage: stageLabel
+        });
+      } else {
+        list.push({
+          user: {
+            name: name || 'User',
+            email: cleanEmail,
+            role: 'Executive',
+            category: defaultCategory
+          },
+          stage: stageLabel
+        });
+      }
+    };
+
+    // 1. Basic Info stage: createdBy
+    addCandidate(selectedLead.createdBy, selectedLead.createdByName || 'Lead Creator', 'None', 'Basic Info');
+
+    // 2. Pre-Sales stage: assignedPreSales
+    addCandidate(selectedLead.assignedPreSales, selectedLead.assignedPreSalesName || 'Pre-Sales Rep', 'Sales Person', 'Pre-Sales');
+
+    // 3. Site Survey stage: visitedByEmail
+    addCandidate(selectedLead.visitedByEmail, selectedLead.visitedBy || 'Surveyor', 'Sales Partner', 'Site Survey');
+
+    // 4. Sales & Status stage: assignedSalesEmail
+    addCandidate(selectedLead.assignedSalesEmail, selectedLead.assignedSales || 'Sales Rep', 'Sales Person', 'Sales & Status');
+
+    return list;
+  }, [selectedLead, users]);
+
+  // Automatically select smart defaults from the users who worked on the stages
+  useEffect(() => {
+    if (selectedLead && activeStageUsers.length > 0) {
+      // Find the Sales Person stage user, fallback to Pre-Sales stage user, fallback to first user
+      const salesRep = activeStageUsers.find(item => 
+        item.stage.includes('Sales & Status')
+      ) || activeStageUsers.find(item => 
+        item.stage.includes('Pre-Sales')
+      ) || activeStageUsers[0];
+
+      if (salesRep) {
+        setSelectedSalesEmail(salesRep.user.email);
+      }
+
+      // Find the Site Survey stage user, fallback to first user
+      const partnerRep = activeStageUsers.find(item => 
+        item.stage.includes('Site Survey')
+      ) || activeStageUsers[0];
+
+      if (partnerRep) {
+        setSelectedPartnerEmail(partnerRep.user.email);
+      }
+
+      // Find the Lead Creator (Basic Info stage user), fallback to first user
+      const creatorRep = activeStageUsers.find(item => 
+        item.stage.includes('Basic Info')
+      ) || activeStageUsers[0];
+
+      if (creatorRep) {
+        setSelectedCreatorEmailSales(creatorRep.user.email);
+        setSelectedCreatorEmailPartner(creatorRep.user.email);
+      }
+    } else {
+      setSelectedSalesEmail('');
+      setSelectedPartnerEmail('');
+      setSelectedCreatorEmailSales('');
+      setSelectedCreatorEmailPartner('');
     }
-    setEditingId(rec.id);
-    setName(rec.name);
-    setKw(rec.kw);
-    setSoldAt(rec.soldAt);
-    if (rec.category === 'Sales Person') {
-      setMrp(rec.mrp);
+  }, [selectedLead, activeStageUsers]);
+
+  // ----------------------------------------------------
+  // Interactive Computation Engine
+  // ----------------------------------------------------
+  
+  const calculateSalesCommission = () => {
+    if (!selectedLead) return;
+    setCalculatedSalesAmt(Math.round(totalValue * (salesPercent / 100)));
+    if (isCreatorActiveSales) {
+      setCalculatedCreatorAmtSales(Math.round(totalValue * (creatorPercentSales / 100)));
+    } else {
+      setCalculatedCreatorAmtSales(0);
     }
-    setCategory(rec.category);
-    // Calculations will be updated by useEffect
-    setShowCalculator(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setSalesCalculated(true);
   };
 
-  const handleCancelEdit = () => {
-    setEditingId(null);
-    setName('');
-    setShowCalculator(false);
-    setSelectedLeadId(null);
-    // reset to defaults if needed
+  const calculatePartnerCommission = () => {
+    if (!selectedLead) return;
+    setCalculatedPartnerAmt(Math.round(totalValue * (partnerPercent / 100)));
+    if (isCreatorActivePartner) {
+      setCalculatedCreatorAmtPartner(Math.round(totalValue * (creatorPercentPartner / 100)));
+    } else {
+      setCalculatedCreatorAmtPartner(0);
+    }
+    setPartnerCalculated(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm("Delete this record?")) {
-      await commissionService.deleteCommissionRecord(id);
+  const cancelSalesCalculation = () => {
+    setSalesCalculated(false);
+    setCalculatedSalesAmt(0);
+    setCalculatedCreatorAmtSales(0);
+  };
+
+  const cancelPartnerCalculation = () => {
+    setPartnerCalculated(false);
+    setCalculatedPartnerAmt(0);
+    setCalculatedCreatorAmtPartner(0);
+  };
+
+  // ----------------------------------------------------
+  // Persistent Save Operations
+  // ----------------------------------------------------
+
+  const saveSalesCommission = async () => {
+    if (!selectedLead) return;
+    if (!salesCalculated) {
+      alert("Please calculate the commission amount first to verify figures.");
+      return;
+    }
+
+    try {
+      // 1. Save Sales Person Record
+      if (selectedSalesEmail) {
+        const item = activeStageUsers.find(u => u.user.email === selectedSalesEmail);
+        const name = item?.user.name || 'Sales Person';
+        
+        await commissionService.addCommissionRecord({
+          leadId: selectedLead.id,
+          leadName: selectedLead.customerName,
+          leadIdString: selectedLead.leadId,
+          recipientName: name,
+          recipientEmail: selectedSalesEmail,
+          roleType: 'Sales Person',
+          totalProjectValue: totalValue,
+          paymentReceived,
+          paymentDue,
+          percentage: salesPercent,
+          totalCommission: calculatedSalesAmt,
+          commissionPaid: 0,
+          commissionDue: calculatedSalesAmt,
+          category: 'Sales Person',
+          remark: `Sales Person Commission calculated at ${salesPercent}% of ₹${totalValue.toLocaleString()}`
+        });
+      }
+
+      // 2. Save Lead Creator Record (if optional row is active)
+      if (isCreatorActiveSales && selectedCreatorEmailSales) {
+        const item = activeStageUsers.find(u => u.user.email === selectedCreatorEmailSales);
+        const name = item?.user.name || 'Lead Creator';
+
+        await commissionService.addCommissionRecord({
+          leadId: selectedLead.id,
+          leadName: selectedLead.customerName,
+          leadIdString: selectedLead.leadId,
+          recipientName: name,
+          recipientEmail: selectedCreatorEmailSales,
+          roleType: 'Lead Creator',
+          totalProjectValue: totalValue,
+          paymentReceived,
+          paymentDue,
+          percentage: creatorPercentSales,
+          totalCommission: calculatedCreatorAmtSales,
+          commissionPaid: 0,
+          commissionDue: calculatedCreatorAmtSales,
+          category: 'Sales Person',
+          remark: `Lead Creator Commission calculated at ${creatorPercentSales}% of ₹${totalValue.toLocaleString()} (Sales Stage)`
+        });
+      }
+
+      // Reset states
+      setSelectedLeadId('');
+      setSalesCalculated(false);
+      setIsCreatorActiveSales(false);
+      alert("Commission Ledger Record successfully saved!");
+    } catch (err) {
+      console.error("Error saving commission record:", err);
+      alert("An error occurred while saving. Please try again.");
     }
   };
+
+  const savePartnerCommission = async () => {
+    if (!selectedLead) return;
+    if (!partnerCalculated) {
+      alert("Please calculate the commission amount first to verify figures.");
+      return;
+    }
+
+    try {
+      // 1. Save Sales Partner Record
+      if (selectedPartnerEmail) {
+        const item = activeStageUsers.find(u => u.user.email === selectedPartnerEmail);
+        const name = item?.user.name || 'Sales Partner';
+
+        await commissionService.addCommissionRecord({
+          leadId: selectedLead.id,
+          leadName: selectedLead.customerName,
+          leadIdString: selectedLead.leadId,
+          recipientName: name,
+          recipientEmail: selectedPartnerEmail,
+          roleType: 'Sales Partner',
+          totalProjectValue: totalValue,
+          paymentReceived,
+          paymentDue,
+          percentage: partnerPercent,
+          totalCommission: calculatedPartnerAmt,
+          commissionPaid: 0,
+          commissionDue: calculatedPartnerAmt,
+          category: 'Sales Partner',
+          remark: `Sales Partner Commission calculated at ${partnerPercent}% of ₹${totalValue.toLocaleString()}`
+        });
+      }
+
+      // 2. Save Lead Creator Record (if optional row is active)
+      if (isCreatorActivePartner && selectedCreatorEmailPartner) {
+        const item = activeStageUsers.find(u => u.user.email === selectedCreatorEmailPartner);
+        const name = item?.user.name || 'Lead Creator';
+
+        await commissionService.addCommissionRecord({
+          leadId: selectedLead.id,
+          leadName: selectedLead.customerName,
+          leadIdString: selectedLead.leadId,
+          recipientName: name,
+          recipientEmail: selectedCreatorEmailPartner,
+          roleType: 'Lead Creator',
+          totalProjectValue: totalValue,
+          paymentReceived,
+          paymentDue,
+          percentage: creatorPercentPartner,
+          totalCommission: calculatedCreatorAmtPartner,
+          commissionPaid: 0,
+          commissionDue: calculatedCreatorAmtPartner,
+          category: 'Sales Partner',
+          remark: `Lead Creator Commission calculated at ${creatorPercentPartner}% of ₹${totalValue.toLocaleString()} (Partner Stage)`
+        });
+      }
+
+      // Reset states
+      setSelectedLeadId('');
+      setPartnerCalculated(false);
+      setIsCreatorActivePartner(false);
+      alert("Partner Commission Ledger Record successfully saved!");
+    } catch (err) {
+      console.error("Error saving partner commission record:", err);
+      alert("An error occurred while saving. Please try again.");
+    }
+  };
+
+  // ----------------------------------------------------
+  // Edit & Deletion Handlers
+  // ----------------------------------------------------
+
+  const handleOpenEditPayout = (rec: CommissionRecord) => {
+    setEditingRecord(rec);
+    setEditPaidAmount(rec.commissionPaid || 0);
+  };
+
+  const handleSavePayoutEdit = async () => {
+    if (!editingRecord) return;
+    try {
+      const totalComm = editingRecord.totalCommission || 0;
+      const paid = Number(editPaidAmount);
+      const due = Math.max(0, totalComm - paid);
+
+      await commissionService.updateCommissionRecord(editingRecord.id, {
+        commissionPaid: paid,
+        commissionDue: due
+      });
+
+      setEditingRecord(null);
+      alert("Payout details successfully synchronized!");
+    } catch (err) {
+      console.error("Error updating payout:", err);
+      alert("Failed to update payout settings.");
+    }
+  };
+
+  const handleDeleteRecord = async (id: string) => {
+    if (window.confirm("Are you sure you want to permanently delete this commission ledger record?")) {
+      try {
+        await commissionService.deleteCommissionRecord(id);
+      } catch (err) {
+        console.error("Error deleting record:", err);
+      }
+    }
+  };
+
+  // ----------------------------------------------------
+  // Filtered Ledgers for each Tab
+  // ----------------------------------------------------
+  const filteredCommissions = useMemo(() => {
+    return commissions.filter(rec => rec.category === activeTab);
+  }, [commissions, activeTab]);
 
   return (
-    <div className="space-y-8">
-      {/* Pending Completed Payouts Area */}
-      {pendingLeads.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Completed Leads Awaiting Payout ({pendingLeads.length})</h3>
+    <div className="space-y-8 max-w-7xl mx-auto px-4 md:px-0">
+      
+      {/* Redesigned Premium Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-6">
+        <div>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-zinc-900 rounded-2xl flex items-center justify-center text-white shadow-lg">
+              <Calculator className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Commission Redesign</h2>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">Dual-Category, Multi-Recipient Calculations & Ledgers</p>
+            </div>
           </div>
-          <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
-            {pendingLeads.map(lead => (
-              <motion.button
-                layoutId={lead.id}
-                key={lead.id}
-                onClick={() => handleLoadLead(lead)}
-                whileHover={{ y: -4, scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className={`flex-shrink-0 w-64 p-5 bg-white border ${selectedLeadId === lead.id ? 'border-amber-500 ring-2 ring-amber-100' : 'border-amber-100'} rounded-[2rem] shadow-sm hover:shadow-xl hover:shadow-amber-100/50 transition-all text-left group relative overflow-hidden`}
+        </div>
+
+        {/* Global Project Scheme Selector */}
+        <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+          <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider px-2">Project Type:</span>
+          <div className="flex bg-slate-200/50 p-1 rounded-xl">
+            {(['All', 'PM Surya Ghar', 'SSO', 'Surya Ghar + SSO'] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => {
+                  setProjectSchemeFilter(type);
+                  setSelectedLeadId('');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${projectSchemeFilter === type ? 'bg-white text-slate-900 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'}`}
               >
-                {selectedLeadId === lead.id ? (
-                  <div className="absolute top-0 right-0 p-3 bg-emerald-500 rounded-bl-[1.5rem] text-white">
-                    <CheckCircle2 className="w-4 h-4" />
-                  </div>
-                ) : (
-                  <div className="absolute top-0 right-0 p-3 bg-amber-50 rounded-bl-[1.5rem] text-amber-600">
-                    <Clock className="w-4 h-4" />
-                  </div>
-                )}
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-[9px] font-black text-amber-600 uppercase tracking-tighter mb-1">Lead ID: {lead.leadId}</p>
-                    <h4 className="text-sm font-bold text-slate-900 group-hover:text-amber-600 transition-colors line-clamp-1">{lead.customerName}</h4>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-bold text-slate-400">Sold Price</span>
-                      <span className="text-xs font-black text-slate-900">₹{lead.finalRate?.toLocaleString()}</span>
-                    </div>
-                    <div className="flex flex-col text-right">
-                      <span className="text-[10px] font-bold text-slate-400">Capacity</span>
-                      <span className="text-xs font-black text-slate-900">{lead.finalKw || lead.requiredKw}</span>
-                    </div>
-                  </div>
-                  <div className="pt-3 border-t border-slate-50 flex items-center justify-between">
-                    <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Calculate Now</span>
-                    <ArrowRight className="w-3 h-3 text-slate-300 group-hover:text-amber-500 transition-all" />
-                  </div>
-                </div>
-              </motion.button>
+                {type === 'All' ? 'All' : type}
+              </button>
             ))}
           </div>
         </div>
-      )}
-
-      {/* Header & Category Toggle */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-zinc-900 rounded-xl text-white">
-              <History className="w-5 h-5" />
-            </div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Commission Ledger</h2>
-          </div>
-          <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest ml-1">Track and manage payout records</p>
-        </div>
-
-        <div className="flex p-1.5 bg-slate-100 rounded-2xl w-full md:w-auto overflow-hidden">
-          <button 
-            onClick={() => setCategory('Sales Partner')}
-            className={`flex-1 md:w-40 py-2.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${category === 'Sales Partner' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            <Users className="w-3.5 h-3.5" /> Sales Partner
-          </button>
-          <button 
-            onClick={() => setCategory('Sales Person')}
-            className={`flex-1 md:w-40 py-2.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${category === 'Sales Person' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            <UserIcon className="w-3.5 h-3.5" /> Sales Person
-          </button>
-        </div>
       </div>
 
-      <AnimatePresence>
-        {showCalculator && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="bg-white border-2 border-slate-900 rounded-[2.5rem] shadow-2xl p-8 md:p-12 relative">
-              <div className="flex items-center justify-between mb-10">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-zinc-900 rounded-3xl flex items-center justify-center text-white shadow-xl shadow-zinc-900/20">
-                    {category === 'Sales Partner' ? <Users className="w-6 h-6" /> : <UserIcon className="w-6 h-6" />}
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-black text-slate-900 leading-none">
-                      {editingId ? 'Edit Record' : 'Calculator'}
-                    </h3>
-                    <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">
-                      {editingId ? 'Updating Entry' : 'Enter Sales Details'}
-                    </p>
-                  </div>
+      {/* Tabs Controller */}
+      <div className="flex bg-slate-100 p-1.5 rounded-2xl max-w-md border border-slate-200/40">
+        <button
+          onClick={() => setActiveTab('Sales Person')}
+          className={`flex-1 flex items-center justify-center gap-2.5 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+            activeTab === 'Sales Person'
+              ? 'bg-white text-slate-900 shadow-sm border border-slate-200/50'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <UserIcon className="w-4.5 h-4.5 text-blue-500" />
+          <span>Sales Person Tab</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('Sales Partner')}
+          className={`flex-1 flex items-center justify-center gap-2.5 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+            activeTab === 'Sales Partner'
+              ? 'bg-white text-slate-900 shadow-sm border border-slate-200/50'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Users className="w-4.5 h-4.5 text-emerald-500" />
+          <span>Sales Partner Tab</span>
+        </button>
+      </div>
+
+      {/* RENDER ACTIVE TAB VIEW */}
+      <div className="space-y-8">
+        
+        {/* TAB 1: SALES PERSON MODULE */}
+        {activeTab === 'Sales Person' && (
+          <div className="space-y-8">
+            
+            {/* Form Section */}
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 md:p-8 shadow-sm space-y-6 relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-blue-500" />
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-5">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 uppercase tracking-tight">Calculate Sales Person Payouts</h3>
+                  <p className="text-[10px] font-bold text-slate-400 mt-0.5">Sync commissions with active sales pipeline representatives</p>
                 </div>
-                <button 
-                  onClick={handleCancelEdit}
-                  className="p-3 hover:bg-slate-50 rounded-2xl transition-colors text-slate-400 hover:text-slate-900"
-                >
-                  <X className="w-6 h-6" />
-                </button>
+                <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg w-fit">Sales Stage</span>
               </div>
 
-              <form onSubmit={handleAdd} className="space-y-6">
-                {selectedLeadId && (
-                  <div className="flex items-center justify-between p-3 bg-amber-50 text-amber-700 border border-amber-100 rounded-xl mb-6">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4" />
-                      <span className="text-[10px] font-black uppercase tracking-widest">Linked to Lead Data</span>
-                    </div>
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        setSelectedLeadId(null);
-                        setName('');
-                      }}
-                      className="p-1 hover:bg-white rounded transition-colors"
-                      title="Clear link"
+              {/* Steps Area */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Step 2: Choose Customer Lead</label>
+                  <div className="relative">
+                    <select
+                      value={selectedLeadId}
+                      onChange={(e) => setSelectedLeadId(e.target.value)}
+                      className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all appearance-none cursor-pointer"
                     >
-                      <X className="w-4 h-4" />
-                    </button>
+                      <option value="">-- Select Lead Assigned to a Sales Person --</option>
+                      {salesPersonLeads.map((lead) => (
+                        <option key={lead.id} value={lead.id}>
+                          {lead.customerName} ({lead.leadId || 'N/A'}) - {lead.status} {lead.projectType ? `| ${lead.projectType}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
+                  </div>
+                  {salesPersonLeads.length === 0 && (
+                    <span className="text-[10px] font-bold text-slate-400 ml-1">No leads matching this category currently detected.</span>
+                  )}
+                </div>
+
+                {selectedLead ? (
+                  <div className="p-4 bg-blue-50/40 rounded-xl border border-blue-100 flex justify-between items-center">
+                    <div>
+                      <p className="text-[9px] font-black text-blue-600 uppercase tracking-wider mb-0.5">Assigned Customer Project</p>
+                      <h4 className="text-sm font-black text-slate-900">{selectedLead.customerName}</h4>
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold mt-1">
+                        <span className="font-mono bg-white px-1.5 py-0.5 rounded shadow-sm border border-slate-100">{selectedLead.leadId}</span>
+                        <span>•</span>
+                        <span>{selectedLead.projectType || 'Standard'}</span>
+                      </div>
+                    </div>
+                    <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border border-emerald-100">
+                      {selectedLead.status}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl flex items-center gap-3">
+                    <HelpCircle className="w-5 h-5 text-slate-300" />
+                    <p className="text-[11px] font-bold text-slate-400">Select a lead to unlock calculations and inputs</p>
                   </div>
                 )}
-                {editingId && (
-                  <div className="flex items-center justify-between p-3 bg-blue-50 text-blue-600 rounded-xl mb-6">
-                    <div className="flex items-center gap-2">
-                      <Info className="w-4 h-4" />
-                      <span className="text-[10px] font-black uppercase tracking-widest">Editing Mode Active</span>
-                    </div>
-                    <button 
-                      type="button" 
-                      onClick={handleCancelEdit}
-                      className="p-1 hover:bg-white rounded transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2 col-span-full">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Name</label>
-                    <input 
-                      type="text" 
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder={category === 'Sales Partner' ? "Partner Name" : "Sales Person Name"}
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:ring-4 focus:ring-blue-50 transition-all font-display"
-                      required
-                    />
-                  </div>
+              </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Capacity (kW)</label>
-                    <input 
-                      type="text" 
-                      value={kw}
-                      onChange={(e) => setKw(e.target.value)}
-                      placeholder="e.g. 3.1 kW"
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:ring-4 focus:ring-blue-50 transition-all font-display"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Sold Price (Rate)</label>
-                    <input 
-                      type="number" 
-                      value={soldAt}
-                      onChange={(e) => setSoldAt(Number(e.target.value))}
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:ring-4 focus:ring-blue-50 transition-all font-display"
-                      required
-                    />
-                  </div>
-
-                  {category === 'Sales Person' && (
-                    <div className="space-y-2 col-span-full">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Product MRP (100%)</label>
-                      <input 
-                        type="number" 
-                        value={mrp}
-                        onChange={(e) => setMrp(Number(e.target.value))}
-                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:ring-4 focus:ring-blue-50 transition-all font-display"
-                        required
+              {selectedLead && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6 pt-2 border-t border-slate-100"
+                >
+                  {/* Financial Fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                    <div className="space-y-1.5">
+                      <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Lead Value (₹)</span>
+                      <input
+                        type="number"
+                        value={totalValue}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setTotalValue(val);
+                          setPaymentDue(Math.max(0, val - paymentReceived));
+                        }}
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-800 outline-none"
                       />
                     </div>
-                  )}
-                </div>
-
-                <div className="p-10 border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
-                  <div className="flex items-center gap-2 mb-6 text-slate-400">
-                    <TrendingUp className="w-4 h-4" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Calculation Breakdown</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Commission Earned</span>
-                      <p className="text-3xl font-black text-slate-900">₹{calcResult.salesman.toLocaleString()}</p>
+                    <div className="space-y-1.5">
+                      <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Payment Received (₹)</span>
+                      <input
+                        type="number"
+                        value={paymentReceived}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setPaymentReceived(val);
+                          setPaymentDue(Math.max(0, totalValue - val));
+                        }}
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-800 outline-none"
+                      />
                     </div>
-                    <div>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Company Profit</span>
-                      <p className="text-3xl font-black text-blue-600">₹{calcResult.company.toLocaleString()}</p>
+                    <div className="space-y-1.5">
+                      <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Remaining Payment Due (₹)</span>
+                      <input
+                        type="number"
+                        value={paymentDue}
+                        disabled
+                        className="w-full px-3.5 py-2.5 bg-slate-100/80 border border-slate-200 rounded-xl text-xs font-black text-slate-400 outline-none cursor-not-allowed"
+                      />
                     </div>
                   </div>
-                  <div className="mt-6 pt-6 border-t border-slate-200">
-                    <p className="text-xs font-bold text-slate-500 italic">“{calcResult.remark}”</p>
-                  </div>
-                </div>
 
-                <div className="flex gap-3">
-                  {editingId && (
-                    <button 
-                      type="button"
-                      onClick={handleCancelEdit}
-                      className="flex-1 py-5 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-[0.2em] text-xs hover:bg-slate-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  {/* Recipient Rows Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black uppercase text-slate-400 tracking-wider">Configure Recipients</span>
+                      {!isCreatorActiveSales && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsCreatorActiveSales(true);
+                            setSalesCalculated(false);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
+                        >
+                          <PlusCircle className="w-3.5 h-3.5" />
+                          <span>Add Lead Creator Commission</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Recipient Row 1: Sales Person (Primary, Always Visible) */}
+                    <div className="p-4 bg-white border border-slate-200 rounded-2xl grid grid-cols-1 md:grid-cols-2 gap-4 relative">
+                      <div className="space-y-1.5">
+                        <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Recipient 1: Sales Person</span>
+                        <div className="relative">
+                          <select
+                            value={selectedSalesEmail}
+                            onChange={(e) => {
+                              setSelectedSalesEmail(e.target.value);
+                              setSalesCalculated(false);
+                            }}
+                            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
+                          >
+                            {activeStageUsers.map((item) => (
+                              <option key={item.user.email} value={item.user.email}>
+                                {item.user.name} ({item.user.email}) — Worked on {item.stage}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <span className="block text-[8px] text-slate-400 font-bold italic">User who negotiated/handled the client</span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Commission Percent (%)</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            value={salesPercent}
+                            onChange={(e) => {
+                              setSalesPercent(Number(e.target.value));
+                              setSalesCalculated(false);
+                            }}
+                            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black outline-none"
+                          />
+                          <span className="text-xs font-bold text-slate-400">%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Recipient Row 2: Lead Creator (Optional) */}
+                    <AnimatePresence>
+                      {isCreatorActiveSales && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl grid grid-cols-1 md:grid-cols-2 gap-4 relative overflow-hidden"
+                        >
+                          <div className="space-y-1.5">
+                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Recipient 2: Lead Creator</span>
+                            <div className="relative">
+                              <select
+                                value={selectedCreatorEmailSales}
+                                onChange={(e) => {
+                                  setSelectedCreatorEmailSales(e.target.value);
+                                  setSalesCalculated(false);
+                                }}
+                                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
+                              >
+                                {activeStageUsers.map((item) => (
+                                  <option key={item.user.email} value={item.user.email}>
+                                    {item.user.name} ({item.user.email}) — Worked on {item.stage}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <span className="block text-[8px] text-slate-400 font-bold italic">User who originally captured/punched the lead</span>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest font-black">Commission Percent (%)</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsCreatorActiveSales(false);
+                                  setSalesCalculated(false);
+                                }}
+                                className="flex items-center gap-1 text-[8px] font-black text-rose-500 uppercase hover:text-rose-700 tracking-wider"
+                              >
+                                <MinusCircle className="w-3.5 h-3.5" />
+                                <span>Remove</span>
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                                value={creatorPercentSales}
+                                onChange={(e) => {
+                                  setCreatorPercentSales(Number(e.target.value));
+                                  setSalesCalculated(false);
+                                }}
+                                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-black outline-none"
+                              />
+                              <span className="text-xs font-bold text-slate-400">%</span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Calculation Preview breakdown */}
+                  {salesCalculated && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="p-5 bg-blue-50 border border-blue-200 rounded-2xl space-y-3"
                     >
-                      Cancel
-                    </button>
+                      <div className="flex items-center gap-1.5 text-blue-800 font-black text-[10px] uppercase tracking-wider">
+                        <TrendingUp className="w-4 h-4" />
+                        <span>Sales Category Live Calculation Breakdown</span>
+                      </div>
+
+                      <div className="divide-y divide-blue-200/50 space-y-2 pt-1 text-xs">
+                        <div className="flex justify-between items-center py-1">
+                          <span className="font-bold text-slate-600">Sales Person ({salesPercent}%):</span>
+                          <span className="font-black text-slate-900">₹{calculatedSalesAmt.toLocaleString()}</span>
+                        </div>
+                        {isCreatorActiveSales && (
+                          <div className="flex justify-between items-center py-1.5">
+                            <span className="font-bold text-slate-600">Lead Creator ({creatorPercentSales}%):</span>
+                            <span className="font-black text-slate-900">₹{calculatedCreatorAmtSales.toLocaleString()}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center pt-2 font-black text-blue-900 border-t border-blue-200">
+                          <span>Combined Total Commission:</span>
+                          <span>₹{(calculatedSalesAmt + calculatedCreatorAmtSales).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </motion.div>
                   )}
-                  <button 
-                    type="submit"
-                    className={`flex-[2] py-5 ${editingId ? 'bg-emerald-600 shadow-emerald-100' : 'bg-blue-600 shadow-blue-200'} text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs hover:opacity-90 transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2`}
-                  >
-                    {editingId ? <ArrowRight className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                    {editingId ? 'Update Record' : 'Save Record'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      <div className="bg-white border-2 border-slate-900 rounded-[2.5rem] shadow-xl overflow-hidden">
-        <div className="p-8 border-b border-slate-50 flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-black text-slate-900">Recent Records</h3>
-            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">Filtered by category</p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400">
-            <PieChart className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/50">
-                <th className="pl-12 pr-4 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Recipient</th>
-                <th className="px-4 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Details</th>
-                <th className="px-4 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Commission</th>
-                <th className="pl-4 pr-12 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-                  <AnimatePresence>
-                    {commissions.filter(c => c.category === category).map((comp) => (
-                      <motion.tr 
-                        key={comp.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="group hover:bg-slate-50/30 transition-colors"
+                  {/* Submit Buttons */}
+                  <div className="flex flex-wrap gap-3 pt-4 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={calculateSalesCommission}
+                      className="flex-1 min-w-[130px] py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+                    >
+                      {salesCalculated ? 'Recalculate' : 'Calculate'}
+                    </button>
+                    {salesCalculated && (
+                      <button
+                        type="button"
+                        onClick={cancelSalesCalculation}
+                        className="flex-1 min-w-[130px] py-3.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
                       >
-                        <td className="pl-12 pr-4 py-6">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${category === 'Sales Partner' ? 'bg-blue-50 border-blue-100 text-blue-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'}`}>
-                              {category === 'Sales Partner' ? <Users className="w-4 h-4" /> : <UserIcon className="w-4 h-4" />}
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                               <span className="text-sm font-bold text-slate-800 truncate">{comp.name}</span>
-                               <span className="text-[10px] text-slate-400 font-black uppercase tracking-tighter">
-                                 {new Date(comp.date?.toDate?.() || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                               </span>
-                               {comp.leadId && (
-                                 <span className="text-[8px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase font-black w-fit mt-1">
-                                   Lead Linked
-                                 </span>
-                               )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-6">
-                           <div className="flex flex-col min-w-0">
-                             <div className="flex items-center gap-2 mb-1">
-                               <span className="text-xs font-black text-slate-900">₹{comp.soldAt.toLocaleString()}</span>
-                               <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded uppercase leading-none">{comp.kw}</span>
-                             </div>
-                             {comp.leadId && (() => {
-                               const linkedLead = leads.find(l => l.id === comp.leadId);
-                               return (
-                                 <div className="flex flex-col mb-1 pb-1 border-b border-slate-50">
-                                   <span className="text-[10px] font-bold text-blue-600 truncate">
-                                     For: {linkedLead?.customerName || 'Lead Data'}
-                                   </span>
-                                 </div>
-                               );
-                             })()}
-                             <p className="text-[9px] font-bold text-slate-400 leading-tight italic truncate max-w-[140px]" title={comp.remark}>
-                               {comp.remark}
-                             </p>
-                           </div>
-                        </td>
-                        <td className="px-4 py-6 text-right">
-                           <div className="flex flex-col items-end">
-                             <span className="text-sm font-black text-emerald-600">₹{comp.commissionAmount.toLocaleString()}</span>
-                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">To Recipient</span>
-                           </div>
-                        </td>
-                        <td className="pl-4 pr-12 py-6 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button 
-                              onClick={() => setViewingRecord(comp)}
-                              className="p-2.5 text-slate-300 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all active:scale-95"
-                              title="View Details"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            {isAdmin && (
-                              <>
-                                <button 
-                                  onClick={() => handleEdit(comp)}
-                                  className="p-2.5 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all active:scale-95 group-hover:bg-slate-100"
-                                  title="Edit Record"
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </button>
-                                <button 
-                                  onClick={() => handleDelete(comp.id)}
-                                  className="p-2.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all active:scale-95 group-hover:bg-slate-100"
-                                  title="Delete Record"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </AnimatePresence>
-                </tbody>
-              </table>
-              {commissions.filter(c => c.category === category).length === 0 && (
-                <div className="py-24 text-center">
-                  <div className="bg-slate-50 w-16 h-16 rounded-[2rem] flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                    <DollarSign className="w-8 h-8 text-slate-200" />
+                        Cancel
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={saveSalesCommission}
+                      disabled={!salesCalculated}
+                      className={`flex-1 min-w-[140px] py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all text-white shadow-md active:scale-95 flex items-center justify-center gap-1.5 ${salesCalculated ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-100' : 'bg-slate-300 shadow-none cursor-not-allowed'}`}
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Save Record</span>
+                    </button>
                   </div>
-                  <h4 className="text-slate-900 font-black tracking-tight">No Records Found</h4>
-                  <p className="text-slate-400 font-bold text-xs">Calculated commissions will appear here</p>
-                </div>
+
+                </motion.div>
               )}
             </div>
-            
-            {/* Summary Footer */}
-            <div className="p-8 bg-slate-50 border-t border-slate-100 grid grid-cols-2 gap-8">
-               <div className="space-y-1">
-                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Total Payout</span>
-                 <p className="text-xl font-black text-slate-900">
-                   ₹{commissions.filter(c => c.category === category).reduce((acc, c) => acc + c.commissionAmount, 0).toLocaleString()}
-                 </p>
-               </div>
-               <div className="space-y-1 text-right">
-                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Records Count</span>
-                 <p className="text-xl font-black text-slate-900">{commissions.filter(c => c.category === category).length}</p>
-               </div>
-            </div>
-          </div>
 
-          {/* Details Modal */}
+            {/* Summary Table Section */}
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 md:p-8 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Sales Person Commission Summary Ledger</h3>
+                  <p className="text-[10px] font-bold text-slate-400 mt-0.5">Stored payout and due matrices calculated under the Sales Category</p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-400 text-[9px] font-black uppercase tracking-wider border-b border-slate-100">
+                      <th className="py-4 px-5">Name</th>
+                      <th className="py-4 px-5">Role</th>
+                      <th className="py-4 px-5 text-right">Total Lead Value</th>
+                      <th className="py-4 px-5 text-right">Payment Received</th>
+                      <th className="py-4 px-5 text-right">Payment Due</th>
+                      <th className="py-4 px-5 text-right text-indigo-600 font-bold bg-indigo-50/40">Total Commission</th>
+                      <th className="py-4 px-5 text-right">Commission Paid</th>
+                      <th className="py-4 px-5 text-right">Commission Due</th>
+                      <th className="py-4 px-5 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                    {filteredCommissions.map((rec) => (
+                      <tr key={rec.id} className="hover:bg-slate-50/40 transition-all font-semibold">
+                        <td className="py-3.5 px-5">
+                          <div className="font-black text-slate-900">{rec.recipientName}</div>
+                          <div className="text-[9px] font-bold text-slate-400">{rec.recipientEmail}</div>
+                        </td>
+                        <td className="py-3.5 px-5">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide ${rec.roleType === 'Lead Creator' ? 'bg-amber-50 text-amber-700 border border-amber-100' : 'bg-blue-50 text-blue-700 border border-blue-100'}`}>
+                            {rec.roleType}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-5 text-right font-black">₹{(rec.totalProjectValue || 0).toLocaleString()}</td>
+                        <td className="py-3.5 px-5 text-right text-emerald-600">₹{(rec.paymentReceived || 0).toLocaleString()}</td>
+                        <td className="py-3.5 px-5 text-right text-rose-600">₹{(rec.paymentDue || 0).toLocaleString()}</td>
+                        <td className="py-3.5 px-5 text-right font-black text-indigo-700 bg-indigo-50/20">₹{(rec.totalCommission || 0).toLocaleString()} <span className="text-[8px] font-bold text-slate-400">({rec.percentage}%)</span></td>
+                        <td className="py-3.5 px-5 text-right text-emerald-600 font-black">₹{(rec.commissionPaid || 0).toLocaleString()}</td>
+                        <td className="py-3.5 px-5 text-right text-indigo-900 font-black">₹{(rec.commissionDue ?? Math.max(0, (rec.totalCommission || 0) - (rec.commissionPaid || 0))).toLocaleString()}</td>
+                        <td className="py-3.5 px-5 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => setViewingRecord(rec)}
+                              className="p-1.5 text-slate-400 hover:text-slate-950 rounded-lg hover:bg-slate-100 transition-all"
+                              title="Details Log"
+                            >
+                              <Eye className="w-4.5 h-4.5" />
+                            </button>
+                            <button
+                              onClick={() => handleOpenEditPayout(rec)}
+                              className="p-1.5 text-blue-500 hover:text-blue-700 rounded-lg hover:bg-blue-50 transition-all"
+                              title="Sync Payments"
+                            >
+                              <Pencil className="w-4.5 h-4.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRecord(rec.id)}
+                              className="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50 transition-all"
+                              title="Delete Entry"
+                            >
+                              <Trash2 className="w-4.5 h-4.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+
+                    {filteredCommissions.length === 0 && (
+                      <tr>
+                        <td colSpan={9} className="py-12 text-center text-slate-400 font-bold">
+                          <HelpCircle className="w-8 h-8 mx-auto text-slate-200 mb-2" />
+                          <p>No sales commissions saved currently for this category</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* TAB 2: SALES PARTNER MODULE */}
+        {activeTab === 'Sales Partner' && (
+          <div className="space-y-8">
+            
+            {/* Form Section */}
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 md:p-8 shadow-sm space-y-6 relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-emerald-500" />
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-5">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 uppercase tracking-tight">Calculate Sales Partner Payouts</h3>
+                  <p className="text-[10px] font-bold text-slate-400 mt-0.5">Manage commissions for site surveyors and external affiliate partners</p>
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg w-fit">Partner Stage</span>
+              </div>
+
+              {/* Steps Area */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Step 2: Choose Customer Lead</label>
+                  <div className="relative">
+                    <select
+                      value={selectedLeadId}
+                      onChange={(e) => setSelectedLeadId(e.target.value)}
+                      className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-4 focus:ring-emerald-50 transition-all appearance-none cursor-pointer"
+                    >
+                      <option value="">-- Select Lead Assigned to a Sales Partner --</option>
+                      {salesPartnerLeads.map((lead) => (
+                        <option key={lead.id} value={lead.id}>
+                          {lead.customerName} ({lead.leadId || 'N/A'}) - {lead.status} {lead.projectType ? `| ${lead.projectType}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
+                  </div>
+                  {salesPartnerLeads.length === 0 && (
+                    <span className="text-[10px] font-bold text-slate-400 ml-1">No leads matching this category currently detected.</span>
+                  )}
+                </div>
+
+                {selectedLead ? (
+                  <div className="p-4 bg-emerald-50/40 rounded-xl border border-emerald-100 flex justify-between items-center">
+                    <div>
+                      <p className="text-[9px] font-black text-emerald-600 uppercase tracking-wider mb-0.5">Assigned Customer Project</p>
+                      <h4 className="text-sm font-black text-slate-900">{selectedLead.customerName}</h4>
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold mt-1">
+                        <span className="font-mono bg-white px-1.5 py-0.5 rounded shadow-sm border border-slate-100">{selectedLead.leadId}</span>
+                        <span>•</span>
+                        <span>{selectedLead.projectType || 'Standard'}</span>
+                      </div>
+                    </div>
+                    <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border border-emerald-100">
+                      {selectedLead.status}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl flex items-center gap-3">
+                    <HelpCircle className="w-5 h-5 text-slate-300" />
+                    <p className="text-[11px] font-bold text-slate-400">Select a lead to unlock calculations and inputs</p>
+                  </div>
+                )}
+              </div>
+
+              {selectedLead && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6 pt-2 border-t border-slate-100"
+                >
+                  {/* Financial Fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                    <div className="space-y-1.5">
+                      <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Lead Value (₹)</span>
+                      <input
+                        type="number"
+                        value={totalValue}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setTotalValue(val);
+                          setPaymentDue(Math.max(0, val - paymentReceived));
+                        }}
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-800 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Payment Received (₹)</span>
+                      <input
+                        type="number"
+                        value={paymentReceived}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setPaymentReceived(val);
+                          setPaymentDue(Math.max(0, totalValue - val));
+                        }}
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-800 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Remaining Payment Due (₹)</span>
+                      <input
+                        type="number"
+                        value={paymentDue}
+                        disabled
+                        className="w-full px-3.5 py-2.5 bg-slate-100/80 border border-slate-200 rounded-xl text-xs font-black text-slate-400 outline-none cursor-not-allowed"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Recipient Rows Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black uppercase text-slate-400 tracking-wider">Configure Recipients</span>
+                      {!isCreatorActivePartner && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsCreatorActivePartner(true);
+                            setPartnerCalculated(false);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
+                        >
+                          <PlusCircle className="w-3.5 h-3.5" />
+                          <span>Add Lead Creator Commission</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Recipient Row 1: Sales Partner (Primary, Always Visible) */}
+                    <div className="p-4 bg-white border border-slate-200 rounded-2xl grid grid-cols-1 md:grid-cols-2 gap-4 relative font-semibold">
+                      <div className="space-y-1.5">
+                        <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Recipient 1: Sales Partner</span>
+                        <div className="relative">
+                          <select
+                            value={selectedPartnerEmail}
+                            onChange={(e) => {
+                              setSelectedPartnerEmail(e.target.value);
+                              setPartnerCalculated(false);
+                            }}
+                            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
+                          >
+                            {activeStageUsers.map((item) => (
+                              <option key={item.user.email} value={item.user.email}>
+                                {item.user.name} ({item.user.email}) — Worked on {item.stage}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <span className="block text-[8px] text-slate-400 font-bold italic">User who executed surveyor checks/partner links</span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Commission Percent (%)</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            value={partnerPercent}
+                            onChange={(e) => {
+                              setPartnerPercent(Number(e.target.value));
+                              setPartnerCalculated(false);
+                            }}
+                            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black outline-none"
+                          />
+                          <span className="text-xs font-bold text-slate-400">%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Recipient Row 2: Lead Creator (Optional) */}
+                    <AnimatePresence>
+                      {isCreatorActivePartner && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl grid grid-cols-1 md:grid-cols-2 gap-4 relative overflow-hidden font-semibold"
+                        >
+                          <div className="space-y-1.5">
+                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Recipient 2: Lead Creator</span>
+                            <div className="relative">
+                              <select
+                                value={selectedCreatorEmailPartner}
+                                onChange={(e) => {
+                                  setSelectedCreatorEmailPartner(e.target.value);
+                                  setPartnerCalculated(false);
+                                }}
+                                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer"
+                              >
+                                {activeStageUsers.map((item) => (
+                                  <option key={item.user.email} value={item.user.email}>
+                                    {item.user.name} ({item.user.email}) — Worked on {item.stage}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <span className="block text-[8px] text-slate-400 font-bold italic">User who originally captured/punched the lead</span>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Commission Percent (%)</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsCreatorActivePartner(false);
+                                  setPartnerCalculated(false);
+                                }}
+                                className="flex items-center gap-1 text-[8px] font-black text-rose-500 uppercase hover:text-rose-700 tracking-wider"
+                              >
+                                <MinusCircle className="w-3.5 h-3.5" />
+                                <span>Remove</span>
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                                value={creatorPercentPartner}
+                                onChange={(e) => {
+                                  setCreatorPercentPartner(Number(e.target.value));
+                                  setPartnerCalculated(false);
+                                }}
+                                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-black outline-none"
+                              />
+                              <span className="text-xs font-bold text-slate-400">%</span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Calculation Preview breakdown */}
+                  {partnerCalculated && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-3"
+                    >
+                      <div className="flex items-center gap-1.5 text-emerald-800 font-black text-[10px] uppercase tracking-wider">
+                        <TrendingUp className="w-4 h-4" />
+                        <span>Partner Category Live Calculation Breakdown</span>
+                      </div>
+
+                      <div className="divide-y divide-emerald-200/50 space-y-2 pt-1 text-xs font-semibold">
+                        <div className="flex justify-between items-center py-1">
+                          <span className="font-bold text-slate-600">Sales Partner ({partnerPercent}%):</span>
+                          <span className="font-black text-slate-900">₹{calculatedPartnerAmt.toLocaleString()}</span>
+                        </div>
+                        {isCreatorActivePartner && (
+                          <div className="flex justify-between items-center py-1.5">
+                            <span className="font-bold text-slate-600">Lead Creator ({creatorPercentPartner}%):</span>
+                            <span className="font-black text-slate-900">₹{calculatedCreatorAmtPartner.toLocaleString()}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center pt-2 font-black text-emerald-900 border-t border-emerald-200">
+                          <span>Combined Total Commission:</span>
+                          <span>₹{(calculatedPartnerAmt + calculatedCreatorAmtPartner).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Submit Buttons */}
+                  <div className="flex flex-wrap gap-3 pt-4 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={calculatePartnerCommission}
+                      className="flex-1 min-w-[130px] py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+                    >
+                      {partnerCalculated ? 'Recalculate' : 'Calculate'}
+                    </button>
+                    {partnerCalculated && (
+                      <button
+                        type="button"
+                        onClick={cancelPartnerCalculation}
+                        className="flex-1 min-w-[130px] py-3.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={savePartnerCommission}
+                      disabled={!partnerCalculated}
+                      className={`flex-1 min-w-[140px] py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all text-white shadow-md active:scale-95 flex items-center justify-center gap-1.5 ${partnerCalculated ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100' : 'bg-slate-300 shadow-none cursor-not-allowed'}`}
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Save Record</span>
+                    </button>
+                  </div>
+
+                </motion.div>
+              )}
+            </div>
+
+            {/* Summary Table Section */}
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 md:p-8 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Sales Partner Commission Summary Ledger</h3>
+                  <p className="text-[10px] font-bold text-slate-400 mt-0.5">Stored payout and due matrices calculated under the Partner Category</p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-400 text-[9px] font-black uppercase tracking-wider border-b border-slate-100">
+                      <th className="py-4 px-5">Name</th>
+                      <th className="py-4 px-5">Role</th>
+                      <th className="py-4 px-5 text-right">Total Lead Value</th>
+                      <th className="py-4 px-5 text-right">Payment Received</th>
+                      <th className="py-4 px-5 text-right">Payment Due</th>
+                      <th className="py-4 px-5 text-right text-indigo-600 font-bold bg-indigo-50/40">Total Commission</th>
+                      <th className="py-4 px-5 text-right">Commission Paid</th>
+                      <th className="py-4 px-5 text-right">Commission Due</th>
+                      <th className="py-4 px-5 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                    {filteredCommissions.map((rec) => (
+                      <tr key={rec.id} className="hover:bg-slate-50/40 transition-all font-semibold">
+                        <td className="py-3.5 px-5">
+                          <div className="font-black text-slate-900">{rec.recipientName}</div>
+                          <div className="text-[9px] font-bold text-slate-400">{rec.recipientEmail}</div>
+                        </td>
+                        <td className="py-3.5 px-5">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide ${rec.roleType === 'Lead Creator' ? 'bg-amber-50 text-amber-700 border border-amber-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
+                            {rec.roleType}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-5 text-right font-black">₹{(rec.totalProjectValue || 0).toLocaleString()}</td>
+                        <td className="py-3.5 px-5 text-right text-emerald-600">₹{(rec.paymentReceived || 0).toLocaleString()}</td>
+                        <td className="py-3.5 px-5 text-right text-rose-600">₹{(rec.paymentDue || 0).toLocaleString()}</td>
+                        <td className="py-3.5 px-5 text-right font-black text-indigo-700 bg-indigo-50/20">₹{(rec.totalCommission || 0).toLocaleString()} <span className="text-[8px] font-bold text-slate-400">({rec.percentage}%)</span></td>
+                        <td className="py-3.5 px-5 text-right text-emerald-600 font-black">₹{(rec.commissionPaid || 0).toLocaleString()}</td>
+                        <td className="py-3.5 px-5 text-right text-indigo-900 font-black">₹{(rec.commissionDue ?? Math.max(0, (rec.totalCommission || 0) - (rec.commissionPaid || 0))).toLocaleString()}</td>
+                        <td className="py-3.5 px-5 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => setViewingRecord(rec)}
+                              className="p-1.5 text-slate-400 hover:text-slate-950 rounded-lg hover:bg-slate-100 transition-all"
+                              title="Details Log"
+                            >
+                              <Eye className="w-4.5 h-4.5" />
+                            </button>
+                            <button
+                              onClick={() => handleOpenEditPayout(rec)}
+                              className="p-1.5 text-blue-500 hover:text-blue-700 rounded-lg hover:bg-blue-50 transition-all"
+                              title="Sync Payments"
+                            >
+                              <Pencil className="w-4.5 h-4.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRecord(rec.id)}
+                              className="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50 transition-all"
+                              title="Delete Entry"
+                            >
+                              <Trash2 className="w-4.5 h-4.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+
+                    {filteredCommissions.length === 0 && (
+                      <tr>
+                        <td colSpan={9} className="py-12 text-center text-slate-400 font-bold">
+                          <HelpCircle className="w-8 h-8 mx-auto text-slate-200 mb-2" />
+                          <p>No partner commissions saved currently for this category</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+      </div>
+
+      {/* DETAILED LEDGER ENTRY VIEW MODAL */}
       <AnimatePresence>
         {viewingRecord && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-50 flex items-center justify-center p-4"
           >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col"
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-lg shadow-xl overflow-hidden border border-slate-100"
             >
-              <div className="p-8 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-zinc-900 rounded-2xl flex items-center justify-center text-white">
-                    <TrendingDown className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-black text-slate-900">Calculation Analysis</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Detailed breakdown of payout</p>
-                  </div>
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div className="flex items-center gap-2.5 text-slate-950">
+                  <Calculator className="w-5 h-5 text-indigo-500" />
+                  <h4 className="text-sm font-black uppercase tracking-wider">Commission Log Details</h4>
                 </div>
-                <button 
+                <button
                   onClick={() => setViewingRecord(null)}
-                  className="p-2 hover:bg-white rounded-xl transition-colors"
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="p-8 space-y-8 overflow-y-auto flex-1 text-slate-800">
+              <div className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Recipient</p>
-                    <p className="text-sm font-black text-slate-900">{viewingRecord.name}</p>
-                    <p className="text-[9px] font-bold text-slate-400 italic mt-1">{viewingRecord.category}</p>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                    <span className="text-[8px] font-black uppercase text-slate-400 block tracking-wider">Recipient Name</span>
+                    <p className="font-black text-slate-900">{viewingRecord.recipientName}</p>
+                    <span className="text-[9px] font-bold text-slate-500 block truncate">{viewingRecord.recipientEmail}</span>
                   </div>
-                  <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
-                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Status</p>
-                    <p className="text-sm font-black text-blue-900">Recorded</p>
-                    <p className="text-[9px] font-bold text-blue-400 italic mt-1">{new Date(viewingRecord.date?.toDate?.() || Date.now()).toLocaleDateString()}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between py-3 border-b border-slate-100">
-                    <span className="text-xs font-bold text-slate-500">System Capacity</span>
-                    <span className="text-xs font-black text-slate-900">{viewingRecord.kw}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-3 border-b border-slate-100">
-                    <span className="text-xs font-bold text-slate-500">Sold Price</span>
-                    <span className="text-xs font-black text-slate-900">₹{viewingRecord.soldAt.toLocaleString()}</span>
-                  </div>
-                  {viewingRecord.category === 'Sales Person' && (
-                    <div className="flex items-center justify-between py-3 border-b border-slate-100">
-                      <span className="text-xs font-bold text-slate-500">Base Rate</span>
-                      <span className="text-xs font-black text-slate-900">₹{viewingRecord.mrp.toLocaleString()}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between py-3 border-b border-slate-100">
-                    <span className="text-xs font-bold text-slate-500">Company Share</span>
-                    <span className="text-xs font-black text-blue-600">₹{viewingRecord.companyShare.toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-4 bg-emerald-50 rounded-2xl px-6">
-                    <span className="text-xs font-black text-emerald-700 uppercase tracking-widest">Final Commission</span>
-                    <span className="text-xl font-black text-emerald-700">₹{viewingRecord.commissionAmount.toLocaleString()}</span>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                    <span className="text-[8px] font-black uppercase text-slate-400 block tracking-wider">Project ID</span>
+                    <p className="font-black text-slate-900">{viewingRecord.leadIdString || 'N/A'}</p>
+                    <span className="text-[9px] font-bold text-slate-500 block truncate">{viewingRecord.leadName || 'Legacy Lead'}</span>
                   </div>
                 </div>
 
-                {viewingRecord.leadId && (() => {
-                  const lead = leads.find(l => l.id === viewingRecord.leadId);
-                  return lead ? (
-                    <div className="p-6 bg-zinc-900 rounded-[2rem] text-white">
-                      <div className="flex items-center gap-2 mb-4">
-                        <History className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Linked Lead History</span>
-                      </div>
-                      <div className="space-y-2">
-                         <div className="flex justify-between items-center">
-                           <span className="text-xs text-slate-400 font-bold">Customer</span>
-                           <span className="text-xs font-black">{lead.customerName}</span>
-                         </div>
-                         <div className="flex justify-between items-center">
-                           <span className="text-xs text-slate-400 font-bold">Survey By</span>
-                           <span className="text-xs font-black">{lead.visitedBy || 'N/A'}</span>
-                         </div>
-                         <div className="flex justify-between items-center">
-                           <span className="text-xs text-slate-400 font-bold">Assigned Sales</span>
-                           <span className="text-xs font-black">{lead.assignedSales || 'N/A'}</span>
-                         </div>
-                      </div>
-                    </div>
-                  ) : null;
-                })()}
-
-                <div className="p-4 rounded-2xl bg-slate-50 space-y-2">
-                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Remarks</p>
-                   <p className="text-xs font-bold text-slate-600 leading-relaxed italic">{viewingRecord.remark}</p>
+                <div className="space-y-3 pt-2 border-t border-slate-100">
+                  <div className="flex justify-between items-center py-1 border-b border-slate-50 text-xs">
+                    <span className="font-bold text-slate-500">Total Pipeline/Project Value:</span>
+                    <span className="font-black text-slate-900">₹{(viewingRecord.totalProjectValue || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-slate-50 text-xs">
+                    <span className="font-bold text-slate-500">Pipeline Payments Received:</span>
+                    <span className="font-black text-emerald-600">₹{(viewingRecord.paymentReceived || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-slate-50 text-xs">
+                    <span className="font-bold text-slate-500">Pipeline Payments Remaining:</span>
+                    <span className="font-black text-rose-600">₹{(viewingRecord.paymentDue || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5 border-b border-slate-50 bg-slate-50 px-3 rounded-lg text-xs">
+                    <span className="font-black text-slate-900">Calculated Percentage:</span>
+                    <span className="font-black text-indigo-600">{viewingRecord.percentage || 0}%</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-slate-50 text-xs">
+                    <span className="font-bold text-slate-500">Total Calculated Commission:</span>
+                    <span className="font-black text-indigo-600">₹{(viewingRecord.totalCommission || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-slate-50 text-xs">
+                    <span className="font-bold text-slate-500">Commission Amount Paid:</span>
+                    <span className="font-black text-emerald-600">₹{(viewingRecord.commissionPaid || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 px-3 rounded-xl bg-indigo-50/50 text-indigo-900 text-xs">
+                    <span className="font-black uppercase text-[10px] tracking-wider">Remaining Commission Due:</span>
+                    <span className="font-black text-sm">₹{(viewingRecord.commissionDue ?? Math.max(0, (viewingRecord.totalCommission || 0) - (viewingRecord.commissionPaid || 0))).toLocaleString()}</span>
+                  </div>
                 </div>
+
+                {viewingRecord.remark && (
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-1 text-xs">
+                    <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider block">Admin Remark Logs</span>
+                    <p className="font-bold text-slate-600 leading-relaxed italic">“{viewingRecord.remark}”</p>
+                  </div>
+                )}
               </div>
 
-              <div className="p-8 pt-0">
-                <button 
+              <div className="p-6 pt-0">
+                <button
                   onClick={() => setViewingRecord(null)}
-                  className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-zinc-800 transition-all active:scale-95"
+                  className="w-full py-3.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl font-black uppercase tracking-wider text-[10px] transition-all"
                 >
-                  Close Analysis
+                  Dismiss
                 </button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* EDIT PAYOUT AMOUNT MODAL */}
+      <AnimatePresence>
+        {editingRecord && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-md shadow-xl overflow-hidden border border-slate-100"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div className="flex items-center gap-2.5 text-slate-950">
+                  <Pencil className="w-5 h-5 text-blue-500" />
+                  <h4 className="text-sm font-black uppercase tracking-wider">Sync Commission Payout</h4>
+                </div>
+                <button
+                  onClick={() => setEditingRecord(null)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Recipient Name</span>
+                  <p className="font-black text-slate-900 text-sm">{editingRecord.recipientName}</p>
+                  <p className="text-[10px] font-bold text-slate-400 leading-none">{editingRecord.recipientEmail}</p>
+                </div>
+
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 text-xs">
+                  <div className="flex justify-between items-center font-bold text-slate-500">
+                    <span>Total Allocated Commission:</span>
+                    <span className="font-black text-slate-900">₹{(editingRecord.totalCommission || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center font-bold text-slate-500">
+                    <span>Current Paid Amount:</span>
+                    <span className="font-black text-emerald-600">₹{(editingRecord.commissionPaid || 0).toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">New Total Paid Amount (₹)</label>
+                  <input
+                    type="number"
+                    value={editPaidAmount}
+                    onChange={(e) => setEditPaidAmount(Number(e.target.value))}
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-800 outline-none focus:ring-4 focus:ring-blue-50 transition-all"
+                  />
+                  <span className="block text-[9px] text-slate-400 font-bold ml-1">Remaining Commission due will be auto-calculated.</span>
+                </div>
+              </div>
+
+              <div className="p-6 pt-0 flex gap-3">
+                <button
+                  onClick={() => setEditingRecord(null)}
+                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-black uppercase tracking-wider text-[10px] transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSavePayoutEdit}
+                  className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black uppercase tracking-wider text-[10px] transition-all shadow-md shadow-blue-100"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 };

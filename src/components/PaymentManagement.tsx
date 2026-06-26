@@ -67,10 +67,10 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({ user }) =>
     if (userNameClean === assigneeClean) return true;
     
     // Add default test accounts and fallbacks just like in firestore.rules
-    if (assigneeClean === 'admin' && (userEmailClean === 'hemant.tyagi@bharatamtechnology.com' || userEmailClean === 'hemanttyagi225@gmail.com')) return true;
+    if (assigneeClean === 'admin' && (userEmailClean === 'hemant.tyagi@bharatamtechnology.com')) return true;
     if ((assigneeClean === 'sitvik' || assigneeClean === 'sitvik (admin)' || assigneeClean === 'satvik') && userEmailClean === 'sitvik24@gmail.com') return true;
     if (assigneeClean === 'anmol rathi' && userEmailClean === 'anmolrathi20@gmail.com') return true;
-    if (assigneeClean === 'test user' && (userEmailClean === 'testuser@example.com' || userEmailClean === 'hemant.tyagi@bharatamtechnology.com' || userEmailClean === 'hemanttyagi225@gmail.com')) return true;
+    if (assigneeClean === 'test user' && (userEmailClean === 'testuser@example.com' || userEmailClean === 'hemant.tyagi@bharatamtechnology.com')) return true;
     
     return false;
   };
@@ -104,19 +104,28 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({ user }) =>
   useEffect(() => {
     setLoading(true);
     setError(null);
-    const unsub = leadService.subscribeToLeads(user.role, user.email, (allLeads) => {
-      const filtered = allLeads.filter(l => l.status === 'Won' || l.isFinancialsSubmitted);
-      setLeads(filtered);
-      
-      // Keep selectedLead in sync if one is selected
-      setSelectedLead(prev => {
-        if (!prev) return null;
-        const updated = allLeads.find(l => l.id === prev.id);
-        return updated || prev;
-      });
-      
-      setLoading(false);
-    });
+    const unsub = leadService.subscribeToLeads(
+      user.role, 
+      user.email, 
+      (allLeads) => {
+        const filtered = allLeads.filter(l => l.status === 'Won' || l.isFinancialsSubmitted);
+        setLeads(filtered);
+        
+        // Keep selectedLead in sync if one is selected
+        setSelectedLead(prev => {
+          if (!prev) return null;
+          const updated = allLeads.find(l => l.id === prev.id);
+          return updated || prev;
+        });
+        
+        setLoading(false);
+      },
+      (err) => {
+        console.error("PaymentManagement: subscribeToLeads error:", err);
+        setError("Failed to load leads from database.");
+        setLoading(false);
+      }
+    );
     return () => unsub();
   }, [user.role, user.email]);
 
