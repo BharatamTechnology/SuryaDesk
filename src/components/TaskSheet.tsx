@@ -157,11 +157,20 @@ export default function TaskSheet({
       tab: "accounts",
     },
     {
+      emailField: "s_newConn_assignedToEmail",
+      nameField: "s_newConn_assignedTo",
+      submitField: "isStep14Submitted",
+      condition: (l: any) => l.newConnectionRequired === "Yes",
+      label: "Step 1: New Connection",
+      tab: "execution",
+      stepId: 14,
+    },
+    {
       emailField: "s_docCorr_assignedToEmail",
       nameField: "s_docCorr_assignedTo",
       submitField: "isStep1Submitted",
       condition: (l: any) => l.s_docCorr_required === "Yes",
-      label: "Step 1: Doc Correction",
+      label: "Step 2: Doc Correction",
       tab: "execution",
       stepId: 1,
     },
@@ -170,7 +179,7 @@ export default function TaskSheet({
       nameField: "s_loadExt_assignedTo",
       submitField: "isStep2Submitted",
       condition: (l: any) => l.loadExtensionRequired === "Yes",
-      label: "Step 2: Load Extension",
+      label: "Step 3: Load Extension",
       tab: "execution",
       stepId: 2,
     },
@@ -178,7 +187,7 @@ export default function TaskSheet({
       emailField: "execution_assignedToEmail",
       nameField: "execution_assignedTo",
       submitField: "isStep3Submitted",
-      label: "Step 3: Online Reg",
+      label: "Step 4: Online Reg",
       tab: "execution",
       stepId: 3,
     },
@@ -187,7 +196,7 @@ export default function TaskSheet({
       nameField: "s4_loanAssignedTo",
       submitField: "isStep4Submitted",
       condition: (l: any) => l.loanRequired === "Yes",
-      label: "Step 4: Loan Process",
+      label: "Step 5: Loan Process",
       tab: "execution",
       stepId: 4,
     },
@@ -195,7 +204,7 @@ export default function TaskSheet({
       emailField: "s5_storeDispatchAssignedToEmail",
       nameField: "s5_storeDispatchAssignedTo",
       submitField: "isStep5Submitted",
-      label: "Step 5: Meter Dispatch",
+      label: "Step 6: Meter Dispatch",
       tab: "execution",
       stepId: 5,
     },
@@ -203,7 +212,7 @@ export default function TaskSheet({
       emailField: "s5_discomPreAssignedToEmail",
       nameField: "s5_discomPreAssignedTo",
       submitField: "isStep6Submitted",
-      label: "Step 6: Discom Pre-Install",
+      label: "Step 7: Discom Pre-Install",
       tab: "execution",
       stepId: 6,
     },
@@ -211,7 +220,7 @@ export default function TaskSheet({
       emailField: "s6_inchargeAssignedToEmail",
       nameField: "s6_inchargeAssignedTo",
       submitField: "isStep7Submitted",
-      label: "Step 7: Site Incharge",
+      label: "Step 8: Site Incharge",
       tab: "execution",
       stepId: 7,
     },
@@ -219,7 +228,7 @@ export default function TaskSheet({
       emailField: "s5_storeInchargeAssignedToEmail",
       nameField: "s5_storeInchargeAssignedTo",
       submitField: "isStep8Submitted",
-      label: "Step 8: Store Incharge",
+      label: "Step 9: Store Incharge",
       tab: "execution",
       stepId: 8,
     },
@@ -227,7 +236,7 @@ export default function TaskSheet({
       emailField: "s6_assignedToEmail",
       nameField: "s6_assignedTo",
       submitField: "isStep9Submitted",
-      label: "Step 9: Site Team",
+      label: "Step 10: Site Team",
       tab: "execution",
       stepId: 9,
     },
@@ -235,7 +244,7 @@ export default function TaskSheet({
       emailField: "s7_assignedToEmail",
       nameField: "s7_assignedTo",
       submitField: "isStep10Submitted",
-      label: "Step 10: Office Exec",
+      label: "Step 11: Office Exec",
       tab: "execution",
       stepId: 10,
     },
@@ -243,7 +252,7 @@ export default function TaskSheet({
       emailField: "s8_assignedToEmail",
       nameField: "s8_assignedTo",
       submitField: "isStep11Submitted",
-      label: "Step 11: Discom Post-Install",
+      label: "Step 12: Discom Post-Install",
       tab: "execution",
       stepId: 11,
     },
@@ -252,7 +261,7 @@ export default function TaskSheet({
       nameField: "s9_assignedTo",
       submitField: "isStep12Submitted",
       condition: (l: any) => l.loanRequired === "Yes",
-      label: "Step 12: Loan Final",
+      label: "Step 13: Loan Final",
       tab: "execution",
       stepId: 12,
     },
@@ -260,7 +269,7 @@ export default function TaskSheet({
       emailField: "s11_assignedToEmail",
       nameField: "s11_assignedTo",
       submitField: "isStep13Submitted",
-      label: "Step 13: Subsidy",
+      label: "Step 14: Subsidy",
       tab: "execution",
       stepId: 13,
     },
@@ -416,12 +425,19 @@ export default function TaskSheet({
           if (hasReachedFurtherSteps && index < 3) return false;
           if (step.condition && !step.condition(l)) return false;
 
-          const assignedEmail = (l as any)[step.emailField];
-          const assignedName = (l as any)[step.nameField];
+          let assignedEmail = (l as any)[step.emailField];
+          let assignedName = (l as any)[step.nameField];
+          const isSubmitted = (l as any)[step.submitField];
+
+          // Fallback logic for Project Control oversight (unassigned execution steps once accounts are confirmed)
+          if (l.isAccountsSubmitted && step.tab === "execution" && !assignedEmail && (l.projectInchargeEmail || l.projectAssigneeEmail)) {
+            assignedEmail = l.projectInchargeEmail || l.projectAssigneeEmail;
+            assignedName = l.projectInchargeName || l.projectAssignee || "Project Control";
+          }
+
           const isMine =
             typeof assignedEmail === "string" &&
             assignedEmail.toLowerCase().trim() === normalizedUserEmail;
-          const isSubmitted = (l as any)[step.submitField];
 
           // If viewMode is 'mine', only show my tasks
           // If viewMode is 'incharge', show tasks for the Project Incharge (Oversight + Unassigned Execution steps)
@@ -459,20 +475,32 @@ export default function TaskSheet({
             dateValue = l.stepAssignmentDates[step.label];
           }
 
-          const assignedEmail = (l as any)[step.emailField];
-          const displayLabel = step.label;
+          let assignedEmail = (l as any)[step.emailField];
+          let assignedName = (l as any)[step.nameField] || "Unassigned";
+          let displayLabel = step.label;
+          let displayTab = step.tab;
+          let displayStepId = step.stepId;
+
+          // Fallback logic for Project Control oversight
+          if (l.isAccountsSubmitted && step.tab === "execution" && !assignedEmail && (l.projectInchargeEmail || l.projectAssigneeEmail)) {
+            assignedEmail = l.projectInchargeEmail || l.projectAssigneeEmail;
+            assignedName = l.projectInchargeName || l.projectAssignee || "Project Control";
+            displayLabel = "Project Control";
+            displayTab = "project_incharge";
+            displayStepId = undefined;
+          }
 
           let dueDate = null;
-          if (step.label === "Section B: Site Survey") {
+          if (displayLabel === "Section B: Site Survey") {
             dueDate = l.siteVisitDate || l.planSiteVisitDate;
-          } else if (step.label === "Section C: Sales Follow-up") {
+          } else if (displayLabel === "Section C: Sales Follow-up") {
             dueDate = l.nextFollowUpDate;
           } else if (
-            step.stepId &&
+            displayStepId &&
             l.stepDueDates &&
-            l.stepDueDates[step.stepId]
+            l.stepDueDates[displayStepId]
           ) {
-            dueDate = l.stepDueDates[step.stepId];
+            dueDate = l.stepDueDates[displayStepId];
           }
 
           if (!dueDate) {
@@ -489,11 +517,11 @@ export default function TaskSheet({
           return {
             lead: l,
             label: displayLabel,
-            tab: step.tab as Tab,
-            stepId: step.stepId,
+            tab: displayTab as Tab,
+            stepId: displayStepId,
             assignedDate: dateValue,
             dueDate: dueDate,
-            assigneeName: (l as any)[step.nameField] || "Unassigned",
+            assigneeName: assignedName,
             assigneeEmail: assignedEmail || "",
             isMine:
               typeof assignedEmail === "string" &&
@@ -753,20 +781,32 @@ export default function TaskSheet({
           dateValue = l.stepAssignmentDates[step.label];
         }
 
-        const assignedEmail = (l as any)[step.emailField];
-        const assignedName = (l as any)[step.nameField] || "Unassigned";
+        let assignedEmail = (l as any)[step.emailField];
+        let assignedName = (l as any)[step.nameField] || "Unassigned";
+        let displayLabel = step.label;
+        let displayTab = step.tab;
+        let displayStepId = step.stepId;
+
+        // Fallback logic for Project Control oversight
+        if (l.isAccountsSubmitted && step.tab === "execution" && !assignedEmail && (l.projectInchargeEmail || l.projectAssigneeEmail)) {
+          assignedEmail = l.projectInchargeEmail || l.projectAssigneeEmail;
+          assignedName = l.projectInchargeName || l.projectAssignee || "Project Control";
+          displayLabel = "Project Control";
+          displayTab = "project_incharge";
+          displayStepId = undefined;
+        }
 
         let dueDate = null;
-        if (step.label === "Section B: Site Survey") {
+        if (displayLabel === "Section B: Site Survey") {
           dueDate = l.siteVisitDate || l.planSiteVisitDate;
-        } else if (step.label === "Section C: Sales Follow-up") {
+        } else if (displayLabel === "Section C: Sales Follow-up") {
           dueDate = l.nextFollowUpDate;
         } else if (
-          step.stepId &&
+          displayStepId &&
           l.stepDueDates &&
-          l.stepDueDates[step.stepId]
+          l.stepDueDates[displayStepId]
         ) {
-          dueDate = l.stepDueDates[step.stepId];
+          dueDate = l.stepDueDates[displayStepId];
         }
 
         if (!dueDate) {
@@ -782,9 +822,9 @@ export default function TaskSheet({
 
         return {
           lead: l,
-          label: step.label,
-          tab: step.tab as Tab,
-          stepId: step.stepId,
+          label: displayLabel,
+          tab: displayTab as Tab,
+          stepId: displayStepId,
           assignedDate: dateValue,
           dueDate: dueDate,
           assigneeName: assignedName,
