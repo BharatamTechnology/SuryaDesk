@@ -173,7 +173,8 @@ export default function App() {
 
         // Check company membership
         try {
-          const companyData = await companyService.getUserCompany(u.uid);
+          // const companyData = await companyService.getUserCompany(u.uid);
+          const companyData = await companyService.getUserCompany(u.email);
           if (companyData) {
             setCompanyId(companyData.companyId);
             setNeedsOnboarding(false);
@@ -230,7 +231,8 @@ export default function App() {
   const handleCreateCompany = async (companyName: string) => {
     if (!user || !user.email || !companyName.trim()) return;
     try {
-      const result = await companyService.createCompanyAndUser(user.uid, user.email, companyName.trim());
+      // const result = await companyService.createCompanyAndUser(user.uid, user.email, companyName.trim());
+      const result = await companyService.createCompanyAndUser(user.email!, user.displayName || user.email!, companyName.trim());
       setCompanyId(result.companyId);
       setRole('Admin');
       setIsAuthorized(true);
