@@ -91,11 +91,6 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isAdmin() || isDeveloper() || (
         isSignedIn() && 
-        isUser(email) && 
-        request.resource.data.keys().hasOnly(['fcmToken'])
-      );
-      allow create: if isAdmin() || isDeveloper() || (
-        isSignedIn() && 
         isUser(email) && (
           request.resource.data.keys().hasOnly(['fcmToken']) ||
           (
@@ -106,6 +101,11 @@ service cloud.firestore {
             request.resource.data.get('companyId', '').size() > 0
           )
         )
+      );
+      allow update: if isAdmin() || isDeveloper() || (
+        isSignedIn() && 
+        isUser(email) && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken', 'companyId', 'role'])
       );
       allow delete: if isAdmin() || isDeveloper();
     }
