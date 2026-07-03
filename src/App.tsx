@@ -146,21 +146,10 @@ export default function App() {
         }
 
         // Special case for lead admin
-        if (u.email === 'hemant.tyagi@bharatamtechnology.com') {
-          setRole('Admin');
-          setIsAuthorized(true);
-          
-          // Auto-seed if collection is empty
-          try {
-            const allUsers = await userService.getAllUsers();
-            if (allUsers.length === 0) {
-              console.log("Seeding initial users...");
-              await userService.seedUsers();
-            }
-          } catch (e) {
-            console.error("Auto-seeding failed", e);
-          }
-        } else {
+          if (u.email === 'hemant.tyagi@bharatamtechnology.com') {
+            setRole('Admin');
+            setIsAuthorized(true);
+          } else {
           const userRole = await userService.getUserRole(u.email);
           if (userRole) {
             setRole(userRole);
