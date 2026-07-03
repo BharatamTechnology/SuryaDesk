@@ -1,64 +1,48 @@
 import { db } from '../lib/firebase';
-import { 
-  collection, 
-  doc, 
-  getDoc, 
-  setDoc, 
-  addDoc,
-  Timestamp 
-} from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, addDoc, Timestamp } from 'firebase/firestore';
+
+const normalizeEmail = (email: string) => email.toLowerCase().trim();
 
 export const companyService = {
-  async getUserCompany(uid: string) {
+  async getUserCompany(email: string) {
     try {
-      const userRef = doc(db, 'users', uid);
+      const userRef = doc(db, 'users', normalizeEmail(email));
       const userSnap = await getDoc(userRef);
-
-      if (!userSnap.exists()) {
-        return null;
-      }
+      if (!userSnap.exists()) return null;
 
       const userData = userSnap.data();
       const companyId = userData.companyId;
-
-      if (!companyId) {
-        return null;
-      }
+      if (!companyId) return null;
 
       const companyRef = doc(db, 'companies', companyId);
       const companySnap = await getDoc(companyRef);
+      if (!companySnap.exists()) return null;
 
-      if (!companySnap.exists()) {
-        return null;
-      }
-
-      return {
-        companyId,
-        role: userData.role,
-        ...companySnap.data()
-      };
+      return { companyId, role: userData.role, ...companySnap.data() };
     } catch (error) {
       console.error('Error fetching user company:', error);
       return null;
     }
   },
 
-  async createCompanyAndUser(uid: string, email: string, companyName: string) {
+  async createCompanyAndUser(email: string, displayName: string, companyName: string) {
     try {
+      const normalizedEmail = normalizeEmail(email);
+
       const companyRef = await addDoc(collection(db, 'companies'), {
         name: companyName,
-        ownerEmail: email,
+        ownerEmail: normalizedEmail,
         createdAt: Timestamp.now(),
         subscriptionTier: 'Trial'
       });
-
       const companyId = companyRef.id;
 
-      const userRef = doc(db, 'users', uid);
+      const userRef = doc(db, 'users', normalizedEmail);
       await setDoc(userRef, {
-        companyId,
+        name: displayName || normalizedEmail,
         role: 'Admin',
-        email
+        email: normalizedEmail,
+        companyId
       }, { merge: true });
 
       return { companyId, role: 'Admin' };
