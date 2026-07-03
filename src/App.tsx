@@ -57,6 +57,7 @@ import { userService } from "./services/userService";
 import { leadService } from "./services/leadService";
 import { notificationService } from "./services/notificationService";
 import { settingsService } from "./services/settingsService";
+import { companyService } from "./services/companyService";
 import { RATE_TABLE } from "./constants/rates";
 import { AppUser, Lead, Tab } from "./types";
 
@@ -64,6 +65,11 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppUser['role'] | null>(null);
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
+  
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [companyNameInput, setCompanyNameInput] = useState("");
+  
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"dashboard" | "new-lead" | "detail" | "admin" | "services" | "commission" | "payments" | "tasks" | "mis">("dashboard");
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
@@ -164,6 +170,22 @@ export default function App() {
             setIsAuthorized(false);
           }
         }
+
+        // Check company membership
+        try {
+          const companyData = await companyService.getUserCompany(u.uid);
+          if (companyData) {
+            setCompanyId(companyData.companyId);
+            setNeedsOnboarding(false);
+          } else {
+            setCompanyId(null);
+            setNeedsOnboarding(true);
+          }
+        } catch (e) {
+          console.error("Error checking company membership", e);
+        }
+
+
       } else {
         setRole(null);
         setIsAuthorized(false);
@@ -203,6 +225,23 @@ export default function App() {
   };
 
   const handleLogout = () => signOut(auth);
+
+
+  const handleCreateCompany = async (companyName: string) => {
+    if (!user || !user.email || !companyName.trim()) return;
+    try {
+      const result = await companyService.createCompanyAndUser(user.uid, user.email, companyName.trim());
+      setCompanyId(result.companyId);
+      setRole('Admin');
+      setIsAuthorized(true);
+      setNeedsOnboarding(false);
+    } catch (error) {
+      console.error("Failed to create company:", error);
+      alert("Company create karne mein error aayi. Dobara try kariye.");
+    }
+  };
+
+  
 
   useEffect(() => {
     (window as any).setActiveTab = setActiveTab;
@@ -432,6 +471,43 @@ export default function App() {
       </div>
     );
   }
+
+if (user && isAuthorized && needsOnboarding) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white p-4">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center"
+        >
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 overflow-hidden bg-black border border-black p-1 shadow-sm">
+            <Sun className="w-10 h-10 text-yellow-500" />
+          </div>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Create Your Company</h1>
+          <p className="text-slate-500 mb-8">Apni company ka naam dijiye SuryaDesk shuru karne ke liye.</p>
+
+          <input
+            type="text"
+            value={companyNameInput}
+            onChange={(e) => setCompanyNameInput(e.target.value)}
+            placeholder="Company Name"
+            className="w-full px-4 py-3 mb-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-300 outline-none"
+          />
+
+          <button
+            onClick={() => handleCreateCompany(companyNameInput)}
+            disabled={!companyNameInput.trim()}
+            className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 text-white rounded-xl font-medium transition-colors"
+          >
+            Create Company & Continue
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
+
+  
 
   const navigateToDetail = (id: string, stepId?: number, tab?: Tab) => {
     setSelectedLeadId(id);
