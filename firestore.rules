@@ -94,10 +94,18 @@ service cloud.firestore {
         isUser(email) && 
         request.resource.data.keys().hasOnly(['fcmToken'])
       );
-      allow update: if isAdmin() || isDeveloper() || (
+      allow create: if isAdmin() || isDeveloper() || (
         isSignedIn() && 
-        isUser(email) && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken'])
+        isUser(email) && (
+          request.resource.data.keys().hasOnly(['fcmToken']) ||
+          (
+            isValidUser(request.resource.data) &&
+            request.resource.data.keys().hasOnly(['name', 'role', 'email', 'companyId']) &&
+            request.resource.data.role == 'Admin' &&
+            request.resource.data.get('companyId', '') is string &&
+            request.resource.data.get('companyId', '').size() > 0
+          )
+        )
       );
       allow delete: if isAdmin() || isDeveloper();
     }
@@ -257,6 +265,22 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
+
+      function isValidCompany(data) {
+        return data.keys().hasAll(['name', 'ownerEmail', 'createdAt', 'subscriptionTier'])
+          && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+          && data.ownerEmail is string
+          && data.subscriptionTier is string;
+      }
+      
+      match /companies/{companyId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() 
+          && isValidCompany(request.resource.data)
+          && request.resource.data.ownerEmail == request.auth.token.email.lower();
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
+      }
 
   }
 }
