@@ -62,7 +62,7 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead, searchQ
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [viewMode, setViewMode] = useState<'all' | 'assigned' | 'created'>(
-    (role === 'Admin' || user?.email === 'hemant.tyagi@bharatamtechnology.com') ? 'all' : 'assigned'
+    (role === 'Admin' || role === 'Junior Admin' || user?.email === 'hemant.tyagi@bharatamtechnology.com') ? 'all' : 'assigned'
   );
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -110,7 +110,7 @@ export default function Dashboard({ user, role, onSelectLead, onNewLead, searchQ
   }, [user, role]);
 
   const normalizedUserEmail = user?.email?.toLowerCase().trim();
-  const isAdminUser = role === 'Admin' || normalizedUserEmail === 'hemant.tyagi@bharatamtechnology.com';
+  const isAdminUser = role === 'Admin' || role === 'Junior Admin' || normalizedUserEmail === 'hemant.tyagi@bharatamtechnology.com';
 
     const SEQUENCE = [
     { emailField: 'assignedPreSales', nameField: 'assignedPreSalesName', submitField: 'isPreSalesSubmitted', label: 'Pre-Sales', tab: 'pre_sales' },

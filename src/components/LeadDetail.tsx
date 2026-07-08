@@ -10,7 +10,9 @@ import { leadService } from "../services/leadService";
 import { formatCreatorName } from "../utils/creatorUtils";
 import { userService } from "../services/userService";
 import { paymentService } from "../services/paymentService";
-import { Lead, AppUser, Tab, PaymentRecord } from "../types";
+import { commissionService } from "../services/commissionService";
+import { kwService } from "../services/kwService";
+import { Lead, AppUser, Tab, PaymentRecord, CommissionRole } from "../types";
 import AvailabilityCalendar from "./AvailabilityCalendar";
 import {
   ArrowLeft,
@@ -51,6 +53,9 @@ import {
   ChevronRight,
   PlusCircle,
   RefreshCw,
+  FolderOpen,
+  Search,
+  Download,
 } from "lucide-react";
 import { format } from "date-fns";
 import { RATE_TABLE } from "../constants/rates";
@@ -242,6 +247,70 @@ const InputField = ({
   );
 };
 
+interface DocumentItem {
+  key: keyof Lead;
+  label: string;
+  section: string;
+}
+
+const DOCUMENT_MAP: DocumentItem[] = [
+  // Site Survey
+  { key: "billUrl", label: "Electricity Bill", section: "Site Survey" },
+  { key: "drawingUrl", label: "Site Drawing", section: "Site Survey" },
+  { key: "gpsUrl", label: "GPS Proof", section: "Site Survey" },
+  { key: "meterUrl", label: "Meter Photo", section: "Site Survey" },
+
+  // Project Details
+  { key: "loadPropertyUrl", label: "Property Ownership Proof", section: "Project Details" },
+  { key: "aadhaarUrl", label: "Aadhaar Card", section: "Project Details" },
+  { key: "bankDocUrl", label: "Bank Cancelled Cheque", section: "Project Details" },
+  { key: "panUrl", label: "PAN Card", section: "Project Details" },
+  { key: "propertyCertUrl", label: "Property Certificate", section: "Project Details" },
+  { key: "workAgreementUrl", label: "Work Agreement", section: "Project Details" },
+  { key: "modelAgreementUrl", label: "Model Agreement", section: "Project Details" },
+  { key: "coApplicantDocUrl", label: "Co-applicant Aadhaar/PAN", section: "Project Details" },
+
+  // Project Control / Steps
+  { key: "ssoPassportPhotoUrl", label: "Passport Photo (SSO)", section: "Project Control" },
+  { key: "ssoSignatureUrl", label: "Signature (SSO)", section: "Project Control" },
+  { key: "newConnectionPhotosUrl", label: "New Connection Photos", section: "Project Control" },
+  { key: "executionNewConnectionPhotosUrl", label: "New Connection Proof", section: "Project Control" },
+  { key: "s3_loadExtFileUrl", label: "Load Extension Filed Copy", section: "Project Control" },
+  { key: "s3_loanFileUrl", label: "Loan Document", section: "Project Control" },
+  { key: "s3_discomFileUrl", label: "DISCOM Pre-Install File", section: "Project Control" },
+  { key: "s_docCorr_docUrl", label: "Document Correction Proof", section: "Project Control" },
+  { key: "s5_preInstallPhotoUrl", label: "Pre-Installation Photo", section: "Project Control" },
+  { key: "s_newConn_uploadPhotosUrl", label: "New Connection Photos (Post-Install)", section: "Project Control" },
+
+  // Project Execution / S6 Site Team
+  { key: "s5_materialListUrl", label: "Store Material List", section: "Project Execution" },
+  { key: "s6_siteRevisitMeasurementUrl", label: "Site Revisit Measurement", section: "Project Execution" },
+  { key: "s6_materialListUrl", label: "Site Team Material List", section: "Project Execution" },
+  { key: "s6_siteDrawingUrl", label: "Site Drawing", section: "Project Execution" },
+  { key: "s6_dispatchedMaterialListUrl", label: "Dispatched Material List", section: "Project Execution" },
+  { key: "s6_receivedMaterialListUrl", label: "Received Material List", section: "Project Execution" },
+  { key: "s6_workCompletionReportUrl", label: "Work Completion Report", section: "Project Execution" },
+  { key: "s6_photoGpsUrl", label: "Site GPS Photo", section: "Project Execution" },
+  { key: "s6_photoInverterUrl", label: "Inverter Installed Photo", section: "Project Execution" },
+  { key: "s6_photoStructureUrl", label: "Structure with Panels Photo", section: "Project Execution" },
+  { key: "s6_photoFoundationUrl", label: "Foundation Photo", section: "Project Execution" },
+  { key: "s6_photoEarthingUrl", label: "Earthing Photo", section: "Project Execution" },
+  { key: "s6_photoWiringUrl", label: "Wiring Photo", section: "Project Execution" },
+  { key: "s6_photoInverterSrNoUrl", label: "Inverter Serial Number Photo", section: "Project Execution" },
+  { key: "s6_photoPanelSrNoUrl", label: "Panels Serial Number Photo", section: "Project Execution" },
+  { key: "s6_photoDcrCertUrl", label: "DCR Certificate Photo", section: "Project Execution" },
+  { key: "s6_photoWorkCompletionCertUrl", label: "Work Completion Certificate Photo", section: "Project Execution" },
+  { key: "s7_dcrCertificateUrl", label: "DCR Certificate", section: "Project Execution" },
+  { key: "s7_workCompletionCertificateUrl", label: "Work Completion Certificate", section: "Project Execution" },
+  { key: "s7_invoiceAdvanceReceiptUrl", label: "Invoice & Advance Receipt", section: "Project Execution" },
+  { key: "s8_trainingCertUrl", label: "Training Certificate", section: "Project Execution" },
+  { key: "s8_convertedPhotoUrl", label: "Smart Meter Converted Photo", section: "Project Execution" },
+
+  // Deliverables
+  { key: "deliverableCustomerSignaturePhotoUrl", label: "Customer Signature on Completion", section: "Deliverables" },
+  { key: "deliverableSitePhotosUrl", label: "Site Photos", section: "Deliverables" },
+];
+
 export default function LeadDetail({
   leadId,
   user,
@@ -252,6 +321,7 @@ export default function LeadDetail({
 }: LeadDetailProps) {
   const [lead, setLead] = useState<Lead | null>(null);
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [commissionRoles, setCommissionRoles] = useState<CommissionRole[]>([]);
   const [allLeads, setAllLeads] = useState<Lead[]>([]);
   const [pendingPayments, setPendingPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -301,6 +371,15 @@ export default function LeadDetail({
     type: "success" | "error" | "warning";
     message: string;
   } | null>(null);
+
+  // States for Handover Workflow
+  const [selectedHandoverAdmin, setSelectedHandoverAdmin] = useState("");
+  const [selectedNextAssignee, setSelectedNextAssignee] = useState("");
+  const [selectedDeliverablesAssignee, setSelectedDeliverablesAssignee] = useState("");
+
+  // States for Document Hub
+  const [docSearchQuery, setDocSearchQuery] = useState("");
+  const [docSelectedSection, setDocSelectedSection] = useState("All");
 
   const confirmationUsers = users.filter(
     (u) => u.role === "Admin" || u.category === "Accountant",
@@ -1866,26 +1945,30 @@ export default function LeadDetail({
       { id: "accounts", label: "Accounts", icon: UserIcon },
       { id: "project_incharge", label: "Project Control", icon: Shield },
       { id: "execution", label: "Project Execution", icon: Zap },
-      { id: "timeline", label: "Lead Report", icon: BarChart3 },
+      { id: "handover", label: "Review & Settlement", icon: Users },
+      { id: "deliverables", label: "Deliverables", icon: FileCheck },
+      { id: "documents", label: "Document Hub", icon: FolderOpen },
     ];
 
     if (!lead) return allTabs.filter((t) => t.id === "basic");
 
-    if (
-      isAdminUser ||
-      users.find(
-        (u) =>
-          u.email?.toLowerCase()?.trim() === user?.email?.toLowerCase()?.trim(),
-      )?.category === "Project Coordinator"
-    ) {
-      return allTabs;
-    }
+    const userEmail = user?.email?.toLowerCase()?.trim();
+    const isProjectCoordinator = users.find(
+      (u) =>
+        u.email?.toLowerCase()?.trim() === userEmail,
+    )?.category === "Project Coordinator";
 
-    // Filter tabs based on assignment or creation
     return allTabs.filter((tab) => {
-      if (tab.id === "basic" || tab.id === "timeline") return true;
+      if (tab.id === "handover") {
+        return isAdminUser;
+      }
+      if (tab.id === "deliverables") {
+        return isAdminUser || isProjectCoordinator || (lead.deliverablesAssignedEmail && lead.deliverablesAssignedEmail.toLowerCase().trim() === userEmail);
+      }
+      if (tab.id === "basic" || tab.id === "documents") return true;
 
-      const userEmail = user?.email?.toLowerCase()?.trim();
+      if (isAdminUser || isProjectCoordinator) return true;
+
       const isCreator = lead.createdBy?.toLowerCase()?.trim() === userEmail;
 
       const isAnyAssignee = [
@@ -1985,7 +2068,7 @@ export default function LeadDetail({
 
       return false;
     });
-  }, [lead, role, user, users]);
+  }, [lead, role, user, users, isAdminUser]);
 
   const totalReceived = useMemo(() => {
     if (!lead) return 0;
@@ -2128,8 +2211,12 @@ export default function LeadDetail({
         `[LeadDetail] Loading users and initial data for leadId: ${leadId}`,
       );
       try {
-        const userData = await userService.getAllUsers();
+        const [userData, rolesData] = await Promise.all([
+          userService.getAllUsers(),
+          commissionService.getCommissionRoles()
+        ]);
         setUsers(userData);
+        setCommissionRoles(rolesData);
 
         unsubscribeFile = leadService.subscribeToLead(leadId, (leadData) => {
           console.log(
@@ -2685,22 +2772,13 @@ export default function LeadDetail({
     setTimeout(() => setSaveSuccess(null), 3000);
   };
 
-  const kwOptions = useMemo(() => {
-    if (!lead?.phase) return [];
-    if (lead.phase === "1 Phase") {
-      return ["3.1 KW 1PH", "3.7 KW 1PH", "5 KW 1PH"];
+  const [kwOptions, setKwOptions] = useState<string[]>([]);
+  useEffect(() => {
+    if (lead?.phase) {
+      kwService.getKwOptions(lead.phase).then(setKwOptions);
+    } else {
+      setKwOptions([]);
     }
-    if (lead.phase === "3 Phase") {
-      return [
-        "5 KW 3PH",
-        "6.2 KW 3PH",
-        "7.4 KW 3PH",
-        "8 KW 3PH",
-        "9.3 KW 3PH",
-        "10 KW 3P",
-      ];
-    }
-    return [];
   }, [lead?.phase]);
 
   const dcrOptions = useMemo(() => {
@@ -2845,6 +2923,7 @@ export default function LeadDetail({
     "Property Certificate": "propertyCertUrl",
     "Work Agreement": "workAgreementUrl",
     "Model Agreement": "modelAgreementUrl",
+    "Co-applicant Document": "coApplicantDocUrl",
     "Property Ownership": "loadPropertyUrl",
   };
 
@@ -3014,7 +3093,7 @@ export default function LeadDetail({
                     ? "Details"
                     : tab.label.split(" ")[0]}
               </span>
-              {shouldHighlightTab(tab.id) && tab.id !== "timeline" && (
+              {shouldHighlightTab(tab.id) && (
                 <span className="absolute -top-1 -right-0.5 flex h-2.5 w-2.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border border-white"></span>
@@ -4354,6 +4433,7 @@ export default function LeadDetail({
                                 onUpdate={handleUpdate}
                                 disabled={!canEditTab("financials")}
                               />
+
                             </>
                           )}
 
@@ -4374,7 +4454,7 @@ export default function LeadDetail({
                               .map(([docType, fieldName]) => {
                                 const url = (lead as any)[fieldName];
                                 const isUploading = uploadingDoc === docType;
-                                return (
+                                const fileCard = (
                                   <div
                                     key={docType}
                                     className={`p-4 border border-dashed rounded-xl transition-all flex flex-col items-center justify-center text-center gap-2 ${url ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}
@@ -4394,7 +4474,7 @@ export default function LeadDetail({
 
                                     <div className="flex flex-col">
                                       <span className="text-xs font-semibold text-slate-600">
-                                        {docType}
+                                        {docType} {docType === "Co-applicant Document" && <span className="text-[10px] text-slate-400 font-normal block">(Optional)</span>}
                                       </span>
                                       <span
                                         className={`text-[10px] font-bold ${url ? "text-emerald-600" : "text-slate-400"}`}
@@ -4443,6 +4523,36 @@ export default function LeadDetail({
                                     </div>
                                   </div>
                                 );
+
+                                if (docType === "Co-applicant Document" && lead.loanRequired === "Yes") {
+                                  return (
+                                    <React.Fragment key={docType}>
+                                      <div className="col-span-1">
+                                        <InputField
+                                          label="Co-applicant"
+                                          value={lead.coApplicant}
+                                          name="coApplicant"
+                                          onUpdate={handleUpdate}
+                                          disabled={!canEditTab("financials")}
+                                          placeholder="Co-applicant Name (Optional)"
+                                        />
+                                      </div>
+                                      <div className="col-span-1">
+                                        <InputField
+                                          label="Co-applicant Remark"
+                                          value={lead.coApplicantRemark}
+                                          name="coApplicantRemark"
+                                          onUpdate={handleUpdate}
+                                          disabled={!canEditTab("financials")}
+                                          placeholder="Co-applicant Remark (Optional)"
+                                        />
+                                      </div>
+                                      {fileCard}
+                                    </React.Fragment>
+                                  );
+                                }
+
+                                return fileCard;
                               })}
                           </div>
                         </>
@@ -4689,6 +4799,17 @@ export default function LeadDetail({
                             selectedUser?.email || lead.accAssigneeEmail,
                         });
                       }}
+                      disabled={!canEditTab("financials")}
+                    />
+
+                    <InputField
+                      label="Select Sales Person/Sales Partner for Commission"
+                      value={lead.commissionSalesPerson}
+                      name="commissionSalesPerson"
+                      options={commissionRoles
+                        .filter((r) => r.role === 'Sales Person' || r.role === 'Sales Partner')
+                        .map((r) => r.name)}
+                      onUpdate={handleUpdate}
                       disabled={!canEditTab("financials")}
                     />
 
@@ -6382,6 +6503,80 @@ export default function LeadDetail({
                     </div>
                   )}
                 </AnimatePresence>
+
+                {/* Assign to Admin Protocol */}
+                <div className="bg-white border border-slate-200/80 rounded-[2rem] p-6 md:p-8 mt-12 shadow-sm relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/5 rounded-full -mr-16 -mt-16 blur-[40px]" />
+                  <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="max-w-xl">
+                      <h4 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                        <span className="w-2.5 h-5 rounded bg-indigo-600 block"></span>
+                        Admin Assignment Protocol
+                      </h4>
+                      <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed">
+                        Once all Project Control tasks are submitted, the Project Coordinator must assign the project to the Admin to initiate the Review & Settlement stage.
+                      </p>
+                    </div>
+
+                    {!lead.isHandoverSubmitted ? (
+                      <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+                        <div className="w-full sm:w-64">
+                          <select
+                            value={selectedHandoverAdmin}
+                            onChange={(e) => setSelectedHandoverAdmin(e.target.value)}
+                            disabled={!isExecutionFlowFinished}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                          >
+                            <option value="">-- Choose Admin --</option>
+                            {users
+                              .filter((u) => u.role === "Admin" || (u as any).category === "Admin")
+                              .map((u) => (
+                                <option key={u.email} value={u.email}>
+                                  {u.name} ({u.email})
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (!isExecutionFlowFinished) {
+                              showNotification("Please complete all Project Control tasks before assigning to Admin.", "warning");
+                              return;
+                            }
+                            if (!selectedHandoverAdmin) {
+                              showNotification("Please select an Admin user to assign.", "warning");
+                              return;
+                            }
+                            const selectedUserObj = users.find((u) => u.email === selectedHandoverAdmin);
+                            handleUpdate({
+                              handoverAssignedAdminEmail: selectedHandoverAdmin,
+                              handoverAssignedAdminName: selectedUserObj?.name || selectedHandoverAdmin,
+                              isHandoverSubmitted: true,
+                            }, false);
+                            setNotification({
+                              type: "success",
+                              message: "Project successfully assigned and handed over to Admin.",
+                            });
+                          }}
+                          disabled={!isExecutionFlowFinished || !selectedHandoverAdmin}
+                          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-md shadow-indigo-600/10 flex items-center justify-center gap-1.5"
+                        >
+                          <CheckCircle2 className="w-4 h-4" /> Assign to Admin
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-3 text-emerald-800 text-xs font-bold">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        <span>Project Assigned to Admin: {lead.handoverAssignedAdminName} ({lead.handoverAssignedAdminEmail})</span>
+                      </div>
+                    )}
+                  </div>
+                  {!isExecutionFlowFinished && !lead.isHandoverSubmitted && (
+                    <p className="text-[10px] text-rose-500 font-extrabold mt-3 bg-rose-50/50 border border-rose-100/50 rounded-xl p-3 inline-block">
+                      ⚠️ Awaiting completion of all Project Control tasks to unlock Admin Assignment.
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
@@ -8989,7 +9184,42 @@ export default function LeadDetail({
                       </motion.div>
                     )}
 
-                    {isExecutionFlowFinished && (
+                    {isExecutionFlowFinished && !lead.isDeliverablesSubmitted && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-12 p-8 bg-amber-50 border border-amber-200 rounded-[2.5rem] flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm"
+                      >
+                        <div className="flex items-center gap-4 text-amber-900">
+                          <div className="w-12 h-12 bg-amber-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0">
+                            <Clock className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <p className="text-base font-bold">Execution Milestones Completed!</p>
+                            <p className="text-xs text-slate-500 font-semibold mt-1">
+                              The project execution is finished. The workflow has progressed to the <strong className="text-amber-800">Review & Settlement</strong> and <strong className="text-amber-800">Deliverables</strong> stages.
+                            </p>
+                            <p className="text-xs text-slate-400 font-bold mt-1">
+                              Final Execution Review & Approval will be unlocked here once the Deliverables are submitted.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (lead.isHandoverAdminSubmitted) {
+                              setActiveTab("deliverables");
+                            } else {
+                              setActiveTab("handover");
+                            }
+                          }}
+                          className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 shrink-0"
+                        >
+                          Go to {lead.isHandoverAdminSubmitted ? "Deliverables" : "Review & Settlement"}
+                        </button>
+                      </motion.div>
+                    )}
+
+                    {isExecutionFlowFinished && lead.isDeliverablesSubmitted && (
                       <motion.div
                         initial={{ opacity: 0, y: 30 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -9122,7 +9352,7 @@ export default function LeadDetail({
                                           updates.isExecutionSubmitted = false;
                                           updates.status = "Won";
                                         }
-                                        handleUpdate(updates, false);
+                                        handleUpdate(updates, true);
                                       }}
                                       className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all duration-300 flex-1 min-w-[140px] ${
                                         isSelected
@@ -9241,453 +9471,785 @@ export default function LeadDetail({
               </div>
             )}
 
-            {activeTab === "timeline" && (
-              <div
-                ref={reportRef}
-                className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 print:space-y-4 print:p-0"
-              >
-                {/* Report Header (Visible on screen and print) */}
-                <div className="pb-6 border-b-2 border-slate-900 flex justify-between items-end print:pb-4">
-                  <div>
-                    <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase">
-                      Lead Completion Report
-                    </h3>
-                    <p className="text-sm text-slate-500 font-medium">
-                      Detailed lifecycle summary for Solar Installation
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">
-                      Generated On
-                    </p>
-                    <p className="text-sm font-bold text-slate-900">
-                      {format(new Date(), "PPP")}
-                    </p>
+            {activeTab === "handover" && (
+              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-1000">
+                {/* Header Section */}
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl md:rounded-3xl blur opacity-10 group-hover:opacity-20 transition duration-1000"></div>
+                  <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-slate-950 rounded-2xl md:rounded-3xl p-6 md:p-8 text-white shadow-2xl overflow-hidden border border-white/5">
+                    <div className="absolute top-0 right-0 w-72 h-72 bg-blue-500/10 rounded-full -mr-32 -mt-32 blur-[80px] animate-pulse" />
+                    <div className="relative z-10 flex-1">
+                      <div className="flex items-center gap-3 mb-3 md:mb-4">
+                        <div className="h-px w-6 md:w-8 bg-blue-500" />
+                        <span className="text-[9px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-blue-400">
+                          Admin Review & Settlement
+                        </span>
+                      </div>
+                      <h3 className="text-2xl md:text-3xl font-display font-bold mb-2 md:mb-3 tracking-tight md:tracking-tighter leading-tight bg-gradient-to-br from-white via-white to-slate-400 bg-clip-text text-transparent">
+                        Review & Settlement
+                      </h3>
+                      <p className="text-slate-400 text-sm md:text-base font-medium max-w-xl leading-relaxed">
+                        Verify financial records, enter extra discount adjustments, and validate discom & completion checklist metrics.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-8 print:gap-6">
-                  {/* Section 1: Basic & Registration */}
-                  <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
-                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
-                      <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm">
+                {/* Progress Stepper */}
+                <div className="bg-white border border-slate-150 rounded-3xl p-6 shadow-sm">
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${lead.isHandoverAdminSubmitted ? "bg-emerald-500 text-white" : "bg-blue-600 text-white animate-pulse"}`}>
                         1
                       </div>
-                      <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
-                        Basic Information & Capture
-                      </h4>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
-                      {[
-                        { label: "Customer Name", value: lead.customerName },
-                        { label: "Mobile Number", value: lead.mobileNumber },
-                        { label: "Email", value: lead.customerEmail },
-                        { label: "Punch Date", value: lead.punchDate },
-                        { label: "Address", value: lead.address },
-                        { label: "Reference", value: lead.reference },
-                        {
-                          label: "Required KW",
-                          value: lead.requiredKw
-                            ? `${lead.requiredKw} KW`
-                            : null,
-                        },
-                        { label: "Assigned To", value: lead.assignedInitial },
-                      ].map((item, i) => (
-                        <div
-                          key={i}
-                          className={
-                            item.label === "Address" ||
-                            item.label === "Reference"
-                              ? "col-span-2"
-                              : ""
-                          }
-                        >
-                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
-                            {item.label}
-                          </p>
-                          <p className="text-sm font-semibold text-slate-700">
-                            {item.value || "N/A"}
-                          </p>
-                        </div>
-                      ))}
-                      <div className="col-span-full">
-                        <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
-                          Initial Remark
-                        </p>
-                        <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                          {lead.remarkInitial || "No initial remarks recorded."}
-                        </p>
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wider text-slate-800">Review & Settlement</p>
+                        <p className="text-[10px] text-slate-400 font-bold">Verify payments, completion, & billing</p>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Section 2: Technical Survey */}
-                  <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
-                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
-                      <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-sm">
+                    <div className="hidden md:block h-px flex-1 bg-slate-100 mx-4" />
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${lead.isDeliverablesSubmitted ? "bg-emerald-500 text-white" : lead.isHandoverAdminSubmitted ? "bg-blue-600 text-white animate-pulse" : "bg-slate-100 text-slate-400"}`}>
                         2
                       </div>
-                      <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
-                        Site Survey & Technical Data
-                      </h4>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
-                      {[
-                        { label: "Visit Date", value: lead.siteVisitDate },
-                        { label: "Surveyor", value: lead.visitedBy },
-                        { label: "Roof Type", value: lead.roofType },
-                        { label: "Shadow Issue", value: lead.shadowIssue },
-                        { label: "Location", value: lead.locationType },
-                        { label: "System phase", value: lead.phase },
-                        { label: "Final KW", value: lead.finalKw },
-                        { label: "Connection", value: lead.connectionType },
-                        { label: "Panel Type", value: lead.dcrType },
-                        { label: "Package", value: lead.stdPackage },
-                      ].map((item, i) => (
-                        <div key={i}>
-                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
-                            {item.label}
-                          </p>
-                          <p className="text-sm font-semibold text-slate-700">
-                            {item.value || "Pending"}
-                          </p>
-                        </div>
-                      ))}
-                      <div className="col-span-full">
-                        <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
-                          Deviation Details
-                        </p>
-                        <div className="text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col gap-2">
-                          {lead.rateDeviationNotes === "Yes" && (
-                            <p>
-                              <strong>Initial:</strong> {lead.deviationDetails}{" "}
-                              (Extra Cost: ₹{lead.deviationCost})
-                            </p>
-                          )}
-                          {lead.s6_deviationFromFinal === "Yes" && (
-                            <p>
-                              <strong>Site execution:</strong>{" "}
-                              {lead.s6_deviationDetails} (Extra Cost: ₹
-                              {lead.s6_deviationCost})
-                            </p>
-                          )}
-                          {lead.rateDeviationNotes !== "Yes" &&
-                            lead.s6_deviationFromFinal !== "Yes" && (
-                              <p>No technical deviations recorded.</p>
-                            )}
-                        </div>
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wider text-slate-800">Deliverables Stage</p>
+                        <p className="text-[10px] text-slate-400 font-bold">Warranty cards, certificates & site photos</p>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Section 3: Proposal & Financials */}
-                  <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
-                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
-                      <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm">
+                    <div className="hidden md:block h-px flex-1 bg-slate-100 mx-4" />
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${(lead.finalExecutionStatus || "Pending") === "Done" ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"}`}>
                         3
                       </div>
-                      <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
-                        Proposal, Sales & Project Details
-                      </h4>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
-                      {[
-                        { label: "Current Status", value: lead.status },
-                        { label: "Sales Person", value: lead.assignedSales },
-                        { label: "Project Type", value: lead.projectType },
-                        {
-                          label: "Load Extension",
-                          value:
-                            lead.loadExtensionRequired === "Yes"
-                              ? `${lead.loadExtensionKw} KW`
-                              : "No",
-                        },
-                        { label: "Loan Required", value: lead.loanRequired },
-                        {
-                          label: "Base Rate",
-                          value: lead.originalRate
-                            ? `₹${lead.originalRate.toLocaleString()}`
-                            : null,
-                        },
-                        {
-                          label: "Total Deviation",
-                          value:
-                            (lead.deviationCost || 0) +
-                              (lead.s6_deviationCost || 0) >
-                            0
-                              ? `₹${((lead.deviationCost || 0) + (lead.s6_deviationCost || 0)).toLocaleString()}`
-                              : "₹0",
-                        },
-                        {
-                          label: "Discount Paid",
-                          value: lead.discount
-                            ? `₹${lead.discount.toLocaleString()}`
-                            : "₹0",
-                        },
-                      ].map((item, i) => (
-                        <div key={i}>
-                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
-                            {item.label}
-                          </p>
-                          <p className="text-sm font-semibold text-slate-700">
-                            {item.value || "N/A"}
-                          </p>
-                        </div>
-                      ))}
-                      <div className="col-span-2 bg-emerald-50 p-4 rounded-2xl border border-emerald-100 print:bg-white">
-                        <p className="text-[10px] uppercase font-bold text-emerald-600 mb-0.5">
-                          Final Proposal Value
-                        </p>
-                        <p className="text-2xl font-black text-emerald-700 print:text-black tracking-tight">
-                          ₹{lead.finalRate?.toLocaleString() || "0"}
-                        </p>
-                      </div>
-                      <div className="col-span-full">
-                        <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
-                          Sales Remark
-                        </p>
-                        <p className="text-sm text-slate-600 italic">
-                          "{lead.salesRemark || "No sales interactions noted."}"
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Section 4: Advance & Execution */}
-                  <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
-                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
-                      <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-sm">
-                        4
-                      </div>
-                      <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
-                        Advance & Project Execution
-                      </h4>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
-                      {[
-                        {
-                          label: "Advance Received",
-                          value: lead.advanceReceived,
-                        },
-                        {
-                          label: "Advance Amount",
-                          value: lead.advanceAmount
-                            ? `₹${lead.advanceAmount.toLocaleString()}`
-                            : null,
-                        },
-                        { label: "Advance Date", value: lead.advanceDate },
-                        { label: "Advance UTR", value: lead.advanceUrtNo },
-                        {
-                          label: "Project Manager",
-                          value: lead.projectAssignee,
-                        },
-                      ].map((item, i) => (
-                        <div key={i}>
-                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
-                            {item.label}
-                          </p>
-                          <p className="text-sm font-semibold text-slate-700">
-                            {item.value || "N/A"}
-                          </p>
-                        </div>
-                      ))}
-                      <div className="col-span-full">
-                        <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
-                          Project Remark
-                        </p>
-                        <p className="text-sm text-slate-600 italic">
-                          {lead.projectRemark ||
-                            "No project execution remarks."}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Section 5: Accounts & Reconciliation */}
-                  <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
-                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
-                      <div className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center text-white font-bold text-sm">
-                        5
-                      </div>
-                      <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
-                        Account Confirmation
-                      </h4>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
-                      {[
-                        {
-                          label: "Final Confirmation",
-                          value: lead.accPaymentStatus,
-                        },
-                        {
-                          label: "Verified Amount",
-                          value: lead.accAmount
-                            ? `₹${lead.accAmount.toLocaleString()}`
-                            : null,
-                        },
-                        { label: "Verification UTR", value: lead.accUtrNo },
-                        { label: "Verified Date", value: lead.accDate },
-                        { label: "Accountant", value: lead.accAssignee },
-                      ].map((item, i) => (
-                        <div key={i}>
-                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
-                            {item.label}
-                          </p>
-                          <p className="text-sm font-semibold text-slate-700">
-                            {item.value || "Awaiting Verification"}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Section 6: Final Payment Summary */}
-                  <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
-                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
-                      <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm">
-                        6
-                      </div>
-                      <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
-                        Final Payment Reconciliation
-                      </h4>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3 mb-6">
-                      {[
-                        {
-                          label: "Final Billing Rate",
-                          value: `₹${lead.finalRate?.toLocaleString() || "0"}`,
-                        },
-                        {
-                          label: "1st Installment (S4)",
-                          value: lead.s4_firstInstallmentAmount
-                            ? `₹${lead.s4_firstInstallmentAmount.toLocaleString()}`
-                            : "N/A",
-                        },
-                        {
-                          label: "2nd Installment (S9)",
-                          value: lead.s9_secondInstallmentAmount
-                            ? `₹${lead.s9_secondInstallmentAmount.toLocaleString()}`
-                            : "N/A",
-                        },
-                        {
-                          label: "Balance Received",
-                          value: lead.s10_balanceAmount
-                            ? `₹${lead.s10_balanceAmount.toLocaleString()}`
-                            : "N/A",
-                        },
-                      ].map((item, i) => (
-                        <div key={i}>
-                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
-                            {item.label}
-                          </p>
-                          <p className="text-sm font-semibold text-slate-700">
-                            {item.value}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between">
-                        <div>
-                          <p className="text-[10px] uppercase font-bold text-emerald-600 mb-0.5">
-                            Total Collected
-                          </p>
-                          <p className="text-2xl font-black text-emerald-700">
-                            ₹{totalReceived.toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[10px] uppercase font-bold text-emerald-600 mb-0.5">
-                            Payment Percentage
-                          </p>
-                          <p className="text-lg font-black text-emerald-700">
-                            {Math.round(
-                              (totalReceived / (lead.finalRate || 1)) * 100,
-                            )}
-                            %
-                          </p>
-                        </div>
-                      </div>
-                      <div
-                        className={`${dueAmount > 0 ? "bg-rose-50 border-rose-100" : "bg-blue-50 border-blue-100"} p-4 rounded-2xl border flex items-center justify-between`}
-                      >
-                        <div>
-                          <p
-                            className={`text-[10px] uppercase font-bold ${dueAmount > 0 ? "text-rose-600" : "text-blue-600"} mb-0.5`}
-                          >
-                            Current Due
-                          </p>
-                          <p
-                            className={`text-2xl font-black ${dueAmount > 0 ? "text-rose-700" : "text-blue-700"}`}
-                          >
-                            ₹{dueAmount.toLocaleString()}
-                          </p>
-                        </div>
-                        <div
-                          className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter ${dueAmount > 0 ? "bg-rose-200 text-rose-700" : "bg-blue-200 text-blue-700"}`}
-                        >
-                          {dueAmount > 0 ? "Due Pending" : "Cleared"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Section 7: Subsidy Tracking */}
-                  <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm print:border-slate-200 print:shadow-none print:rounded-none print:p-4">
-                    <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4 print:mb-4">
-                      <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-sm">
-                        7
-                      </div>
-                      <h4 className="font-bold text-slate-900 uppercase tracking-wider text-sm">
-                        Subsidy Status (S11)
-                      </h4>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 print:grid-cols-3">
-                      {[
-                        {
-                          label: "Subsidy Applied",
-                          value: lead.s11_subsidyAppliedDate,
-                        },
-                        {
-                          label: "Approved Amount",
-                          value: lead.s11_subsidyAmount
-                            ? `₹${lead.s11_subsidyAmount.toLocaleString()}`
-                            : "Awaiting Approval",
-                        },
-                        {
-                          label: "Subsidy Received",
-                          value: lead.s11_subsidyReceivedDate || "Pending",
-                        },
-                      ].map((item, i) => (
-                        <div key={i}>
-                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">
-                            {item.label}
-                          </p>
-                          <p className="text-sm font-semibold text-slate-700">
-                            {item.value || "N/A"}
-                          </p>
-                        </div>
-                      ))}
-                      <div className="col-span-full">
-                        <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
-                          Subsidy Remark
-                        </p>
-                        <p className="text-sm text-slate-600 italic">
-                          {lead.s11_remarks || "No subsidy remarks."}
-                        </p>
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wider text-slate-800">Final Stage Approval</p>
+                        <p className="text-[10px] text-slate-400 font-bold">Execution Review & Final Approval</p>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Print Footer */}
-                <div className="hidden print:block pt-12 border-t border-slate-100 text-center">
-                  <p className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.2em]">
-                    Sitvik Solar • Quality Assurance Report
+                {/* Check if Execution Completed */}
+                {!isExecutionFlowFinished ? (
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-[2.5rem] p-8 md:p-12 text-center max-w-2xl mx-auto space-y-6">
+                    <div className="w-16 h-16 bg-rose-50 border border-rose-100 rounded-3xl flex items-center justify-center mx-auto text-rose-500 shadow-md">
+                      <Lock className="w-8 h-8" />
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-xl font-bold text-slate-900">Review & Settlement is Locked</h4>
+                      <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
+                        This workflow becomes available only after all Project Control tasks/steps are successfully completed and submitted in the Project Execution stage.
+                      </p>
+                    </div>
+                    {(() => {
+                      const stepsList = [
+                        { id: 14, condition: lead.newConnectionRequired === "Yes" },
+                        { id: 1, condition: lead.s_docCorr_required === "Yes" },
+                        { id: 2, condition: lead.loadExtensionRequired === "Yes" },
+                        { id: 3 },
+                        { id: 4, condition: lead.loanRequired === "Yes" },
+                        { id: 5 },
+                        { id: 6 },
+                        { id: 7 },
+                        { id: 8 },
+                        { id: 9 },
+                        { id: 10 },
+                        { id: 11 },
+                        { id: 12, condition: lead.loanRequired === "Yes" },
+                        { id: 13 },
+                      ].filter((step) => step.condition !== false);
+                      const completed = stepsList.filter(
+                        (step) => !!(lead as any)[`isStep${step.id}Submitted`],
+                      ).length;
+                      return (
+                        <div className="inline-flex flex-col items-center gap-1.5 px-6 py-3 bg-white border border-slate-200/80 rounded-2xl shadow-sm">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Execution Progress</p>
+                          <p className="text-lg font-bold text-slate-800">{completed} / {stepsList.length} Steps Completed</p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Section 1: Payment Information */}
+                    <div className="bg-white border border-slate-200/80 rounded-3xl p-6 md:p-8 space-y-6 shadow-xs">
+                      <div>
+                        <h4 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                          <span className="w-2.5 h-5 rounded bg-blue-600 block"></span>
+                          Section 1: Payment Information
+                        </h4>
+                        <p className="text-xs text-slate-400 font-bold mt-1">Verify financial transactions and capture extra discount records.</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Project Value</span>
+                          <span className="text-lg font-bold text-slate-800">₹{(Number(lead.finalRate) || 0).toLocaleString()}</span>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Amount Received</span>
+                          <span className="text-lg font-bold text-slate-800">₹{totalReceived.toLocaleString()}</span>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 col-span-full">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">Extra Discount (₹)</label>
+                          <input
+                            type="number"
+                            placeholder="Enter manual extra discount..."
+                            value={lead.handoverExtraDiscount || ""}
+                            onChange={(e) => {
+                              const val = Number(e.target.value) || 0;
+                              handleUpdate({ handoverExtraDiscount: val }, true);
+                            }}
+                            disabled={lead.isHandoverAdminSubmitted}
+                            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:bg-slate-50"
+                          />
+                        </div>
+
+                        {(() => {
+                          const projectVal = Number(lead.finalRate) || 0;
+                          const discount = Number(lead.handoverExtraDiscount) || 0;
+                          const finalProjVal = projectVal - discount;
+                          const dueAmt = finalProjVal - totalReceived > 0 ? finalProjVal - totalReceived : 0;
+                          return (
+                            <>
+                              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Final Project Value</span>
+                                <span className="text-lg font-bold text-slate-800">₹{finalProjVal.toLocaleString()}</span>
+                              </div>
+
+                              <div className={`rounded-2xl p-4 border ${dueAmt > 0 ? "bg-rose-50/50 border-rose-100 text-rose-700" : "bg-emerald-50/50 border-emerald-100 text-emerald-700"}`}>
+                                <span className="text-[9px] font-black uppercase tracking-widest block mb-1 opacity-75">Due Amount</span>
+                                <span className="text-lg font-bold">₹{dueAmt.toLocaleString()}</span>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* Section 2: Admin Verification */}
+                    <div className="bg-white border border-slate-200/80 rounded-3xl p-6 md:p-8 space-y-6 shadow-xs">
+                      <div>
+                        <h4 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                          <span className="w-2.5 h-5 rounded bg-indigo-600 block"></span>
+                          Section 2: Admin Verification
+                        </h4>
+                        <p className="text-xs text-slate-400 font-bold mt-1">Admin oversight verification and project redirection protocols.</p>
+                      </div>
+
+                      <div className="space-y-6">
+                        {/* Verification fields */}
+                        <div className="space-y-4">
+                          {[
+                            {
+                              label: "All Payments Received",
+                              field: "handoverPaymentsReceived",
+                              value: lead.handoverPaymentsReceived,
+                            },
+                            {
+                              label: "Site Fully Completed",
+                              field: "handoverSiteCompleted",
+                              value: lead.handoverSiteCompleted,
+                            },
+                            {
+                              label: "Service Request for Bill Update Created",
+                              field: "handoverBillUpdateCreated",
+                              value: lead.handoverBillUpdateCreated,
+                            },
+                          ].map((item) => (
+                            <div key={item.field} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+                              <span className="text-xs font-bold text-slate-800">{item.label}</span>
+                              <div className="flex gap-2 shrink-0">
+                                {["Yes", "No"].map((opt) => {
+                                  const isSelected = item.value === opt;
+                                  return (
+                                    <button
+                                      key={opt}
+                                      type="button"
+                                      disabled={!isAdminUser || lead.isHandoverAdminSubmitted}
+                                      onClick={() => {
+                                        handleUpdate({ [item.field]: opt }, true);
+                                      }}
+                                      className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                        isSelected
+                                          ? opt === "Yes"
+                                            ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/10"
+                                            : "bg-rose-600 text-white shadow-md shadow-rose-600/10"
+                                          : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-100"
+                                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                    >
+                                      {opt}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Assignment to Next User */}
+                        {!lead.isHandoverAdminSubmitted ? (
+                          <div className="space-y-4 border-t border-slate-100 pt-5 mt-5">
+                            <div>
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">Assign Deliverables Stage To</label>
+                              <select
+                                value={selectedNextAssignee}
+                                onChange={(e) => setSelectedNextAssignee(e.target.value)}
+                                disabled={!isAdminUser}
+                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                              >
+                                <option value="">-- Choose Steward --</option>
+                                {users.map((u) => (
+                                  <option key={u.email} value={u.email}>
+                                    {u.name} ({u.category || "Staff"})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                if (!lead.handoverPaymentsReceived || !lead.handoverSiteCompleted || !lead.handoverBillUpdateCreated) {
+                                  showNotification("Please complete all three verification checks.", "warning");
+                                  return;
+                                }
+                                if (!selectedNextAssignee) {
+                                  showNotification("Please select the steward to complete the deliverables.", "warning");
+                                  return;
+                                }
+                                const nextUser = users.find((u) => u.email === selectedNextAssignee);
+                                handleUpdate({
+                                  handoverNextAssigneeEmail: selectedNextAssignee,
+                                  handoverNextAssigneeName: nextUser?.name || selectedNextAssignee,
+                                  deliverablesAssignedEmail: selectedNextAssignee,
+                                  deliverablesAssignedName: nextUser?.name || selectedNextAssignee,
+                                  isHandoverAdminSubmitted: true,
+                                }, true);
+                                setNotification({
+                                  type: "success",
+                                  message: "Admin Verification completed and project assigned for Deliverables stage.",
+                                });
+                              }}
+                              disabled={!isAdminUser || !lead.handoverPaymentsReceived || !lead.handoverSiteCompleted || !lead.handoverBillUpdateCreated || !selectedNextAssignee}
+                              className="w-full px-5 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-30 disabled:hover:bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-md shadow-indigo-600/15"
+                            >
+                              Complete Verification & Assign Deliverables
+                            </button>
+                            {!isAdminUser && (
+                              <p className="text-[10px] text-rose-500 font-bold text-center">
+                                ⚠️ Only Admin can complete the verification questions.
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl space-y-2">
+                            <p className="text-xs font-bold text-indigo-800 flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                              Verification & Redirection Complete
+                            </p>
+                            <div className="text-[11px] text-slate-600 leading-relaxed font-semibold">
+                              Assigned Deliverables Steward: <span className="font-extrabold text-indigo-950">{lead.deliverablesAssignedName}</span> ({lead.deliverablesAssignedEmail})
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === "deliverables" && (
+              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-1000">
+                {/* Header Section */}
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-teal-500 via-emerald-600 to-green-600 rounded-2xl md:rounded-3xl blur opacity-10 group-hover:opacity-20 transition duration-1000"></div>
+                  <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-slate-950 rounded-2xl md:rounded-3xl p-6 md:p-8 text-white shadow-2xl overflow-hidden border border-white/5">
+                    <div className="absolute top-0 right-0 w-72 h-72 bg-teal-500/10 rounded-full -mr-32 -mt-32 blur-[80px] animate-pulse" />
+                    <div className="relative z-10 flex-1">
+                      <div className="flex items-center gap-3 mb-3 md:mb-4">
+                        <div className="h-px w-6 md:w-8 bg-teal-500" />
+                        <span className="text-[9px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-teal-400">
+                          Finalization Deliverables
+                        </span>
+                      </div>
+                      <h3 className="text-2xl md:text-3xl font-display font-bold mb-2 md:mb-3 tracking-tight md:tracking-tighter leading-tight bg-gradient-to-br from-white via-white to-slate-400 bg-clip-text text-transparent">
+                        Project Deliverables Checklist
+                      </h3>
+                      <p className="text-slate-400 text-sm md:text-base font-medium max-w-xl leading-relaxed">
+                        Verify handover checklists, upload proof of completion signature and site photos, and prepare project for final review.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress Stepper */}
+                <div className="bg-white border border-slate-150 rounded-3xl p-6 shadow-sm">
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 opacity-50">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs bg-emerald-500 text-white">
+                        1
+                      </div>
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wider text-slate-800">Review & Settlement</p>
+                        <p className="text-[10px] text-slate-400 font-bold">Verify payments, completion, & billing</p>
+                      </div>
+                    </div>
+                    <div className="hidden md:block h-px flex-1 bg-slate-100 mx-4" />
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${lead.isDeliverablesSubmitted ? "bg-emerald-500 text-white" : "bg-blue-600 text-white animate-pulse"}`}>
+                        2
+                      </div>
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wider text-slate-800">Deliverables Stage</p>
+                        <p className="text-[10px] text-slate-400 font-bold">Warranty cards, certificates & site photos</p>
+                      </div>
+                    </div>
+                    <div className="hidden md:block h-px flex-1 bg-slate-100 mx-4" />
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${(lead.finalExecutionStatus || "Pending") === "Done" ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"}`}>
+                        3
+                      </div>
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wider text-slate-800">Final Stage Approval</p>
+                        <p className="text-[10px] text-slate-400 font-bold">Execution Review & Final Approval</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lock check */}
+                {!lead.isHandoverAdminSubmitted ? (
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-[2.5rem] p-8 md:p-12 text-center max-w-2xl mx-auto space-y-6">
+                    <div className="w-16 h-16 bg-rose-50 border border-rose-100 rounded-3xl flex items-center justify-center mx-auto text-rose-500 shadow-md">
+                      <Lock className="w-8 h-8" />
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-xl font-bold text-slate-900">Deliverables Tab is Locked</h4>
+                      <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
+                        This tab will unlock as soon as the Review & Settlement stage is verified and approved by the Admin in the "Review & Settlement" tab.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    {/* Steward Assignment / Status Indicator */}
+                    <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      <div>
+                        <h4 className="text-sm font-black uppercase text-slate-900 tracking-wider flex items-center gap-2">
+                          <Users className="w-4 h-4 text-emerald-600" />
+                          Responsible Steward / Specialist
+                        </h4>
+                        <p className="text-xs text-slate-500 font-medium mt-1">
+                          {lead.deliverablesAssignedEmail ? (
+                            <span>Current Assignee: <strong className="text-slate-800">{lead.deliverablesAssignedName}</strong> ({lead.deliverablesAssignedEmail})</span>
+                          ) : (
+                            <span className="text-rose-500 font-bold">⚠️ Unassigned. Admin must assign a responsible user.</span>
+                          )}
+                        </p>
+                      </div>
+
+                      {isAdminUser && (
+                        <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+                          <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Assign To:</span>
+                          <select
+                            value={selectedDeliverablesAssignee || lead.deliverablesAssignedEmail || ""}
+                            onChange={(e) => {
+                              const email = e.target.value;
+                              setSelectedDeliverablesAssignee(email);
+                              const userObj = users.find((u) => u.email === email);
+                              handleUpdate({
+                                deliverablesAssignedEmail: email,
+                                deliverablesAssignedName: userObj?.name || email,
+                              }, true);
+                              showNotification(`Deliverables stage successfully assigned to ${userObj?.name || email}`, "success");
+                            }}
+                            className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">-- Choose Steward --</option>
+                            {users.map((u) => (
+                              <option key={u.email} value={u.email}>
+                                {u.name} ({u.category || "Staff"})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    {(() => {
+                      const currentUserEmail = user?.email?.toLowerCase()?.trim();
+                      const canComplete = isAdminUser || (lead.deliverablesAssignedEmail && lead.deliverablesAssignedEmail.toLowerCase().trim() === currentUserEmail);
+
+                      return (
+                        <div className="space-y-8">
+                          {!canComplete && (
+                            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-800 text-xs font-semibold flex items-center gap-2.5 shadow-xs">
+                              <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
+                              <span>You are not authorized to complete these deliverables. Only the assigned steward (<strong>{lead.deliverablesAssignedName || "unassigned"}</strong>) or an Admin can submit.</span>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            {/* Left Block: Checklist */}
+                            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 md:p-8 space-y-6 shadow-xs">
+                              <div>
+                                <h4 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                  <span className="w-2.5 h-5 rounded bg-emerald-600 block"></span>
+                                  Required Deliverables Checklist
+                                </h4>
+                                <p className="text-xs text-slate-400 font-bold mt-1">Check and verify that physical cards and bills have been dispatched to the customer.</p>
+                              </div>
+
+                              <div className="space-y-4">
+                                {[
+                                  {
+                                    label: "Tax Invoice/Bill",
+                                    field: "deliverableTaxInvoice",
+                                    value: lead.deliverableTaxInvoice,
+                                  },
+                                  {
+                                    label: "Inverter Warranty Card",
+                                    field: "deliverableInverterWarranty",
+                                    value: lead.deliverableInverterWarranty,
+                                  },
+                                  {
+                                    label: "Panel Warranty Card",
+                                    field: "deliverablePanelWarranty",
+                                    value: lead.deliverablePanelWarranty,
+                                  },
+                                ].map((item) => (
+                                  <div
+                                    key={item.field}
+                                    onClick={() => {
+                                      if (lead.isDeliverablesSubmitted || !canComplete) return;
+                                      handleUpdate({ [item.field]: !item.value }, true);
+                                    }}
+                                    className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
+                                      lead.isDeliverablesSubmitted || !canComplete ? "cursor-not-allowed opacity-75" : "cursor-pointer"
+                                    } ${
+                                      item.value
+                                        ? "bg-emerald-50/50 border-emerald-200 text-emerald-800"
+                                        : "bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-600"
+                                    }`}
+                                  >
+                                    <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-all ${
+                                      item.value ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-slate-300"
+                                    }`}>
+                                      {item.value && <CheckCircle2 className="w-3.5 h-3.5" />}
+                                    </div>
+                                    <span className="text-xs font-extrabold tracking-tight uppercase">{item.label}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Right Block: File Uploads & Remarks */}
+                            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 md:p-8 space-y-6 shadow-xs">
+                              <div>
+                                <h4 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                  <span className="w-2.5 h-5 rounded bg-teal-600 block"></span>
+                                  Proofs & Upload Documents
+                                </h4>
+                                <p className="text-xs text-slate-400 font-bold mt-1">Upload files documenting completion and customer satisfaction.</p>
+                              </div>
+
+                              <div className="space-y-4">
+                                {/* Signature file upload */}
+                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                  <div>
+                                    <p className="text-xs font-bold text-slate-800">Customer Signature (Completion Certificate)</p>
+                                    {lead.deliverableCustomerSignaturePhotoUrl ? (
+                                      <p className="text-[10px] text-emerald-600 font-bold mt-1">✓ File uploaded successfully</p>
+                                    ) : (
+                                      <p className="text-[10px] text-slate-400 font-bold mt-1">Awaiting PDF / Image upload</p>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3 shrink-0">
+                                    <label
+                                      htmlFor="input-customer-sig"
+                                      className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer ${
+                                        uploadingDoc || lead.isDeliverablesSubmitted || !canComplete ? "opacity-50 pointer-events-none" : ""
+                                      }`}
+                                    >
+                                      {lead.deliverableCustomerSignaturePhotoUrl ? "Replace" : "Upload"}
+                                      <input
+                                        id="input-customer-sig"
+                                        type="file"
+                                        className="hidden"
+                                        accept="image/*,application/pdf"
+                                        onChange={(e) => handleFileUpload(e, "Customer Signature on Completion Certificate", "deliverableCustomerSignaturePhotoUrl")}
+                                        disabled={!!uploadingDoc || lead.isDeliverablesSubmitted || !canComplete}
+                                      />
+                                    </label>
+                                    {lead.deliverableCustomerSignaturePhotoUrl && (
+                                      <a
+                                        href={lead.deliverableCustomerSignaturePhotoUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl flex items-center justify-center shadow-sm"
+                                      >
+                                        <ExternalLink className="w-4 h-4" />
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Site Photos upload */}
+                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                  <div>
+                                    <p className="text-xs font-bold text-slate-800">Site Photos</p>
+                                    {lead.deliverableSitePhotosUrl ? (
+                                      <p className="text-[10px] text-emerald-600 font-bold mt-1">✓ Photos uploaded successfully</p>
+                                    ) : (
+                                      <p className="text-[10px] text-slate-400 font-bold mt-1">Awaiting image upload</p>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3 shrink-0">
+                                    <label
+                                      htmlFor="input-site-photos"
+                                      className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer ${
+                                        uploadingDoc || lead.isDeliverablesSubmitted || !canComplete ? "opacity-50 pointer-events-none" : ""
+                                      }`}
+                                    >
+                                      {lead.deliverableSitePhotosUrl ? "Replace" : "Upload"}
+                                      <input
+                                        id="input-site-photos"
+                                        type="file"
+                                        className="hidden"
+                                        accept="image/*,application/pdf"
+                                        onChange={(e) => handleFileUpload(e, "Site Photos", "deliverableSitePhotosUrl")}
+                                        disabled={!!uploadingDoc || lead.isDeliverablesSubmitted || !canComplete}
+                                      />
+                                    </label>
+                                    {lead.deliverableSitePhotosUrl && (
+                                      <a
+                                        href={lead.deliverableSitePhotosUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl flex items-center justify-center shadow-sm"
+                                      >
+                                        <ExternalLink className="w-4 h-4" />
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Upload Progress Indicator */}
+                                {uploadingDoc && (
+                                  <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl">
+                                    <p className="text-[9px] text-blue-600 font-black uppercase tracking-widest mb-1">Uploading: {uploadingDoc}</p>
+                                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                      <div className="h-full bg-blue-600 transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Remarks */}
+                                <div className="space-y-2">
+                                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Remarks</label>
+                                  <textarea
+                                    value={lead.deliverableRemarks || ""}
+                                    onChange={(e) => handleUpdate({ deliverableRemarks: e.target.value }, true)}
+                                    placeholder="Add finalization remarks..."
+                                    disabled={lead.isDeliverablesSubmitted || !canComplete}
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold text-xs h-24 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Completion button */}
+                          {!lead.isDeliverablesSubmitted ? (
+                            <div className="flex justify-end pt-4">
+                              <button
+                                onClick={() => {
+                                  if (
+                                    !lead.deliverableTaxInvoice ||
+                                    !lead.deliverableInverterWarranty ||
+                                    !lead.deliverablePanelWarranty ||
+                                    !lead.deliverableCustomerSignaturePhotoUrl ||
+                                    !lead.deliverableSitePhotosUrl
+                                  ) {
+                                    showNotification("Please complete all checkboxes and upload required proofs.", "warning");
+                                    return;
+                                  }
+                                  handleUpdate({ isDeliverablesSubmitted: true }, true);
+                                  setNotification({
+                                    type: "success",
+                                    message: "All deliverables verified and submitted. Ready for final review.",
+                                  });
+                                }}
+                                disabled={
+                                  !lead.deliverableTaxInvoice ||
+                                  !lead.deliverableInverterWarranty ||
+                                  !lead.deliverablePanelWarranty ||
+                                  !lead.deliverableCustomerSignaturePhotoUrl ||
+                                  !lead.deliverableSitePhotosUrl ||
+                                  !canComplete
+                                }
+                                className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-30 disabled:hover:bg-emerald-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-md shadow-emerald-600/10"
+                              >
+                                Complete & Submit Deliverables
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="space-y-10 pt-4">
+                              {/* Success card */}
+                              <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-3xl flex items-center gap-4 text-emerald-800">
+                                <div className="w-12 h-12 bg-emerald-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                                  <CheckCircle2 className="w-6 h-6" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-bold">Deliverables Submitted Successfully</p>
+                                  <p className="text-xs text-slate-500 font-semibold mt-0.5">Workflow progressed to Final Stage: Final Execution Review & Approval.</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "documents" && (
+            <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                  <FolderOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold font-display tracking-tight text-slate-900">
+                    Document Hub
+                  </h3>
+                  <p className="text-sm text-slate-500 font-medium">
+                    Centralized view of all documents uploaded for this lead.
                   </p>
                 </div>
               </div>
-            )}
+
+              <div className="bg-white rounded-[2rem] p-6 md:p-8 shadow-sm border border-slate-200">
+                <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-8">
+                  <div className="relative w-full md:w-96">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Search className="h-5 w-5 text-slate-400" />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Search documents by name..."
+                      value={docSearchQuery}
+                      onChange={(e) => setDocSearchQuery(e.target.value)}
+                      className="block w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-slate-900"
+                    />
+                  </div>
+                  <div className="w-full md:w-64">
+                    <select
+                      value={docSelectedSection}
+                      onChange={(e) => setDocSelectedSection(e.target.value)}
+                      className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-slate-900 cursor-pointer"
+                    >
+                      <option value="All">All Sections</option>
+                      {Array.from(new Set(DOCUMENT_MAP.map((doc) => doc.section))).map((section) => (
+                        <option key={section} value={section}>
+                          {section}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {DOCUMENT_MAP.filter((doc) => {
+                    const matchesSearch = doc.label.toLowerCase().includes(docSearchQuery.toLowerCase());
+                    const matchesSection = docSelectedSection === "All" || doc.section === docSelectedSection;
+                    return matchesSearch && matchesSection;
+                  }).map((doc) => {
+                    const docUrl = lead[doc.key] as string;
+                    const isUploaded = !!docUrl;
+                    return (
+                      <div key={doc.key} className="p-5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white hover:shadow-md transition-all group flex flex-col justify-between gap-4">
+                        <div className="flex items-start gap-4">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isUploaded ? "bg-blue-100 text-blue-600" : "bg-slate-200 text-slate-400"}`}>
+                            <FileText className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-bold text-slate-900 line-clamp-2" title={doc.label}>{doc.label}</h4>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{doc.section}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between w-full mt-auto pt-2 border-t border-slate-100">
+                          {isUploaded ? (
+                            <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Uploaded</span>
+                          ) : (
+                            <span className="text-xs font-semibold text-slate-400 flex items-center gap-1"><RefreshCw className="w-3.5 h-3.5" /> Pending</span>
+                          )}
+                          <div className="flex gap-2">
+                            {isUploaded ? (
+                              <>
+                                <a
+                                  href={docUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
+                                >
+                                  View
+                                </a>
+                                <a
+                                  href={docUrl}
+                                  download
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors flex items-center justify-center gap-1"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </a>
+                              </>
+                            ) : (
+                              <button disabled className="px-3 py-1.5 bg-slate-100 text-slate-400 rounded-lg text-xs font-bold cursor-not-allowed">
+                                View
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {DOCUMENT_MAP.filter((doc) => {
+                    const matchesSearch = doc.label.toLowerCase().includes(docSearchQuery.toLowerCase());
+                    const matchesSection = docSelectedSection === "All" || doc.section === docSelectedSection;
+                    return matchesSearch && matchesSection;
+                  }).length === 0 && (
+                    <div className="col-span-full py-16 text-center bg-slate-50 border border-slate-200 border-dashed rounded-3xl">
+                      <FolderOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                      <h4 className="text-lg font-bold text-slate-900 mb-1">No Documents Found</h4>
+                      <p className="text-slate-500 font-medium max-w-md mx-auto">
+                        No documents match your current search or section filter.
+                      </p>
+                      {(docSearchQuery || docSelectedSection !== "All") && (
+                        <button
+                          onClick={() => {
+                            setDocSearchQuery("");
+                            setDocSelectedSection("All");
+                          }}
+                          className="mt-6 px-6 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold text-sm rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
+                        >
+                          Clear Filters
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           </>
         )}
       </div>

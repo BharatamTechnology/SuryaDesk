@@ -9,6 +9,7 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+
     function isDeveloper() {
       return isSignedIn() && 
         request.auth.token != null && 
@@ -52,7 +53,7 @@ service cloud.firestore {
     function isPaymentProcessor() {
       let email = request.auth.token.email.lower();
       let hasUserDoc = exists(/databases/$(database)/documents/users/$(email));
-      let userName = hasUserDoc ? get(/databases/$(database)/documents/users/$(email)).data.get('name', '').lower() : '';
+      let userName = hasUserDoc ? getLower(get(/databases/$(database)/documents/users/$(email)).data, 'name') : '';
       
       return isAdmin() || 
         (email == 'sitvik24@gmail.com' || userName.indexOf('sitvik') >= 0 || userName.indexOf('satvik') >= 0) ||
@@ -66,8 +67,8 @@ service cloud.firestore {
       let hasUserDoc = exists(/databases/$(database)/documents/users/$(email));
       let userName = hasUserDoc ? get(/databases/$(database)/documents/users/$(email)).data.get('name', '') : '';
       
-      return (assignee != '') && (
-        (userName.lower() == assignee.lower()) ||
+      return (assignee is string && assignee != '') && (
+        (userName is string && userName.lower() == assignee.lower()) ||
         (assignee.lower() == 'admin' && (email == 'hemant.tyagi@bharatamtechnology.com')) ||
         ((assignee.lower() == 'sitvik' || assignee.lower() == 'sitvik (admin)' || assignee.lower() == 'satvik') && email == 'sitvik24@gmail.com') ||
         (assignee.lower() == 'anmol rathi' && email == 'anmolrathi20@gmail.com') ||
@@ -91,21 +92,13 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isAdmin() || isDeveloper() || (
         isSignedIn() && 
-        isUser(email) && (
-          request.resource.data.keys().hasOnly(['fcmToken']) ||
-          (
-            isValidUser(request.resource.data) &&
-            request.resource.data.keys().hasOnly(['name', 'role', 'email', 'companyId']) &&
-            request.resource.data.role == 'Admin' &&
-            request.resource.data.get('companyId', '') is string &&
-            request.resource.data.get('companyId', '').size() > 0
-          )
-        )
+        isUser(email) && 
+        request.resource.data.keys().hasOnly(['fcmToken'])
       );
       allow update: if isAdmin() || isDeveloper() || (
         isSignedIn() && 
         isUser(email) && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken', 'companyId', 'role'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken'])
       );
       allow delete: if isAdmin() || isDeveloper();
     }
@@ -127,7 +120,7 @@ service cloud.firestore {
         isAdmin() || 
         resource.data.userId == request.auth.token.email.lower() ||
         resource.data.userId == request.auth.token.email ||
-        resource.data.userId.lower() == request.auth.token.email.lower()
+        getLower(resource.data, 'userId') == request.auth.token.email.lower()
       );
       allow list: if isSignedIn() && (
         isAdmin() || 
@@ -139,7 +132,7 @@ service cloud.firestore {
         && request.resource.data.timestamp == request.time;
       allow update: if isSignedIn() && (
         isAdmin() || (
-          (resource.data.userId == request.auth.token.email.lower() || resource.data.userId == request.auth.token.email || resource.data.userId.lower() == request.auth.token.email.lower()) &&
+          (resource.data.userId == request.auth.token.email.lower() || resource.data.userId == request.auth.token.email || getLower(resource.data, 'userId') == request.auth.token.email.lower()) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']) &&
           request.resource.data.isRead == true
         )
@@ -151,35 +144,40 @@ service cloud.firestore {
       return data.get('customerName', '') is string;
     }
 
+    function getLower(data, field) {
+      let val = data.get(field, '');
+      return val is string ? val.lower() : '';
+    }
+
     function isLeadMember(data) {
       let email = request.auth.token.email.lower();
       let members = data.get('members', []);
       return (email in members)
-        || (data.get('createdBy', '').lower() == email)
-        || (data.get('assignedPreSales', '').lower() == email)
-        || (data.get('assignedTo', '').lower() == email)
-        || (data.get('assignedToEmail', '').lower() == email)
-        || (data.get('visitedByEmail', '').lower() == email)
-        || (data.get('assignedSalesEmail', '').lower() == email)
-        || (data.get('projectAssigneeEmail', '').lower() == email)
-        || (data.get('accAssigneeEmail', '').lower() == email)
-        || (data.get('execution_assignedToEmail', '').lower() == email)
-        || (data.get('s4_loanAssignedToEmail', '').lower() == email)
-        || (data.get('s5_storeDispatchAssignedToEmail', '').lower() == email)
-        || (data.get('s5_discomPreAssignedToEmail', '').lower() == email)
-        || (data.get('s6_inchargeAssignedToEmail', '').lower() == email)
-        || (data.get('s5_storeInchargeAssignedToEmail', '').lower() == email)
-        || (data.get('s6_assignedToEmail', '').lower() == email)
-        || (data.get('s7_assignedToEmail', '').lower() == email)
-        || (data.get('s8_assignedToEmail', '').lower() == email)
-        || (data.get('s9_assignedToEmail', '').lower() == email)
-        || (data.get('s10_assignedToEmail', '').lower() == email)
-        || (data.get('s11_assignedToEmail', '').lower() == email)
-        || (data.get('s12_assignedToEmail', '').lower() == email)
-        || (data.get('s_newConn_assignedToEmail', '').lower() == email)
-        || (data.get('s_docCorr_assignedToEmail', '').lower() == email)
-        || (data.get('s_loadExt_assignedToEmail', '').lower() == email)
-        || (data.get('projectInchargeEmail', '').lower() == email);
+        || (getLower(data, 'createdBy') == email)
+        || (getLower(data, 'assignedPreSales') == email)
+        || (getLower(data, 'assignedTo') == email)
+        || (getLower(data, 'assignedToEmail') == email)
+        || (getLower(data, 'visitedByEmail') == email)
+        || (getLower(data, 'assignedSalesEmail') == email)
+        || (getLower(data, 'projectAssigneeEmail') == email)
+        || (getLower(data, 'accAssigneeEmail') == email)
+        || (getLower(data, 'execution_assignedToEmail') == email)
+        || (getLower(data, 's4_loanAssignedToEmail') == email)
+        || (getLower(data, 's5_storeDispatchAssignedToEmail') == email)
+        || (getLower(data, 's5_discomPreAssignedToEmail') == email)
+        || (getLower(data, 's6_inchargeAssignedToEmail') == email)
+        || (getLower(data, 's5_storeInchargeAssignedToEmail') == email)
+        || (getLower(data, 's6_assignedToEmail') == email)
+        || (getLower(data, 's7_assignedToEmail') == email)
+        || (getLower(data, 's8_assignedToEmail') == email)
+        || (getLower(data, 's9_assignedToEmail') == email)
+        || (getLower(data, 's10_assignedToEmail') == email)
+        || (getLower(data, 's11_assignedToEmail') == email)
+        || (getLower(data, 's12_assignedToEmail') == email)
+        || (getLower(data, 's_newConn_assignedToEmail') == email)
+        || (getLower(data, 's_docCorr_assignedToEmail') == email)
+        || (getLower(data, 's_loadExt_assignedToEmail') == email)
+        || (getLower(data, 'projectInchargeEmail') == email);
     }
 
     match /leads/{leadId} {
@@ -190,7 +188,7 @@ service cloud.firestore {
       
       allow create: if isSignedIn() 
         && isValidLead(request.resource.data)
-        && (request.resource.data.get('createdBy', '').lower() == request.auth.token.email.lower());
+        && (getLower(request.resource.data, 'createdBy') == request.auth.token.email.lower());
  
       allow update: if isSignedIn() 
         && isValidLead(request.resource.data)
@@ -216,14 +214,14 @@ service cloud.firestore {
     match /serviceRequests/{requestId} {
       allow read: if isSignedIn() && (
         isAdmin() || 
-        resource.data.get('assignedToEmail', '').lower() == request.auth.token.email.lower() ||
-        resource.data.get('createdBy', '').lower() == request.auth.token.email.lower()
+        getLower(resource.data, 'assignedToEmail') == request.auth.token.email.lower() ||
+        getLower(resource.data, 'createdBy') == request.auth.token.email.lower()
       );
       allow create: if isSignedIn() && isValidServiceRequest(request.resource.data);
       allow update: if isSignedIn() && (
         isAdmin() || 
-        resource.data.get('assignedToEmail', '').lower() == request.auth.token.email.lower() ||
-        resource.data.get('createdBy', '').lower() == request.auth.token.email.lower()
+        getLower(resource.data, 'assignedToEmail') == request.auth.token.email.lower() ||
+        getLower(resource.data, 'createdBy') == request.auth.token.email.lower()
       );
       allow delete: if isAdmin();
     }
@@ -241,11 +239,29 @@ service cloud.firestore {
         && (!data.keys().hasAny(['remark']) || (data.remark is string && data.remark.size() <= 1000));
     }
 
+    function isValidCommissionRole(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 200
+        && data.role in ['Lead Creator', 'Sales Person', 'Sales Partner']
+        && data.createdAt is timestamp;
+    }
+
     match /commissionRecords/{recordId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isValidCommissionRecord(request.resource.data);
       allow update: if isAdmin();
       allow delete: if isAdmin();
+    }
+
+    match /commissionRoles/{roleId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && isValidCommissionRole(request.resource.data);
+      allow update: if isAdmin() && isValidCommissionRole(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /commissions/{commissionId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
 
     match /payments/{paymentId} {
@@ -254,9 +270,9 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         isAdmin() || 
         isPaymentAssignee(resource.data) ||
-        (resource.data.status == 'Pending' && resource.data.get('recordedBy', '').lower() == request.auth.token.email.lower()) ||
+        (resource.data.status == 'Pending' && getLower(resource.data, 'recordedBy') == request.auth.token.email.lower()) ||
         (exists(/databases/$(database)/documents/leads/$(resource.data.leadId)) && 
-         get(/databases/$(database)/documents/leads/$(resource.data.leadId)).data.get('accAssigneeEmail', '').lower() == request.auth.token.email.lower())
+         getLower(get(/databases/$(database)/documents/leads/$(resource.data.leadId)).data, 'accAssigneeEmail') == request.auth.token.email.lower())
       );
       allow delete: if isAdmin();
     }
@@ -265,22 +281,6 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
-
-      function isValidCompany(data) {
-        return data.keys().hasAll(['name', 'ownerEmail', 'createdAt', 'subscriptionTier'])
-          && data.name is string && data.name.size() > 0 && data.name.size() <= 200
-          && data.ownerEmail is string
-          && data.subscriptionTier is string;
-      }
-      
-      match /companies/{companyId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn() 
-          && isValidCompany(request.resource.data)
-          && request.resource.data.ownerEmail == request.auth.token.email.lower();
-        allow update: if isAdmin();
-        allow delete: if isAdmin();
-      }
 
   }
 }

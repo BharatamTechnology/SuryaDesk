@@ -1,5 +1,44 @@
 {
   "entities": {
+    "CommissionEntry": {
+      "title": "Commission Entry",
+      "description": "Calculated or manual commission details for a specific lead and role assignee.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "leadId": { "type": "string" },
+        "leadIdString": { "type": "string" },
+        "leadName": { "type": "string" },
+        "projectValue": { "type": "number" },
+        "role": { "type": "string", "enum": ["Lead Creator", "Sales Person", "Sales Partner"] },
+        "personId": { "type": "string" },
+        "personName": { "type": "string" },
+        "commissionType": { "type": "string", "enum": ["percentage", "manual"] },
+        "percentageValue": { "type": "number" },
+        "manualAmount": { "type": "number" },
+        "finalAmount": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["leadId", "role", "personId", "personName", "commissionType", "finalAmount"]
+    },
+    "CommissionRole": {
+      "title": "Commission Role",
+      "description": "Pre-defined team members or partners eligible for specific commission roles on leads.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["Lead Creator", "Sales Person", "Sales Partner"] },
+        "ratePerKw": { "type": "number" },
+        "rateType": { "type": "string", "enum": ["percentage", "flat"] },
+        "rateValue": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "role"]
+    },
     "CommissionRecord": {
       "title": "Commission Record",
       "description": "Details of a calculated commission for a sales partner or person.",
@@ -88,6 +127,9 @@
         "propertyCertUrl": { "type": "string" },
         "workAgreementUrl": { "type": "string" },
         "modelAgreementUrl": { "type": "string" },
+        "coApplicant": { "type": "string" },
+        "coApplicantRemark": { "type": "string" },
+        "coApplicantDocUrl": { "type": "string" },
         "isDocCorrectionRequired": { "type": "string", "enum": ["Yes", "No"] },
         "docCorrectionRemark": { "type": "string" },
         "customerMailId": { "type": "string" },
@@ -329,6 +371,14 @@
     "/commissionRecords/{id}": {
       "schema": "CommissionRecord",
       "description": "Collection of calculated commission and sales incentives."
+    },
+    "/commissionRoles/{id}": {
+      "schema": "CommissionRole",
+      "description": "Collection of configured commission-eligible member and partner roles."
+    },
+    "/commissions/{id}": {
+      "schema": "CommissionEntry",
+      "description": "Collection of calculated or manual commission details for specific leads and roles."
     },
     "/settings/{document}": {
       "schema": "RatesConfig",

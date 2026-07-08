@@ -56,8 +56,7 @@ import { NotificationBell } from "./components/NotificationBell";
 import { userService } from "./services/userService";
 import { leadService } from "./services/leadService";
 import { notificationService } from "./services/notificationService";
-import { settingsService } from "./services/settingsService";
-import { companyService } from "./services/companyService";
+import { settingsService, DEFAULT_ROLE_PERMISSIONS } from "./services/settingsService";
 import { RATE_TABLE } from "./constants/rates";
 import { AppUser, Lead, Tab } from "./types";
 
@@ -65,11 +64,6 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppUser['role'] | null>(null);
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
-  
-  const [companyId, setCompanyId] = useState<string | null>(null);
-  const [needsOnboarding, setNeedsOnboarding] = useState(false);
-  const [companyNameInput, setCompanyNameInput] = useState("");
-  
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"dashboard" | "new-lead" | "detail" | "admin" | "services" | "commission" | "payments" | "tasks" | "mis">("dashboard");
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
@@ -82,6 +76,7 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [permissions, setPermissions] = useState<any>(null);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -146,10 +141,21 @@ export default function App() {
         }
 
         // Special case for lead admin
-          if (u.email === 'hemant.tyagi@bharatamtechnology.com') {
-            setRole('Admin');
-            setIsAuthorized(true);
-          } else {
+        if (u.email === 'hemant.tyagi@bharatamtechnology.com') {
+          setRole('Admin');
+          setIsAuthorized(true);
+          
+          // Auto-seed if collection is empty
+          try {
+            const allUsers = await userService.getAllUsers();
+            if (allUsers.length === 0) {
+              console.log("Seeding initial users...");
+              await userService.seedUsers();
+            }
+          } catch (e) {
+            console.error("Auto-seeding failed", e);
+          }
+        } else {
           const userRole = await userService.getUserRole(u.email);
           if (userRole) {
             setRole(userRole);
@@ -159,23 +165,6 @@ export default function App() {
             setIsAuthorized(false);
           }
         }
-
-        // Check company membership
-        try {
-          // const companyData = await companyService.getUserCompany(u.uid);
-          const companyData = await companyService.getUserCompany(u.email);
-          if (companyData) {
-            setCompanyId(companyData.companyId);
-            setNeedsOnboarding(false);
-          } else {
-            setCompanyId(null);
-            setNeedsOnboarding(true);
-          }
-        } catch (e) {
-          console.error("Error checking company membership", e);
-        }
-
-
       } else {
         setRole(null);
         setIsAuthorized(false);
@@ -216,24 +205,6 @@ export default function App() {
 
   const handleLogout = () => signOut(auth);
 
-
-  const handleCreateCompany = async (companyName: string) => {
-    if (!user || !user.email || !companyName.trim()) return;
-    try {
-      // const result = await companyService.createCompanyAndUser(user.uid, user.email, companyName.trim());
-      const result = await companyService.createCompanyAndUser(user.email!, user.displayName || user.email!, companyName.trim());
-      setCompanyId(result.companyId);
-      setRole('Admin');
-      setIsAuthorized(true);
-      setNeedsOnboarding(false);
-    } catch (error) {
-      console.error("Failed to create company:", error);
-      alert("Company create karne mein error aayi. Dobara try kariye.");
-    }
-  };
-
-  
-
   useEffect(() => {
     (window as any).setActiveTab = setActiveTab;
     return () => { delete (window as any).setActiveTab; };
@@ -251,6 +222,38 @@ export default function App() {
     });
     return () => unsubRates();
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsubPerms = settingsService.subscribeToRolePermissions((data) => {
+      if (data) {
+        setPermissions(data);
+      }
+    });
+    return () => unsubPerms();
+  }, [user]);
+
+  const hasViewPermission = (section: string) => {
+    if (user?.email === 'hemant.tyagi@bharatamtechnology.com') return true;
+    if (!role) return false;
+    if (role === 'Admin') return true;
+    
+    const currentPerms = permissions || DEFAULT_ROLE_PERMISSIONS;
+    const rolePerms = currentPerms[role] || (DEFAULT_ROLE_PERMISSIONS as any)[role] || (DEFAULT_ROLE_PERMISSIONS as any).Executive;
+    return rolePerms[section]?.view ?? false;
+  };
+
+  useEffect(() => {
+    if (!permissions || !role) return;
+    const currentSection = activeTab === 'new-lead' || activeTab === 'detail' ? 'dashboard' : activeTab;
+    if (!hasViewPermission(currentSection)) {
+      const sections = ['dashboard', 'tasks', 'services', 'payments', 'commission', 'mis', 'admin'];
+      const allowed = sections.find(s => hasViewPermission(s));
+      if (allowed) {
+        setActiveTab(allowed as any);
+      }
+    }
+  }, [permissions, role, activeTab]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -463,43 +466,6 @@ export default function App() {
     );
   }
 
-if (user && isAuthorized && needsOnboarding) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-white p-4">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center"
-        >
-          <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 overflow-hidden bg-black border border-black p-1 shadow-sm">
-            <Sun className="w-10 h-10 text-yellow-500" />
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Create Your Company</h1>
-          <p className="text-slate-500 mb-8">Apni company ka naam dijiye SuryaDesk shuru karne ke liye.</p>
-
-          <input
-            type="text"
-            value={companyNameInput}
-            onChange={(e) => setCompanyNameInput(e.target.value)}
-            placeholder="Company Name"
-            className="w-full px-4 py-3 mb-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-300 outline-none"
-          />
-
-          <button
-            onClick={() => handleCreateCompany(companyNameInput)}
-            disabled={!companyNameInput.trim()}
-            className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 text-white rounded-xl font-medium transition-colors"
-          >
-            Create Company & Continue
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
-
-
-  
-
   const navigateToDetail = (id: string, stepId?: number, tab?: Tab) => {
     setSelectedLeadId(id);
     setInitialStepId(stepId || null);
@@ -539,43 +505,52 @@ if (user && isAuthorized && needsOnboarding) {
         </div>
 
         <nav className="px-4 space-y-1">
-          <button
-            onClick={() => { setActiveTab("dashboard"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "dashboard" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-          >
-            <LayoutDashboard className="w-5 h-5" />
-            CRM
-            {pendingCount > 0 && (
-              <span className="ml-auto bg-emerald-500 text-[10px] text-white font-black px-1.5 py-0.5 rounded-md animate-pulse">
-                {pendingCount} PENDING
-              </span>
-            )}
-          </button>
+          {hasViewPermission('dashboard') && (
+            <button
+              onClick={() => { setActiveTab("dashboard"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "dashboard" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+            >
+              <LayoutDashboard className="w-5 h-5" />
+              CRM
+              {pendingCount > 0 && (
+                <span className="ml-auto bg-emerald-500 text-[10px] text-white font-black px-1.5 py-0.5 rounded-md animate-pulse">
+                  {pendingCount} PENDING
+                </span>
+              )}
+            </button>
+          )}
 
-          <button
-            onClick={() => { setActiveTab("tasks"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "tasks" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-          >
-            <ClipboardList className="w-5 h-5" />
-            Task Sheet
-          </button>
-          <button
-            onClick={() => { setActiveTab("services"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "services" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-          >
-            <Wrench className="w-5 h-5" />
-            Services
-          </button>
+          {hasViewPermission('tasks') && (
+            <button
+              onClick={() => { setActiveTab("tasks"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "tasks" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+            >
+              <ClipboardList className="w-5 h-5" />
+              Task Sheet
+            </button>
+          )}
 
-          <button
-            onClick={() => { setActiveTab("payments"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "payments" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-          >
-            <CreditCard className="w-5 h-5" />
-            Payments
-          </button>
+          {hasViewPermission('services') && (
+            <button
+              onClick={() => { setActiveTab("services"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "services" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+            >
+              <Wrench className="w-5 h-5" />
+              Services
+            </button>
+          )}
+
+          {hasViewPermission('payments') && (
+            <button
+              onClick={() => { setActiveTab("payments"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "payments" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+            >
+              <CreditCard className="w-5 h-5" />
+              Payments
+            </button>
+          )}
           
-          {(role === 'Admin' || user?.email === 'hemant.tyagi@bharatamtechnology.com') && (
+          {hasViewPermission('commission') && (
             <button
               onClick={() => { setActiveTab("commission"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "commission" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
@@ -585,15 +560,17 @@ if (user && isAuthorized && needsOnboarding) {
             </button>
           )}
 
-          <button
-            onClick={() => { setActiveTab("mis"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "mis" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-          >
-            <BarChart3 className="w-5 h-5" />
-            MIS
-          </button>
+          {hasViewPermission('mis') && (
+            <button
+              onClick={() => { setActiveTab("mis"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "mis" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+            >
+              <BarChart3 className="w-5 h-5" />
+              MIS
+            </button>
+          )}
           
-          {(role === 'Admin' || user?.email === 'hemant.tyagi@bharatamtechnology.com') && (
+          {hasViewPermission('admin') && (
             <button
               onClick={() => { setActiveTab("admin"); setIsMobileMenuOpen(false); window.history.pushState({}, "", "/"); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "admin" ? 'bg-zinc-800 text-white shadow-md border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
@@ -688,7 +665,7 @@ if (user && isAuthorized && needsOnboarding) {
         <div className="flex-1 overflow-y-auto p-3 md:p-8">
           <div className={`mx-auto h-full transition-all duration-300 ${isFullscreen ? 'max-w-none w-full' : 'max-w-[100rem] w-full'}`}>
             <AnimatePresence mode="wait">
-              {activeTab === "dashboard" && (
+              {activeTab === "dashboard" && hasViewPermission("dashboard") && (
                 <motion.div
                   key="dashboard"
                   initial={{ opacity: 0, x: -10 }}
@@ -705,7 +682,7 @@ if (user && isAuthorized && needsOnboarding) {
                   />
                 </motion.div>
               )}
-              {activeTab === "new-lead" && (
+              {activeTab === "new-lead" && hasViewPermission("dashboard") && (
                 <motion.div
                   key="new-lead"
                   initial={{ opacity: 0, x: -10 }}
@@ -715,7 +692,7 @@ if (user && isAuthorized && needsOnboarding) {
                   <LeadForm user={user} onCancel={() => setActiveTab("dashboard")} onSuccess={() => setActiveTab("dashboard")} />
                 </motion.div>
               )}
-              {activeTab === "detail" && selectedLeadId && (
+              {activeTab === "detail" && hasViewPermission("dashboard") && selectedLeadId && (
                 <motion.div
                   key="detail"
                   initial={{ opacity: 0, x: -10 }}
@@ -736,7 +713,7 @@ if (user && isAuthorized && needsOnboarding) {
                   />
                 </motion.div>
               )}
-              {activeTab === "admin" && (
+              {activeTab === "admin" && hasViewPermission("admin") && (
                 <motion.div
                   key="admin"
                   initial={{ opacity: 0, x: -10 }}
@@ -747,7 +724,7 @@ if (user && isAuthorized && needsOnboarding) {
                   <AdminSection />
                 </motion.div>
               )}
-              {activeTab === "services" && (
+              {activeTab === "services" && hasViewPermission("services") && (
                 <motion.div
                   key="services"
                   initial={{ opacity: 0, x: -10 }}
@@ -758,7 +735,7 @@ if (user && isAuthorized && needsOnboarding) {
                    <ServiceManagement user={{ name: user.displayName || 'User', email: user.email!, role: role || 'Executive' }} />
                 </motion.div>
               )}
-              {(role === 'Admin' || user?.email === 'hemant.tyagi@bharatamtechnology.com') && activeTab === "commission" && (
+              {activeTab === "commission" && hasViewPermission("commission") && (
                 <motion.div
                   key="commission"
                   initial={{ opacity: 0, x: -10 }}
@@ -766,10 +743,17 @@ if (user && isAuthorized && needsOnboarding) {
                   exit={{ opacity: 0, x: 10 }}
                   className="h-full"
                 >
-                   <CommissionManagement userEmail={user.email!} isAdmin={role === 'Admin' || user?.email === 'hemant.tyagi@bharatamtechnology.com'} />
+                   <CommissionManagement 
+                      userEmail={user.email!} 
+                      isAdmin={role === 'Admin' || user?.email === 'hemant.tyagi@bharatamtechnology.com'} 
+                      onLeadSelect={(leadId) => {
+                        setSelectedLeadId(leadId);
+                        setActiveTab('detail');
+                      }}
+                    />
                 </motion.div>
               )}
-              {activeTab === "payments" && (
+              {activeTab === "payments" && hasViewPermission("payments") && (
                 <motion.div
                   key="payments"
                   initial={{ opacity: 0, x: -10 }}
@@ -780,7 +764,7 @@ if (user && isAuthorized && needsOnboarding) {
                    <PaymentManagement user={{ name: user.displayName || 'User', email: user.email!, role: role || 'Executive' }} />
                 </motion.div>
               )}
-              {activeTab === "tasks" && (
+              {activeTab === "tasks" && hasViewPermission("tasks") && (
                 <motion.div
                   key="tasks"
                   initial={{ opacity: 0, x: -10 }}
@@ -795,7 +779,7 @@ if (user && isAuthorized && needsOnboarding) {
                    />
                 </motion.div>
               )}
-              {activeTab === "mis" && (
+              {activeTab === "mis" && hasViewPermission("mis") && (
                 <motion.div
                   key="mis"
                   initial={{ opacity: 0, x: -10 }}

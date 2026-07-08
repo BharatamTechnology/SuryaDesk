@@ -73,7 +73,7 @@ export const leadService = {
       const normalizedEmail = normalizeEmail(email);
       console.log(`Fetching leads for role: ${role}, email: ${normalizedEmail}`);
       let q;
-      if (role === 'Admin' || normalizedEmail === 'hemant.tyagi@bharatamtechnology.com') {
+      if (role === 'Admin' || role === 'Junior Admin' || normalizedEmail === 'hemant.tyagi@bharatamtechnology.com') {
         q = query(collection(db, COLLECTION_NAME), orderBy('updatedAt', 'desc'));
       } else if (normalizedEmail) {
         // Query leads where the user is a member OR creator
@@ -108,7 +108,7 @@ export const leadService = {
     const normalizedEmail = normalizeEmail(email);
     console.log(`Subscribing to leads for role: ${role}, email: ${normalizedEmail}`);
     let q;
-    if (role === 'Admin' || normalizedEmail === 'hemant.tyagi@bharatamtechnology.com') {
+    if (role === 'Admin' || role === 'Junior Admin' || normalizedEmail === 'hemant.tyagi@bharatamtechnology.com') {
       q = query(collection(db, COLLECTION_NAME), orderBy('updatedAt', 'desc'));
     } else if (normalizedEmail) {
       q = query(

@@ -1,8 +1,8 @@
-export type Tab = "basic" | "pre_sales" | "survey" | "sales" | "financials" | "accounts" | "project_incharge" | "execution" | "timeline";
+export type Tab = "basic" | "pre_sales" | "survey" | "sales" | "financials" | "accounts" | "project_incharge" | "execution" | "timeline" | "handover" | "deliverables" | "documents";
 
 export interface AppUser {
   name: string;
-  role: 'Admin' | 'Executive';
+  role: 'Admin' | 'Executive' | 'Junior Admin';
   email: string;
   category?: 'Sales Partner' | 'Sales Person' | 'Field Supervisor' | 'Accountant' | 'Store Incharge' | 'Technician' | 'Bank executive' | 'Project Coordinator' | 'Site Incharge/Supervisor' | 'None';
   fcmToken?: string;
@@ -87,6 +87,9 @@ export interface Lead {
   propertyCertUrl?: string;
   workAgreementUrl?: string;
   modelAgreementUrl?: string;
+  coApplicant?: string;
+  coApplicantRemark?: string;
+  coApplicantDocUrl?: string;
   docCorrectionRemark?: string;
   customerMailId?: string;
 
@@ -121,6 +124,8 @@ export interface Lead {
   accUtrNo?: string;
   accDate?: string;
   accAssignee?: string;
+  accAssigneeEmail?: string;
+  commissionSalesPerson?: string;
 
   updatedAt: any;
   createdBy: string;
@@ -288,7 +293,6 @@ export interface Lead {
   s_newConn_appliedDate?: string;
   s_newConn_uploadPhotosUrl?: string;
   projectAssigneeEmail?: string;
-  accAssigneeEmail?: string;
   assignedTo?: string;
   assignedToName?: string;
   visitedByEmail?: string;
@@ -364,6 +368,26 @@ export interface Lead {
   payment_balanceAmount?: number;
   payment_status?: 'Pending' | 'Partial' | 'Full';
   payment_remarks?: string;
+
+  // Project Handover and Deliverables fields
+  handoverExtraDiscount?: number;
+  handoverPaymentsReceived?: 'Yes' | 'No';
+  handoverSiteCompleted?: 'Yes' | 'No';
+  handoverBillUpdateCreated?: 'Yes' | 'No';
+  handoverAssignedAdminEmail?: string;
+  handoverAssignedAdminName?: string;
+  isHandoverSubmitted?: boolean;
+  isHandoverAdminSubmitted?: boolean;
+  handoverNextAssigneeEmail?: string;
+  handoverNextAssigneeName?: string;
+
+  deliverableTaxInvoice?: boolean;
+  deliverableInverterWarranty?: boolean;
+  deliverablePanelWarranty?: boolean;
+  deliverableCustomerSignaturePhotoUrl?: string;
+  deliverableSitePhotosUrl?: string;
+  deliverableRemarks?: string;
+  isDeliverablesSubmitted?: boolean;
 }
 
 export interface PaymentRecord {
@@ -434,6 +458,36 @@ export interface CommissionRecord {
   companyShare?: number;
   remark?: string;
   date: any;
+  createdBy: string;
+}
+
+export interface CommissionRole {
+  id?: string;
+  name: string;
+  role: 'Lead Creator' | 'Sales Person' | 'Sales Partner';
+  ratePerKw?: number;
+  rateType?: 'percentage' | 'flat';
+  rateValue?: number;
+  createdAt?: any;
+}
+
+export interface CommissionEntry {
+  id?: string;
+  leadId: string;
+  leadIdString: string;
+  leadName: string;
+  projectValue: number;
+  role: 'Lead Creator' | 'Sales Person' | 'Sales Partner';
+  personId: string;
+  personName: string;
+  commissionType: 'percentage' | 'manual';
+  percentageValue: number;
+  manualAmount: number;
+  finalAmount: number;
+  paidAmount?: number;
+  payments?: any[];
+  createdAt?: any;
+  updatedAt?: any;
   createdBy: string;
 }
 

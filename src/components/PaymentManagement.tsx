@@ -49,6 +49,10 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({ user }) =>
   const [error, setError] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [paymentSubTab, setPaymentSubTab] = useState<'history' | 'form'>('form');
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [mainTab, setMainTab] = useState<'ledgers' | 'won_dashboard'>('ledgers');
+  const [activeMetric, setActiveMetric] = useState<'won_leads' | 'payments_received' | 'pending_payments'>('won_leads');
+  const [allPayments, setAllPayments] = useState<PaymentRecord[]>([]);
 
   // Deletion logic for admin
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
@@ -141,6 +145,13 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({ user }) =>
   }, [selectedLead?.id]);
 
   useEffect(() => {
+    const unsub = paymentService.subscribeToAllPayments((records) => {
+      setAllPayments(records || []);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
     if (selectedLead) {
       setFormData(prev => ({
         ...prev,
@@ -216,6 +227,28 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({ user }) =>
            (Number(lead.s10_balanceAmount) || 0);
   };
 
+  const wonLeadsStats = useMemo(() => {
+    const wonList = leads.filter(l => l.status === 'Won');
+    let totalProjectAmount = 0;
+    let totalPaymentReceived = 0;
+    
+    wonList.forEach(lead => {
+      const projectVal = Number(lead.finalRate) || 0;
+      const received = calculateTotalReceived(lead);
+      totalProjectAmount += projectVal;
+      totalPaymentReceived += received;
+    });
+
+    const pendingAmount = Math.max(0, totalProjectAmount - totalPaymentReceived);
+
+    return {
+      count: wonList.length,
+      totalProjectAmount,
+      totalPaymentReceived,
+      pendingAmount
+    };
+  }, [leads]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -225,13 +258,60 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({ user }) =>
   }
 
   return (
-    <div className="flex flex-col md:flex-row h-full gap-4 md:gap-6">
+    <div className="flex flex-col h-full gap-4 md:gap-5 overflow-hidden">
+      {/* Top Main Section Switcher */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-200/85 pb-3.5 gap-3 shrink-0">
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200/50">
+          <button
+            onClick={() => setMainTab('ledgers')}
+            className={`flex items-center gap-2 px-4.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm ${
+              mainTab === 'ledgers'
+                ? 'bg-white text-slate-950 border border-slate-200/35 shadow-sm font-extrabold'
+                : 'text-slate-500 hover:text-slate-800 font-bold'
+            }`}
+          >
+            <User className="w-4 h-4 text-indigo-650" />
+            Customer Ledgers
+          </button>
+          
+          <button
+            onClick={() => setMainTab('won_dashboard')}
+            className={`flex items-center gap-2 px-4.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm ${
+              mainTab === 'won_dashboard'
+                ? 'bg-white text-slate-950 border border-slate-200/35 shadow-sm font-extrabold'
+                : 'text-slate-500 hover:text-slate-800 font-bold'
+            }`}
+          >
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            Won Leads Dashboard
+          </button>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-100/80 px-3 py-1 rounded-lg border border-slate-200/40 font-mono">
+            {leads.filter(l => l.status === 'Won').length} Won Accounts
+          </span>
+        </div>
+      </div>
+
+      {mainTab === 'ledgers' ? (
+        <div className="flex-1 flex flex-col md:flex-row gap-4 md:gap-6 overflow-hidden">
       {/* List Panel */}
       <div className={`w-full md:w-80 flex flex-col bg-white rounded-3xl border border-slate-200/80 overflow-hidden shrink-0 shadow-sm ${selectedLead && mobileView === 'detail' ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-4 border-b border-slate-100 space-y-4 bg-slate-50/55">
-          <div className="flex items-center gap-2">
-            <User className="w-5 h-5 text-indigo-600" />
-            <h3 className="text-lg font-black tracking-tight text-slate-900">Customers</h3>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <User className="w-5 h-5 text-indigo-600 shrink-0" />
+              <h3 className="text-lg font-black tracking-tight text-slate-900 truncate">Customers</h3>
+            </div>
+            <button
+              onClick={() => setMainTab('won_dashboard')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-750 text-[10px] font-black uppercase tracking-wider rounded-xl border border-indigo-150 transition-all shadow-sm active:scale-95 shrink-0"
+              title="View Won Leads Dashboard Summary"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-indigo-650" />
+              Dashboard
+            </button>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -772,6 +852,575 @@ export const PaymentManagement: React.FC<PaymentManagementProps> = ({ user }) =>
           </div>
         )}
       </div>
+    </div>
+      ) : (
+        /* beautiful dashboard view */
+        <div className="flex-1 flex flex-col gap-6 overflow-y-auto pb-6">
+          
+          {/* Top Info Banner */}
+          <div className="bg-slate-50 border border-slate-200/60 rounded-3xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+            <div>
+              <h3 className="text-base font-black text-slate-900 uppercase tracking-tight">Won Leads Financial Summary</h3>
+              <p className="text-xs text-slate-500 font-bold mt-1">Click on any card below to view detailed ledger listings interactively</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-600">Active Listing:</span>
+              <span className={`text-[11px] font-black px-3 py-1 rounded-full uppercase tracking-wider border ${
+                activeMetric === 'won_leads' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                activeMetric === 'payments_received' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                'bg-amber-50 text-amber-700 border-amber-200'
+              }`}>
+                {activeMetric === 'won_leads' ? 'Total Project Amount' :
+                 activeMetric === 'payments_received' ? 'Total Received' : 'Pending Balance'}
+              </span>
+            </div>
+          </div>
+
+          {/* Interactive Metric Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            {/* Card 1: Won Leads Total Project Amount */}
+            <button
+              onClick={() => setActiveMetric('won_leads')}
+              className={`w-full text-left bg-white border rounded-3xl p-5 transition-all flex items-center gap-4.5 group ${
+                activeMetric === 'won_leads'
+                  ? 'border-indigo-500 ring-4 ring-indigo-50/70 shadow-md'
+                  : 'border-slate-200/80 hover:border-slate-300 hover:shadow-sm'
+              }`}
+            >
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all shrink-0 ${
+                activeMetric === 'won_leads'
+                  ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm'
+                  : 'bg-indigo-50 text-indigo-600 border-indigo-100/50'
+              }`}>
+                <CreditCard className="w-5.5 h-5.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1.5 font-mono">Total Project Amount</span>
+                <p className="text-2xl font-black text-slate-900 leading-none">₹{wonLeadsStats.totalProjectAmount.toLocaleString()}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-[9px] font-semibold text-slate-500">{wonLeadsStats.count} Won Accounts</span>
+                  <span className="text-[9px] font-black text-indigo-650 uppercase tracking-wider group-hover:underline">View List →</span>
+                </div>
+              </div>
+            </button>
+
+            {/* Card 2: Total Payments Received */}
+            <button
+              onClick={() => setActiveMetric('payments_received')}
+              className={`w-full text-left bg-white border rounded-3xl p-5 transition-all flex items-center gap-4.5 group ${
+                activeMetric === 'payments_received'
+                  ? 'border-emerald-500 ring-4 ring-emerald-50/70 shadow-md'
+                  : 'border-slate-200/80 hover:border-slate-300 hover:shadow-sm'
+              }`}
+            >
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all shrink-0 ${
+                activeMetric === 'payments_received'
+                  ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                  : 'bg-emerald-50 text-emerald-600 border-emerald-100/50'
+              }`}>
+                <IndianRupee className="w-5.5 h-5.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1.5 font-mono">Total Payment Received</span>
+                <p className="text-2xl font-black text-emerald-650 leading-none">₹{wonLeadsStats.totalPaymentReceived.toLocaleString()}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-[9px] font-semibold text-slate-500">
+                    Cleared ({wonLeadsStats.totalProjectAmount > 0 ? ((wonLeadsStats.totalPaymentReceived / wonLeadsStats.totalProjectAmount) * 100).toFixed(1) : "0"}%)
+                  </span>
+                  <span className="text-[9px] font-black text-emerald-650 uppercase tracking-wider group-hover:underline">View History →</span>
+                </div>
+              </div>
+            </button>
+
+            {/* Card 3: Pending Balance */}
+            <button
+              onClick={() => setActiveMetric('pending_payments')}
+              className={`w-full text-left bg-white border rounded-3xl p-5 transition-all flex items-center gap-4.5 group ${
+                activeMetric === 'pending_payments'
+                  ? 'border-amber-500 ring-4 ring-amber-50/70 shadow-md'
+                  : 'border-slate-200/80 hover:border-slate-300 hover:shadow-sm'
+              }`}
+            >
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all shrink-0 ${
+                activeMetric === 'pending_payments'
+                  ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                  : 'bg-amber-50 text-amber-650 border-amber-100/50'
+              }`}>
+                <AlertCircle className="w-5.5 h-5.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1.5 font-mono">Pending Amount</span>
+                <p className="text-2xl font-black text-amber-650 leading-none">₹{wonLeadsStats.pendingAmount.toLocaleString()}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-[9px] font-semibold text-slate-500">
+                    Outstanding ({wonLeadsStats.totalProjectAmount > 0 ? ((wonLeadsStats.pendingAmount / wonLeadsStats.totalProjectAmount) * 100).toFixed(1) : "0"}%)
+                  </span>
+                  <span className="text-[9px] font-black text-amber-600 uppercase tracking-wider group-hover:underline">View Pending →</span>
+                </div>
+              </div>
+            </button>
+
+          </div>
+
+          {/* Dynamic Content List Panel */}
+          <div className="bg-white border border-slate-200/80 rounded-3xl shadow-sm overflow-hidden flex flex-col">
+            
+            {/* Header of Content Table */}
+            <div className="p-5 border-b border-slate-100 bg-slate-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                  {activeMetric === 'won_leads' && 'Won Leads Agreement Breakdowns'}
+                  {activeMetric === 'payments_received' && 'Payments Received Transaction Logs'}
+                  {activeMetric === 'pending_payments' && 'Accounts with Pending Balances'}
+                </h4>
+                <p className="text-[10px] font-bold text-slate-500 mt-1">
+                  {activeMetric === 'won_leads' && 'Listing all projects confirmed with current system agreement contracts'}
+                  {activeMetric === 'payments_received' && 'Listing individual transaction records realized from customers'}
+                  {activeMetric === 'pending_payments' && 'Listing projects that have remaining installment schedules outstanding'}
+                </p>
+              </div>
+              
+              {activeMetric === 'payments_received' && (
+                <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-150">
+                  {allPayments.filter(p => leads.some(l => l.id === p.leadId)).length} Cleared Transactions
+                </span>
+              )}
+            </div>
+
+            {/* List Body */}
+            <div className="overflow-x-auto">
+              
+              {/* TABLE 1: WON LEADS */}
+              {activeMetric === 'won_leads' && (
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50/60 border-b border-slate-150 text-[10px] font-black text-slate-400 uppercase tracking-widest font-mono">
+                      <th className="py-3.5 px-5">Lead ID & Customer Name</th>
+                      <th className="py-3.5 px-5">Capacity / Package</th>
+                      <th className="py-3.5 px-5 text-right">Agreement Value</th>
+                      <th className="py-3.5 px-5 text-right">Received Amount</th>
+                      <th className="py-3.5 px-5 text-right">Pending Balance</th>
+                      <th className="py-3.5 px-5 text-center">Status</th>
+                      <th className="py-3.5 px-5 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {leads.filter(l => l.status === 'Won').length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400 font-bold">
+                          No won leads found in database.
+                        </td>
+                      </tr>
+                    ) : (
+                      leads.filter(l => l.status === 'Won').map(l => {
+                        const received = calculateTotalReceived(l);
+                        const agreementVal = Number(l.finalRate) || 0;
+                        const pending = Math.max(0, agreementVal - received);
+                        const percent = agreementVal > 0 ? ((received / agreementVal) * 100) : 0;
+                        
+                        return (
+                          <tr key={l.id} className="hover:bg-slate-50/40 transition-colors font-medium text-slate-700">
+                            <td className="py-4 px-5">
+                              <div className="font-extrabold text-slate-950 text-sm">{l.customerName}</div>
+                              <div className="text-[9px] font-black text-indigo-650 font-mono mt-0.5">{l.leadId}</div>
+                            </td>
+                            <td className="py-4 px-5">
+                              <div className="font-extrabold text-slate-800">{l.finalKw || '?'} KW</div>
+                              <div className="text-[10px] font-bold text-slate-400">{l.stdPackage || 'Solar Plan'}</div>
+                            </td>
+                            <td className="py-4 px-5 text-right font-black text-slate-900 text-sm">
+                              ₹{agreementVal.toLocaleString()}
+                            </td>
+                            <td className="py-4 px-5 text-right text-emerald-650 font-bold">
+                              ₹{received.toLocaleString()}
+                              <div className="text-[9px] font-semibold text-slate-400 mt-0.5">{percent.toFixed(0)}% Received</div>
+                            </td>
+                            <td className="py-4 px-5 text-right text-slate-600 font-bold">
+                              ₹{pending.toLocaleString()}
+                            </td>
+                            <td className="py-4 px-5 text-center">
+                              <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border ${
+                                l.payment_status === 'Full' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
+                                l.payment_status === 'Partial' ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-slate-50 text-slate-600 border-slate-150'
+                              }`}>
+                                {l.payment_status || 'Unpaid'}
+                              </span>
+                            </td>
+                            <td className="py-4 px-5 text-center">
+                              <button
+                                onClick={() => {
+                                  setSelectedLead(l);
+                                  setMobileView('detail');
+                                  setMainTab('ledgers');
+                                }}
+                                className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-650 text-indigo-700 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-150 hover:border-indigo-600 shadow-sm active:scale-95"
+                              >
+                                View Ledger
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              )}
+
+              {/* TABLE 2: RECEIVED DETAILS (Individual transaction logs across Won Leads) */}
+              {activeMetric === 'payments_received' && (
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50/60 border-b border-slate-150 text-[10px] font-black text-slate-400 uppercase tracking-widest font-mono">
+                      <th className="py-3.5 px-5">Date Received</th>
+                      <th className="py-3.5 px-5">Account Customer</th>
+                      <th className="py-3.5 px-5">Payment Type</th>
+                      <th className="py-3.5 px-5">Method</th>
+                      <th className="py-3.5 px-5">UTR Number</th>
+                      <th className="py-3.5 px-5 text-right">Amount Cleared</th>
+                      <th className="py-3.5 px-5 text-center">Status</th>
+                      <th className="py-3.5 px-5 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(() => {
+                      const wonLeadIds = new Set(leads.filter(l => l.status === 'Won').map(l => l.id));
+                      const receivedPayments = allPayments.filter(p => wonLeadIds.has(p.leadId));
+                      
+                      if (receivedPayments.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={8} className="py-12 text-center text-slate-400 font-bold">
+                              No payments recorded yet for current won accounts.
+                            </td>
+                          </tr>
+                        );
+                      }
+                      
+                      return receivedPayments.map(p => {
+                        const leadObj = leads.find(l => l.id === p.leadId);
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50/40 transition-colors font-medium text-slate-700">
+                            <td className="py-4 px-5">
+                              <div className="font-bold text-slate-900">{p.date ? format(new Date(p.date), "dd MMM yyyy") : 'Unknown'}</div>
+                              <span className="text-[9px] font-semibold text-slate-400">Date Logged</span>
+                            </td>
+                            <td className="py-4 px-5">
+                              <div className="font-extrabold text-slate-950 text-sm">{p.leadName || leadObj?.customerName || 'Unknown'}</div>
+                              <div className="text-[9px] font-bold text-slate-400">Account Owner</div>
+                            </td>
+                            <td className="py-4 px-5">
+                              <span className="text-[10px] font-black bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md border border-slate-200 uppercase tracking-wider">
+                                {p.paymentType}
+                              </span>
+                            </td>
+                            <td className="py-4 px-5">
+                              <div className="font-bold text-slate-700">{p.method || 'Bank Transfer'}</div>
+                            </td>
+                            <td className="py-4 px-5">
+                              <code className="text-[10px] font-bold bg-slate-50 px-2 py-0.5 rounded border border-slate-200 text-slate-600 font-mono">
+                                {p.utrNo}
+                              </code>
+                            </td>
+                            <td className="py-4 px-5 text-right font-black text-emerald-650 text-sm">
+                              ₹{p.amount.toLocaleString()}
+                            </td>
+                            <td className="py-4 px-5 text-center">
+                              <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border ${
+                                p.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                p.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                                'bg-rose-50 text-rose-700 border-rose-100'
+                              }`}>
+                                {p.status || 'Confirmed'}
+                              </span>
+                            </td>
+                            <td className="py-4 px-5 text-center">
+                              <button
+                                onClick={() => {
+                                  if (leadObj) {
+                                    setSelectedLead(leadObj);
+                                    setMobileView('detail');
+                                    setPaymentSubTab('history');
+                                    setMainTab('ledgers');
+                                  }
+                                }}
+                                className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-650 text-indigo-700 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-150 hover:border-indigo-600 shadow-sm active:scale-95"
+                              >
+                                View Ledger
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              )}
+
+              {/* TABLE 3: PENDING DETAILS */}
+              {activeMetric === 'pending_payments' && (
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50/60 border-b border-slate-150 text-[10px] font-black text-slate-400 uppercase tracking-widest font-mono">
+                      <th className="py-3.5 px-5">Lead ID & Customer Name</th>
+                      <th className="py-3.5 px-5">Agreement Value</th>
+                      <th className="py-3.5 px-5">Amount Realized</th>
+                      <th className="py-3.5 px-5 text-right">Outstanding Balance</th>
+                      <th className="py-3.5 px-5 font-bold">Payment Progress</th>
+                      <th className="py-3.5 px-5 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(() => {
+                      const pendingLeads = leads.filter(l => {
+                        if (l.status !== 'Won') return false;
+                        const received = calculateTotalReceived(l);
+                        const agreementVal = Number(l.finalRate) || 0;
+                        return agreementVal > received;
+                      });
+                      
+                      if (pendingLeads.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={6} className="py-12 text-center text-slate-400 font-bold">
+                              All won accounts are fully cleared! No outstanding balances.
+                            </td>
+                          </tr>
+                        );
+                      }
+                      
+                      return pendingLeads.map(l => {
+                        const received = calculateTotalReceived(l);
+                        const agreementVal = Number(l.finalRate) || 0;
+                        const pending = Math.max(0, agreementVal - received);
+                        const percent = agreementVal > 0 ? (received / agreementVal) * 100 : 0;
+                        
+                        return (
+                          <tr key={l.id} className="hover:bg-slate-50/40 transition-colors font-medium text-slate-700">
+                            <td className="py-4 px-5">
+                              <div className="font-extrabold text-slate-950 text-sm">{l.customerName}</div>
+                              <div className="text-[9px] font-black text-indigo-650 font-mono mt-0.5">{l.leadId}</div>
+                            </td>
+                            <td className="py-4 px-5 font-bold text-slate-900">
+                              ₹{agreementVal.toLocaleString()}
+                            </td>
+                            <td className="py-4 px-5 font-bold text-emerald-650">
+                              ₹{received.toLocaleString()}
+                            </td>
+                            <td className="py-4 px-5 text-right font-black text-amber-650 text-sm">
+                              ₹{pending.toLocaleString()}
+                            </td>
+                            <td className="py-4 px-5 min-w-[150px]">
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200/50">
+                                  <div 
+                                    className="bg-indigo-600 h-full rounded-full transition-all"
+                                    style={{ width: `${percent}%` }}
+                                  />
+                                </div>
+                                <span className="text-[10px] font-black text-slate-600 shrink-0">{percent.toFixed(0)}%</span>
+                              </div>
+                              <span className="text-[9px] font-bold text-slate-400 mt-1 block">{(100-percent).toFixed(0)}% outstanding</span>
+                            </td>
+                            <td className="py-4 px-5 text-center">
+                              <button
+                                onClick={() => {
+                                  setSelectedLead(l);
+                                  setMobileView('detail');
+                                  setPaymentSubTab('form');
+                                  setMainTab('ledgers');
+                                }}
+                                className="px-3.5 py-1.5 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-amber-150 hover:border-amber-600 shadow-sm active:scale-95"
+                              >
+                                Record Payment
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              )}
+
+            </div>
+          </div>
+          
+        </div>
+      )}
+
+    {/* Won Leads Payment Summary Modal */}
+    <AnimatePresence>
+      {showSummaryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowSummaryModal(false)}
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+          />
+          
+          {/* Modal Content */}
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0, y: 15 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 15 }}
+            transition={{ type: "spring", duration: 0.4 }}
+            className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-150 flex flex-col max-h-[85vh] overflow-hidden z-10 text-left"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/70 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <span className="p-1.5 bg-indigo-50 text-indigo-650 rounded-xl border border-indigo-150/40 shadow-sm">
+                  <CheckCircle2 className="w-5 h-5 text-indigo-650" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider leading-none">Won Leads Payment Status</h3>
+                  <p className="text-[10px] font-bold text-slate-500 mt-1">Financial status overview across won accounts</p>
+                </div>
+              </div>
+              
+              <button
+                onClick={() => setShowSummaryModal(false)}
+                className="p-1.5 hover:bg-slate-200/60 active:bg-slate-200/80 rounded-xl text-slate-400 hover:text-slate-700 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Modal Scrollable Body */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              
+              {/* 3 Prominent Stat Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Card 1: Total Project Amount */}
+                <div className="bg-gradient-to-br from-indigo-50/30 to-indigo-50/10 border border-indigo-100 rounded-2xl p-4 shadow-sm hover:shadow transition-all flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center border border-indigo-550 shadow-sm shrink-0">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-black text-indigo-800 uppercase tracking-widest block leading-none mb-1.5">Total Project Amount</span>
+                    <p className="text-xl md:text-2xl font-black text-slate-900 leading-none">₹{wonLeadsStats.totalProjectAmount.toLocaleString()}</p>
+                    <span className="text-[9px] font-semibold text-indigo-500 mt-1.5 block">Contractual Bookings ({wonLeadsStats.count} accounts)</span>
+                  </div>
+                </div>
+
+                {/* Card 2: Total Payment Received */}
+                <div className="bg-gradient-to-br from-emerald-50/30 to-emerald-50/10 border border-emerald-100 rounded-2xl p-4 shadow-sm hover:shadow transition-all flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center border border-emerald-550 shadow-sm shrink-0">
+                    <IndianRupee className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-black text-emerald-800 uppercase tracking-widest block leading-none mb-1.5">Total Received</span>
+                    <p className="text-xl md:text-2xl font-black text-emerald-650 leading-none">₹{wonLeadsStats.totalPaymentReceived.toLocaleString()}</p>
+                    <span className="text-[9px] font-semibold text-emerald-600 mt-1.5 block">
+                      Cleared & Realized ({wonLeadsStats.totalProjectAmount > 0 ? ((wonLeadsStats.totalPaymentReceived / wonLeadsStats.totalProjectAmount) * 100).toFixed(1) : "0"}%)
+                    </span>
+                  </div>
+                </div>
+
+                {/* Card 3: Pending Amount */}
+                <div className="bg-gradient-to-br from-amber-50/30 to-amber-50/10 border border-amber-100 rounded-2xl p-4 shadow-sm hover:shadow transition-all flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center border border-amber-550 shadow-sm shrink-0">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-black text-amber-800 uppercase tracking-widest block leading-none mb-1.5">Pending Balance</span>
+                    <p className="text-xl md:text-2xl font-black text-amber-650 leading-none">₹{wonLeadsStats.pendingAmount.toLocaleString()}</p>
+                    <span className="text-[9px] font-semibold text-emerald-600 mt-1.5 block">
+                      Outstanding Collection ({wonLeadsStats.totalProjectAmount > 0 ? ((wonLeadsStats.pendingAmount / wonLeadsStats.totalProjectAmount) * 100).toFixed(1) : "0"}%)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Won Leads Ledger Table */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Account-wise Financial Breakdown</h4>
+                  <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                    {wonLeadsStats.count} Won Accounts
+                  </span>
+                </div>
+                
+                <div className="border border-slate-150 rounded-2xl overflow-hidden shadow-sm max-h-[300px] overflow-y-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                        <th className="py-2.5 px-4">Lead ID & Customer</th>
+                        <th className="py-2.5 px-4 text-right">Agreement Value</th>
+                        <th className="py-2.5 px-4 text-right">Total Received</th>
+                        <th className="py-2.5 px-4 text-right">Pending Balance</th>
+                        <th className="py-2.5 px-4 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {leads.filter(l => l.status === 'Won').length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-12 text-center text-slate-400 font-bold">
+                            No won leads found in database.
+                          </td>
+                        </tr>
+                      ) : (
+                        leads.filter(l => l.status === 'Won').map(l => {
+                          const received = calculateTotalReceived(l);
+                          const agreementVal = Number(l.finalRate) || 0;
+                          const pending = Math.max(0, agreementVal - received);
+                          const percent = agreementVal > 0 ? ((received / agreementVal) * 100) : 0;
+                          
+                          return (
+                            <tr key={l.id} className="hover:bg-slate-50/60 transition-colors font-medium text-slate-700">
+                              <td className="py-3 px-4">
+                                <div className="font-extrabold text-slate-900">{l.customerName}</div>
+                                <div className="text-[9px] font-black text-indigo-600 font-mono mt-0.5">{l.leadId}</div>
+                              </td>
+                              <td className="py-3 px-4 text-right font-bold text-slate-900">
+                                ₹{agreementVal.toLocaleString()}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <div className="font-bold text-emerald-650">₹{received.toLocaleString()}</div>
+                                <div className="text-[9px] font-bold text-slate-400 mt-0.5">{percent.toFixed(0)}% Collected</div>
+                              </td>
+                              <td className="py-3 px-4 text-right font-bold text-amber-650">
+                                ₹{pending.toLocaleString()}
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <button
+                                  onClick={() => {
+                                    setSelectedLead(l);
+                                    setMobileView('detail');
+                                    setShowSummaryModal(false);
+                                  }}
+                                  className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-650 text-indigo-700 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-150 hover:border-indigo-600 shadow-sm active:scale-95"
+                                >
+                                  View Ledger
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/55 flex justify-end shrink-0">
+              <button
+                onClick={() => setShowSummaryModal(false)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 active:bg-slate-400/80 text-slate-700 text-xs font-black uppercase tracking-wider rounded-xl transition-all active:scale-95 shadow-sm"
+              >
+                Close Window
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
     </div>
   );
 };

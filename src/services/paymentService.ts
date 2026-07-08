@@ -376,5 +376,20 @@ export const paymentService = {
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
     }
+  },
+
+  subscribeToAllPayments(callback: (payments: PaymentRecord[]) => void) {
+    const q = query(collection(db, COLLECTION_NAME));
+    return onSnapshot(q, (snapshot) => {
+      const payments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PaymentRecord));
+      const sorted = payments.sort((a, b) => {
+        const timeA = a.recordedAt?.toMillis ? a.recordedAt.toMillis() : 0;
+        const timeB = b.recordedAt?.toMillis ? b.recordedAt.toMillis() : 0;
+        return timeB - timeA;
+      });
+      callback(sorted);
+    }, (error) => {
+      console.error("Error subscribing to all payments:", error);
+    });
   }
 };

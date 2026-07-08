@@ -108,7 +108,13 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
   const [loading, setLoading] = useState(true);
   
   // Tab switcher State (Executive MIS Summary vs Leaderboard & Productivity)
-  const [activeTab, setActiveTab] = useState<'executive' | 'operations' | 'capacity'>('executive');
+  const [activeTab, setActiveTab] = useState<'executive' | 'operations' | 'capacity'>(() => {
+    return (sessionStorage.getItem('mis_activeTab') as 'executive' | 'operations' | 'capacity') || 'executive';
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('mis_activeTab', activeTab);
+  }, [activeTab]);
   
   // Executive MIS Range Selector (Daily, Weekly, Monthly, Custom)
   const [executivePeriod, setExecutivePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('monthly');
@@ -1272,7 +1278,7 @@ export default function MISReport({ user, role, onSelectLead }: MISReportProps) 
 
         </div>
       ) : activeTab === 'capacity' ? (
-        <CapacityMIS leads={leads} />
+        <CapacityMIS leads={leads} onLeadSelect={(leadId) => onSelectLead(leadId)} />
       ) : (
         /* ================= PRE-EXISTING OPERATIONAL LEDGER ================= */
         <div className="space-y-6 animate-in fade-in duration-300">

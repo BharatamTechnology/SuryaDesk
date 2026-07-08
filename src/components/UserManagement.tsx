@@ -233,6 +233,7 @@ export default function UserManagement() {
                   className="w-full px-5 py-3.5 bg-slate-50/50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100/30 focus:border-blue-500 focus:bg-white transition-all font-semibold text-sm appearance-none cursor-pointer"
                 >
                   <option value="Executive">Executive</option>
+                  <option value="Junior Admin">Junior Admin</option>
                   <option value="Admin">Admin</option>
                 </select>
               </div>
@@ -343,9 +344,17 @@ export default function UserManagement() {
                       <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
                         user.role === 'Admin' 
                           ? 'bg-purple-50 text-purple-700 border-purple-100' 
-                          : 'bg-blue-50 text-blue-700 border-blue-100'
+                          : user.role === 'Junior Admin'
+                            ? 'bg-amber-50 text-amber-700 border-amber-100'
+                            : 'bg-blue-50 text-blue-700 border-blue-100'
                       }`}>
-                        {user.role === 'Admin' ? <Shield className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+                        {user.role === 'Admin' ? (
+                          <Shield className="w-3.5 h-3.5" />
+                        ) : user.role === 'Junior Admin' ? (
+                          <Shield className="w-3.5 h-3.5 text-amber-600" />
+                        ) : (
+                          <UserCheck className="w-3.5 h-3.5" />
+                        )}
                         {user.role}
                       </span>
                     </td>

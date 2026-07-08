@@ -8,19 +8,26 @@ import {
   Settings, 
   Sparkles, 
   ChevronRight,
+  Shield,
   ShieldAlert,
   Sliders,
   HelpCircle,
-  Database
+  Database,
+  Coins,
+  Zap
 } from 'lucide-react';
 import UserManagement from './UserManagement';
 import StepDeadlineManager from './StepDeadlineManager';
 import RatesManagement from './RatesManagement';
+import CommissionRolesManager from './CommissionRolesManager';
+import KWUploadModal from './KWUploadModal';
+import RolePermissionManagement from './RolePermissionManagement';
 
-type SubView = 'hub' | 'users' | 'deadlines' | 'rates';
+type SubView = 'hub' | 'users' | 'deadlines' | 'rates' | 'commissionRoles' | 'kw' | 'permissions';
 
 export default function AdminSection() {
   const [currentView, setCurrentView] = useState<SubView>('hub');
+  const [showKwModal, setShowKwModal] = useState(false);
 
   // Definition of the admin cards
   const adminModules = [
@@ -32,6 +39,24 @@ export default function AdminSection() {
       icon: Users,
       color: 'text-indigo-500 bg-indigo-50 border-indigo-100',
       badge: 'Team Access'
+    },
+    {
+      id: 'permissions' as SubView,
+      title: 'Security Matrix & Privileges',
+      shortTitle: 'Permissions',
+      description: 'Configure and override page view, creation, and modification permissions across personnel roles dynamically.',
+      icon: Shield,
+      color: 'text-blue-600 bg-blue-50 border-blue-100',
+      badge: 'Access Keys'
+    },
+    {
+      id: 'commissionRoles' as SubView,
+      title: 'Commission Role Assignment',
+      shortTitle: 'Commission Roles',
+      description: 'Define and manage people involved in commission calculation for each lead/project. Add, edit, or delete role declarations.',
+      icon: Coins,
+      color: 'text-purple-500 bg-purple-50 border-purple-100',
+      badge: 'Commission Master'
     },
     {
       id: 'deadlines' as SubView,
@@ -50,6 +75,15 @@ export default function AdminSection() {
       icon: FileJson,
       color: 'text-emerald-500 bg-emerald-50 border-emerald-100',
       badge: 'Pricing Sheets'
+    },
+    {
+      id: 'kw' as SubView,
+      title: 'Capacity (KW) Manager',
+      shortTitle: 'KW Options',
+      description: 'Manage available KW capacity options for phase-specific dropdowns.',
+      icon: Zap,
+      color: 'text-blue-500 bg-blue-50 border-blue-100',
+      badge: 'KW Capacity'
     }
   ];
 
@@ -77,7 +111,7 @@ export default function AdminSection() {
               <>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-slate-900 capitalize font-black">
-                  {currentView === 'users' ? 'User Accounts' : currentView === 'deadlines' ? 'Step SLAs' : currentView === 'rates' ? 'Tariff Rates' : 'Database Migration'}
+                  {currentView === 'users' ? 'User Accounts' : currentView === 'deadlines' ? 'Step SLAs' : currentView === 'rates' ? 'Tariff Rates' : currentView === 'commissionRoles' ? 'Commission Roles' : currentView === 'permissions' ? 'Role Permissions' : 'Database Migration'}
                 </span>
               </>
             )}
@@ -149,7 +183,13 @@ export default function AdminSection() {
                   return (
                     <motion.div
                       key={m.id}
-                      onClick={() => setCurrentView(m.id)}
+                      onClick={() => {
+                        if (m.id === 'kw') {
+                          setShowKwModal(true);
+                        } else {
+                          setCurrentView(m.id);
+                        }
+                      }}
                       whileHover={{ y: -4, scale: 1.01 }}
                       transition={{ type: 'spring', stiffness: 300 }}
                       className="cursor-pointer group flex flex-col bg-white hover:bg-slate-50/20 border border-slate-200/70 hover:border-slate-300 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all h-full justify-between"
@@ -194,6 +234,8 @@ export default function AdminSection() {
                 </p>
               </div>
             </div>
+            
+            {showKwModal && <KWUploadModal onClose={() => setShowKwModal(false)} />}
           </motion.div>
         ) : (
           <motion.div
@@ -218,8 +260,10 @@ export default function AdminSection() {
             {/* Separate Dedicated Window Container */}
             <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-slate-100">
               {currentView === 'users' && <UserManagement />}
+              {currentView === 'commissionRoles' && <CommissionRolesManager />}
               {currentView === 'deadlines' && <StepDeadlineManager />}
               {currentView === 'rates' && <RatesManagement />}
+              {currentView === 'permissions' && <RolePermissionManagement />}
             </div>
           </motion.div>
         )}
