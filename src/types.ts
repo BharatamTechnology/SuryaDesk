@@ -1,4 +1,4 @@
-export type Tab = "basic" | "pre_sales" | "survey" | "sales" | "financials" | "accounts" | "project_incharge" | "execution" | "timeline" | "handover" | "deliverables" | "documents";
+export type Tab = "basic" | "pre_sales" | "survey" | "sales" | "financials" | "accounts" | "project_incharge" | "execution" | "timeline" | "handover" | "deliverables" | "final_review" | "documents";
 
 export interface AppUser {
   name: string;

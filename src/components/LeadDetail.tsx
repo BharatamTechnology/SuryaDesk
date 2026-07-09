@@ -1947,6 +1947,7 @@ export default function LeadDetail({
       { id: "execution", label: "Project Execution", icon: Zap },
       { id: "handover", label: "Review & Settlement", icon: Users },
       { id: "deliverables", label: "Deliverables", icon: FileCheck },
+      { id: "final_review", label: "Final Review", icon: CheckCircle2 },
       { id: "documents", label: "Document Hub", icon: FolderOpen },
     ];
 
@@ -1960,6 +1961,9 @@ export default function LeadDetail({
 
     return allTabs.filter((tab) => {
       if (tab.id === "handover") {
+        return isAdminUser;
+      }
+      if (tab.id === "final_review") {
         return isAdminUser;
       }
       if (tab.id === "deliverables") {
@@ -9183,289 +9187,6 @@ export default function LeadDetail({
                         />
                       </motion.div>
                     )}
-
-                    {isExecutionFlowFinished && !lead.isDeliverablesSubmitted && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 30 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-12 p-8 bg-amber-50 border border-amber-200 rounded-[2.5rem] flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm"
-                      >
-                        <div className="flex items-center gap-4 text-amber-900">
-                          <div className="w-12 h-12 bg-amber-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0">
-                            <Clock className="w-6 h-6" />
-                          </div>
-                          <div>
-                            <p className="text-base font-bold">Execution Milestones Completed!</p>
-                            <p className="text-xs text-slate-500 font-semibold mt-1">
-                              The project execution is finished. The workflow has progressed to the <strong className="text-amber-800">Review & Settlement</strong> and <strong className="text-amber-800">Deliverables</strong> stages.
-                            </p>
-                            <p className="text-xs text-slate-400 font-bold mt-1">
-                              Final Execution Review & Approval will be unlocked here once the Deliverables are submitted.
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            if (lead.isHandoverAdminSubmitted) {
-                              setActiveTab("deliverables");
-                            } else {
-                              setActiveTab("handover");
-                            }
-                          }}
-                          className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 shrink-0"
-                        >
-                          Go to {lead.isHandoverAdminSubmitted ? "Deliverables" : "Review & Settlement"}
-                        </button>
-                      </motion.div>
-                    )}
-
-                    {isExecutionFlowFinished && lead.isDeliverablesSubmitted && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 30 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-12 overflow-hidden bg-white border border-slate-200 shadow-2xl rounded-[3rem] relative"
-                      >
-                        <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-emerald-400 via-teal-500 to-indigo-600" />
-
-                        <div className="p-8 md:p-12 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-8 bg-slate-50/50">
-                          <div className="space-y-4 max-w-2xl flex-1 text-left">
-                            <div className="flex items-center gap-2.5">
-                              <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase px-3 py-1 rounded-full tracking-wider">
-                                All Milestones Met
-                              </span>
-                              <span className="bg-indigo-100 text-indigo-800 text-[9px] font-black uppercase px-3 py-1 rounded-full tracking-wider">
-                                Lifecycle Section ID: 14
-                              </span>
-                            </div>
-
-                            <h3 className="text-xl md:text-3xl font-display font-black text-slate-900 tracking-tight">
-                              Final Execution Review & Approval
-                            </h3>
-
-                            <p className="text-slate-500 text-xs md:text-sm font-medium leading-relaxed">
-                              All{" "}
-                              {lead.newConnectionRequired === "Yes"
-                                ? "14"
-                                : "13"}{" "}
-                              project execution protocols and technical stages
-                              have been fully completed. The Project Incharge or
-                              System Admin must now verify the underlying
-                              payment confirmations, technical credentials, and
-                              finalize the project transition.
-                            </p>
-
-                            {/* Informative checks */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                              <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                                <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                                  ✓
-                                </div>
-                                {lead.newConnectionRequired === "Yes"
-                                  ? "14"
-                                  : "13"}{" "}
-                                Execution Milestones Done
-                              </div>
-                              <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                                <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                                  ✓
-                                </div>
-                                Financial Audit Ready
-                              </div>
-                            </div>
-
-                            {/* Interactive Review & Verification Options */}
-                            <div className="pt-4 space-y-3">
-                              <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                Select Review & Verification Status:
-                              </div>
-                              <div className="flex flex-wrap gap-3">
-                                {[
-                                  {
-                                    value: "Pending",
-                                    label: "Pending",
-                                    desc: "Awaiting review",
-                                    color:
-                                      "border-slate-200 text-slate-700 bg-slate-50",
-                                    activeColor:
-                                      "bg-slate-100 border-slate-400 text-slate-900 ring-1 ring-slate-400",
-                                    icon: Clock,
-                                  },
-                                  {
-                                    value: "Under Review",
-                                    label: "Under Review",
-                                    desc: "Audit in progress",
-                                    color:
-                                      "border-amber-100 text-amber-700 bg-amber-50/50",
-                                    activeColor:
-                                      "bg-amber-100 border-amber-400 text-amber-900 ring-1 ring-amber-400",
-                                    icon: FileText,
-                                  },
-                                  {
-                                    value: "Done",
-                                    label: "Done",
-                                    desc: "Approved for completion",
-                                    color:
-                                      "border-emerald-100 text-emerald-700 bg-emerald-50/50",
-                                    activeColor:
-                                      "bg-emerald-5 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20",
-                                    icon: CheckCircle2,
-                                  },
-                                ].map((opt) => {
-                                  const isSelected =
-                                    (lead.finalExecutionStatus || "Pending") ===
-                                    opt.value;
-                                  const isCompleted =
-                                    lead.isExecutionSubmitted ||
-                                    lead.status === "Completed";
-                                  // Admins & Stewards can ALWAYS edit / change the status
-                                  const canEdit = isAdminUser || isSteward;
-                                  const IconComp = opt.icon;
-
-                                  return (
-                                    <button
-                                      key={opt.value}
-                                      type="button"
-                                      disabled={!canEdit}
-                                      onClick={() => {
-                                        if (opt.value === "Done") {
-                                          const isFullPayment =
-                                            lead.payment_status === "Full" ||
-                                            dueAmount <= 0;
-                                          if (!isFullPayment) {
-                                            showNotification(
-                                              `Payment Pending! Outstanding balance of ₹${dueAmount.toLocaleString()} is remaining. Full payment must be received to mark execution as Done.`,
-                                              "warning",
-                                            );
-                                            return;
-                                          }
-                                        }
-                                        const updates: any = {
-                                          finalExecutionStatus:
-                                            opt.value as any,
-                                        };
-                                        // Reopen project if moving back from Completed to Pending or Under Review
-                                        if (
-                                          isCompleted &&
-                                          (opt.value === "Pending" ||
-                                            opt.value === "Under Review")
-                                        ) {
-                                          updates.isExecutionSubmitted = false;
-                                          updates.status = "Won";
-                                        }
-                                        handleUpdate(updates, true);
-                                      }}
-                                      className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all duration-300 flex-1 min-w-[140px] ${
-                                        isSelected
-                                          ? opt.activeColor
-                                          : isCompleted
-                                            ? "opacity-40 border-slate-200 bg-slate-50 text-slate-400"
-                                            : "border-slate-200 bg-white hover:bg-slate-50/50 text-slate-600"
-                                      } ${canEdit ? "cursor-pointer active:scale-95 hover:shadow-sm" : "cursor-not-allowed"}`}
-                                    >
-                                      <div
-                                        className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? "bg-white shadow-xs" : "bg-slate-100"}`}
-                                      >
-                                        <IconComp className="w-3.5 h-3.5" />
-                                      </div>
-                                      <div>
-                                        <p className="text-xs font-black uppercase tracking-tight">
-                                          {opt.label}
-                                        </p>
-                                        <p className="text-[9px] text-slate-400 font-medium leading-none mt-0.5">
-                                          {opt.desc}
-                                        </p>
-                                      </div>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="w-full lg:w-auto self-end lg:self-center">
-                            {lead.isExecutionSubmitted ||
-                            lead.status === "Completed" ? (
-                              <div className="px-8 py-5 bg-emerald-50 border border-emerald-100 rounded-3xl flex flex-col items-center justify-center text-center gap-2">
-                                <div className="w-12 h-12 bg-emerald-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                                  <CheckCircle2 className="w-6 h-6" />
-                                </div>
-                                <div>
-                                  <p className="text-xs font-black text-emerald-800 uppercase tracking-widest">
-                                    Project Completed
-                                  </p>
-                                  <p className="text-[10px] text-emerald-500 font-bold mt-0.5">
-                                    Execution finalized & approved
-                                  </p>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex flex-col gap-3">
-                                {isAdminUser || isSteward ? (
-                                  <div className="space-y-3">
-                                    <button
-                                      onClick={() => {
-                                        const isFullPayment =
-                                          lead.payment_status === "Full" ||
-                                          dueAmount <= 0;
-                                        if (!isFullPayment) {
-                                          showNotification(
-                                            `Payment Pending! Outstanding balance of ₹${dueAmount.toLocaleString()} is remaining. Cannot approve final execution.`,
-                                            "warning",
-                                          );
-                                          return;
-                                        }
-                                        handleUpdate(
-                                          {
-                                            isExecutionSubmitted: true,
-                                            status: "Completed",
-                                            finalExecutionStatus: "Done",
-                                            updatedAt: new Date() as any,
-                                          },
-                                          false,
-                                        );
-                                        setNotification({
-                                          type: "success",
-                                          message:
-                                            "Project finalized and moved to Completed filter.",
-                                        });
-                                      }}
-                                      disabled={
-                                        isSaving ||
-                                        (lead.finalExecutionStatus ||
-                                          "Pending") !== "Done"
-                                      }
-                                      className="w-full lg:w-auto px-10 py-5 bg-slate-950 text-white hover:bg-emerald-700 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 transition-all duration-300 shadow-xl hover:shadow-emerald-500/20 active:scale-95 disabled:opacity-30 disabled:hover:bg-slate-950 disabled:cursor-not-allowed"
-                                    >
-                                      {isSaving ? (
-                                        <Clock className="w-4 h-4 animate-spin" />
-                                      ) : (
-                                        <CheckCircle2 className="w-4 h-4" />
-                                      )}
-                                      {(lead.finalExecutionStatus ||
-                                        "Pending") !== "Done"
-                                        ? "Select 'Done' to approve"
-                                        : "Verify & Approve Final Execution"}
-                                    </button>
-                                    {(lead.finalExecutionStatus ||
-                                      "Pending") !== "Done" && (
-                                      <p className="text-[10px] text-amber-600 font-semibold text-center">
-                                        ⚠️ Mark status as 'Done' above to unlock
-                                        the approval button.
-                                      </p>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl text-amber-800 text-[10px] font-bold max-w-xs leading-relaxed">
-                                    ⚠️ Awaiting review and approval from the
-                                    Project Incharge or Admin.
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -10119,7 +9840,325 @@ export default function LeadDetail({
         </div>
       )}
 
-      {activeTab === "documents" && (
+      
+          {activeTab === "final_review" && (
+            <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-lg shadow-amber-500/20">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold font-display tracking-tight text-slate-900">
+                    Final Execution Review
+                  </h3>
+                  <p className="text-sm text-slate-500 font-medium mt-1">
+                    Approve project execution after deliverables are submitted
+                  </p>
+                </div>
+              </div>
+              
+              {!isExecutionFlowFinished ? (
+                <div className="p-8 bg-slate-50 border border-slate-200 rounded-[2.5rem] flex flex-col items-center justify-center text-center gap-4">
+                  <div className="w-16 h-16 bg-slate-200 text-slate-500 rounded-2xl flex items-center justify-center shadow-inner">
+                    <Lock className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-slate-900">Execution in Progress</p>
+                    <p className="text-sm text-slate-500 max-w-sm mt-1">
+                      The project execution milestones are not yet completed. This section will unlock once the execution workflow is finished.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+
+                    {isExecutionFlowFinished && !lead.isDeliverablesSubmitted && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-12 p-8 bg-amber-50 border border-amber-200 rounded-[2.5rem] flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm"
+                      >
+                        <div className="flex items-center gap-4 text-amber-900">
+                          <div className="w-12 h-12 bg-amber-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0">
+                            <Clock className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <p className="text-base font-bold">Execution Milestones Completed!</p>
+                            <p className="text-xs text-slate-500 font-semibold mt-1">
+                              The project execution is finished. The workflow has progressed to the <strong className="text-amber-800">Review & Settlement</strong> and <strong className="text-amber-800">Deliverables</strong> stages.
+                            </p>
+                            <p className="text-xs text-slate-400 font-bold mt-1">
+                              Final Execution Review & Approval will be unlocked here once the Deliverables are submitted.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (lead.isHandoverAdminSubmitted) {
+                              setActiveTab("deliverables");
+                            } else {
+                              setActiveTab("handover");
+                            }
+                          }}
+                          className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 shrink-0"
+                        >
+                          Go to {lead.isHandoverAdminSubmitted ? "Deliverables" : "Review & Settlement"}
+                        </button>
+                      </motion.div>
+                    )}
+
+                    {isExecutionFlowFinished && lead.isDeliverablesSubmitted && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-12 overflow-hidden bg-white border border-slate-200 shadow-2xl rounded-[3rem] relative"
+                      >
+                        <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-emerald-400 via-teal-500 to-indigo-600" />
+
+                        <div className="p-8 md:p-12 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-8 bg-slate-50/50">
+                          <div className="space-y-4 max-w-2xl flex-1 text-left">
+                            <div className="flex items-center gap-2.5">
+                              <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase px-3 py-1 rounded-full tracking-wider">
+                                All Milestones Met
+                              </span>
+                              <span className="bg-indigo-100 text-indigo-800 text-[9px] font-black uppercase px-3 py-1 rounded-full tracking-wider">
+                                Lifecycle Section ID: 14
+                              </span>
+                            </div>
+
+                            <h3 className="text-xl md:text-3xl font-display font-black text-slate-900 tracking-tight">
+                              Final Execution Review & Approval
+                            </h3>
+
+                            <p className="text-slate-500 text-xs md:text-sm font-medium leading-relaxed">
+                              All{" "}
+                              {lead.newConnectionRequired === "Yes"
+                                ? "14"
+                                : "13"}{" "}
+                              project execution protocols and technical stages
+                              have been fully completed. The Project Incharge or
+                              System Admin must now verify the underlying
+                              payment confirmations, technical credentials, and
+                              finalize the project transition.
+                            </p>
+
+                            {/* Informative checks */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                              <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                                <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                  ✓
+                                </div>
+                                {lead.newConnectionRequired === "Yes"
+                                  ? "14"
+                                  : "13"}{" "}
+                                Execution Milestones Done
+                              </div>
+                              <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                                <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                  ✓
+                                </div>
+                                Financial Audit Ready
+                              </div>
+                            </div>
+
+                            {/* Interactive Review & Verification Options */}
+                            <div className="pt-4 space-y-3">
+                              <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Select Review & Verification Status:
+                              </div>
+                              <div className="flex flex-wrap gap-3">
+                                {[
+                                  {
+                                    value: "Pending",
+                                    label: "Pending",
+                                    desc: "Awaiting review",
+                                    color:
+                                      "border-slate-200 text-slate-700 bg-slate-50",
+                                    activeColor:
+                                      "bg-slate-100 border-slate-400 text-slate-900 ring-1 ring-slate-400",
+                                    icon: Clock,
+                                  },
+                                  {
+                                    value: "Under Review",
+                                    label: "Under Review",
+                                    desc: "Audit in progress",
+                                    color:
+                                      "border-amber-100 text-amber-700 bg-amber-50/50",
+                                    activeColor:
+                                      "bg-amber-100 border-amber-400 text-amber-900 ring-1 ring-amber-400",
+                                    icon: FileText,
+                                  },
+                                  {
+                                    value: "Done",
+                                    label: "Done",
+                                    desc: "Approved for completion",
+                                    color:
+                                      "border-emerald-100 text-emerald-700 bg-emerald-50/50",
+                                    activeColor:
+                                      "bg-emerald-5 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20",
+                                    icon: CheckCircle2,
+                                  },
+                                ].map((opt) => {
+                                  const isSelected =
+                                    (lead.finalExecutionStatus || "Pending") ===
+                                    opt.value;
+                                  const isCompleted =
+                                    lead.isExecutionSubmitted ||
+                                    lead.status === "Completed";
+                                  // Admins & Stewards can ALWAYS edit / change the status
+                                  const canEdit = isAdminUser || isSteward;
+                                  const IconComp = opt.icon;
+
+                                  return (
+                                    <button
+                                      key={opt.value}
+                                      type="button"
+                                      disabled={!canEdit}
+                                      onClick={() => {
+                                        if (opt.value === "Done") {
+                                          const isFullPayment =
+                                            lead.payment_status === "Full" ||
+                                            dueAmount <= 0;
+                                          if (!isFullPayment) {
+                                            showNotification(
+                                              `Payment Pending! Outstanding balance of ₹${dueAmount.toLocaleString()} is remaining. Full payment must be received to mark execution as Done.`,
+                                              "warning",
+                                            );
+                                            return;
+                                          }
+                                        }
+                                        const updates: any = {
+                                          finalExecutionStatus:
+                                            opt.value as any,
+                                        };
+                                        // Reopen project if moving back from Completed to Pending or Under Review
+                                        if (
+                                          isCompleted &&
+                                          (opt.value === "Pending" ||
+                                            opt.value === "Under Review")
+                                        ) {
+                                          updates.isExecutionSubmitted = false;
+                                          updates.status = "Won";
+                                        }
+                                        handleUpdate(updates, true);
+                                      }}
+                                      className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all duration-300 flex-1 min-w-[140px] ${
+                                        isSelected
+                                          ? opt.activeColor
+                                          : isCompleted
+                                            ? "opacity-40 border-slate-200 bg-slate-50 text-slate-400"
+                                            : "border-slate-200 bg-white hover:bg-slate-50/50 text-slate-600"
+                                      } ${canEdit ? "cursor-pointer active:scale-95 hover:shadow-sm" : "cursor-not-allowed"}`}
+                                    >
+                                      <div
+                                        className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? "bg-white shadow-xs" : "bg-slate-100"}`}
+                                      >
+                                        <IconComp className="w-3.5 h-3.5" />
+                                      </div>
+                                      <div>
+                                        <p className="text-xs font-black uppercase tracking-tight">
+                                          {opt.label}
+                                        </p>
+                                        <p className="text-[9px] text-slate-400 font-medium leading-none mt-0.5">
+                                          {opt.desc}
+                                        </p>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="w-full lg:w-auto self-end lg:self-center">
+                            {lead.isExecutionSubmitted ||
+                            lead.status === "Completed" ? (
+                              <div className="px-8 py-5 bg-emerald-50 border border-emerald-100 rounded-3xl flex flex-col items-center justify-center text-center gap-2">
+                                <div className="w-12 h-12 bg-emerald-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                                  <CheckCircle2 className="w-6 h-6" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-black text-emerald-800 uppercase tracking-widest">
+                                    Project Completed
+                                  </p>
+                                  <p className="text-[10px] text-emerald-500 font-bold mt-0.5">
+                                    Execution finalized & approved
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col gap-3">
+                                {isAdminUser || isSteward ? (
+                                  <div className="space-y-3">
+                                    <button
+                                      onClick={() => {
+                                        const isFullPayment =
+                                          lead.payment_status === "Full" ||
+                                          dueAmount <= 0;
+                                        if (!isFullPayment) {
+                                          showNotification(
+                                            `Payment Pending! Outstanding balance of ₹${dueAmount.toLocaleString()} is remaining. Cannot approve final execution.`,
+                                            "warning",
+                                          );
+                                          return;
+                                        }
+                                        handleUpdate(
+                                          {
+                                            isExecutionSubmitted: true,
+                                            status: "Completed",
+                                            finalExecutionStatus: "Done",
+                                            updatedAt: new Date() as any,
+                                          },
+                                          false,
+                                        );
+                                        setNotification({
+                                          type: "success",
+                                          message:
+                                            "Project finalized and moved to Completed filter.",
+                                        });
+                                      }}
+                                      disabled={
+                                        isSaving ||
+                                        (lead.finalExecutionStatus ||
+                                          "Pending") !== "Done"
+                                      }
+                                      className="w-full lg:w-auto px-10 py-5 bg-slate-950 text-white hover:bg-emerald-700 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 transition-all duration-300 shadow-xl hover:shadow-emerald-500/20 active:scale-95 disabled:opacity-30 disabled:hover:bg-slate-950 disabled:cursor-not-allowed"
+                                    >
+                                      {isSaving ? (
+                                        <Clock className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <CheckCircle2 className="w-4 h-4" />
+                                      )}
+                                      {(lead.finalExecutionStatus ||
+                                        "Pending") !== "Done"
+                                        ? "Select 'Done' to approve"
+                                        : "Verify & Approve Final Execution"}
+                                    </button>
+                                    {(lead.finalExecutionStatus ||
+                                      "Pending") !== "Done" && (
+                                      <p className="text-[10px] text-amber-600 font-semibold text-center">
+                                        ⚠️ Mark status as 'Done' above to unlock
+                                        the approval button.
+                                      </p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl text-amber-800 text-[10px] font-bold max-w-xs leading-relaxed">
+                                    ⚠️ Awaiting review and approval from the
+                                    Project Incharge or Admin.
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                </>
+              )}
+            </div>
+          )}
+          {activeTab === "documents" && (
             <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 rounded-2xl bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20">
